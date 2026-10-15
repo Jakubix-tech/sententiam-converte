@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>SententiamConverte.Core</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Anthropic" />
+    <PackageReference Include="DocumentFormat.OpenXml" />
+    <PackageReference Include="PdfPig" />
+    <PackageReference Include="AngleSharp" />
+    <PackageReference Include="WeCantSpell.Hunspell" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="SententiamConverte.Core.Tests" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,115 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SententiamConverte.ViewModels"
+             xmlns:kb="using:SententiamConverte.Core.Resources"
+             x:Class="SententiamConverte.Views.KnowledgeView"
+             x:DataType="vm:KnowledgeViewModel">
+    <TabControl Padding="8">
+        <TabItem Header="Durchsuchen">
+            <Grid RowDefinitions="Auto,*" ColumnDefinitions="*,12,380">
+                <WrapPanel Grid.ColumnSpan="3" Margin="0,0,0,8">
+                    <ComboBox ItemsSource="{Binding Bases}" SelectedItem="{Binding SelectedBase}" MinWidth="240" Margin="0,0,8,4">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="kb:IKnowledgeBase">
+                                <TextBlock Text="{Binding Location}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBox Text="{Binding Filter}" PlaceholderText="Suchen …" Width="260" Margin="0,0,8,4" />
+                    <TextBox Text="{Binding LanguageFilter}" PlaceholderText="Sprache (leer = alle)" Width="150" Margin="0,0,8,4" />
+                    <Button Content="Aktualisieren" Command="{Binding LoadCommand}" Margin="0,0,8,4" />
+                    <Button Content="Neuer Eintrag" Command="{Binding NewEntryCommand}" Margin="0,0,8,4" />
+                </WrapPanel>
+                <ListBox Grid.Row="1" ItemsSource="{Binding Entries}" SelectedItem="{Binding SelectedEntry}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:KnowledgeRow">
+                            <StackPanel Spacing="2" Margin="0,2">
+                                <TextBlock Text="{Binding Header}" FontSize="11" Opacity="0.6" />
+                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding Content}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding Quote}" TextWrapping="Wrap" FontStyle="Italic" Opacity="0.75" IsVisible="{Binding Quote, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                <TextBlock Text="{Binding Source}" FontSize="11" Opacity="0.55" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <ScrollViewer Grid.Row="1" Grid.Column="2">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Eintrag" FontWeight="SemiBold" FontSize="16" />
+                        <Grid ColumnDefinitions="*,8,*">
+                            <TextBox Text="{Binding EditLanguage}" PlaceholderText="Sprache, z. B. de-DE" />
+                            <ComboBox Grid.Column="2" ItemsSource="{Binding KindNames}" SelectedIndex="{Binding EditKind}" HorizontalAlignment="Stretch" />
+                        </Grid>
+                        <TextBox Text="{Binding EditTopic}" PlaceholderText="Thema" />
+                        <TextBox Text="{Binding EditTitle}" PlaceholderText="Titel" />
+                        <TextBox Text="{Binding EditContent}" PlaceholderText="Inhalt" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="120" />
+                        <TextBox Text="{Binding EditSource}" PlaceholderText="Quelle (Adresse, optional)" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Speichern" Command="{Binding SaveEntryCommand}" Classes="accent" />
+                            <Button Content="Löschen" Command="{Binding DeleteEntryCommand}" CommandParameter="{x:Null}" />
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </TabItem>
+
+        <TabItem Header="Wissens-Agent">
+            <ScrollViewer>
+                <StackPanel Spacing="8" MaxWidth="1000" HorizontalAlignment="Left">
+                    <TextBlock TextWrapping="Wrap" Opacity="0.8"
+                               Text="Der Agent sucht zum Thema in jeder gewählten Sprache verlässliche Quellen, liest sie und legt Wissenseinträge mit wörtlichem Beleg in der oben gewählten Wissensdatenbank an. Einträge, deren Beleg nicht wirklich auf der Seite steht, werden verworfen. Seiten, die das Auslesen per robots.txt oder Nutzungsvorbehalt untersagen, werden übersprungen." />
+                    <TextBlock Text="Ziel-Datenbank" />
+                    <ComboBox ItemsSource="{Binding Bases}" SelectedItem="{Binding SelectedBase}" MinWidth="300">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="kb:IKnowledgeBase">
+                                <TextBlock Text="{Binding Location}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBlock Text="Thema" />
+                    <TextBox Text="{Binding AgentTopic}" PlaceholderText="z. B. Kreiselpumpen – Wartung, Dichtungen, Normen" />
+                    <TextBlock Text="Schwerpunkt / offene Fragen (optional)" />
+                    <TextBox Text="{Binding AgentFocus}" AcceptsReturn="True" TextWrapping="Wrap" Height="70" />
+                    <TextBlock Text="Sprachen" />
+                    <ItemsControl ItemsSource="{Binding AgentLanguages}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:LanguageChoice">
+                                <CheckBox Content="{Binding Code}" IsChecked="{Binding IsChecked}" Margin="0,0,12,0" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="Seiten je Sprache" VerticalAlignment="Center" />
+                        <NumericUpDown Value="{Binding AgentPages}" Minimum="1" Maximum="8" FormatString="0" Width="120" />
+                        <Button Content="Agent starten" Command="{Binding RunAgentCommand}" Classes="accent" />
+                        <Button Content="Abbrechen" Command="{Binding CancelCommand}" IsVisible="{Binding IsRunning}" />
+                    </StackPanel>
+                    <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsRunning}" />
+                    <SelectableTextBlock Text="{Binding Log}" TextWrapping="Wrap" FontSize="12" />
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+
+        <TabItem Header="Team-Aktivität">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+                    <Button Content="Aktualisieren" Command="{Binding LoadActivityCommand}" />
+                    <TextBlock Text="Was das Team zuletzt zu TMs, Terminologien und Wissensdatenbanken beigetragen hat." VerticalAlignment="Center" Opacity="0.7" />
+                </StackPanel>
+                <ListBox ItemsSource="{Binding Activity}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ActivityRow">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Text}" FontSize="12" Opacity="0.65" />
+                                <TextBlock Text="{Binding Detail}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </TabItem>
+    </TabControl>
+</UserControl>

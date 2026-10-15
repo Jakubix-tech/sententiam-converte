@@ -1,0 +1,44 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:SententiamConverte.ViewModels"
+             xmlns:views="using:SententiamConverte.Views"
+             mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
+             x:Class="SententiamConverte.Views.MainView"
+             x:DataType="vm:MainViewModel">
+    <Design.DataContext>
+        <vm:MainViewModel />
+    </Design.DataContext>
+
+    <DockPanel>
+        <!-- Statusleiste -->
+        <Border DockPanel.Dock="Bottom" Padding="10,4" Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="{Binding Status}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                <ProgressBar Grid.Column="1" IsIndeterminate="True" Width="120" IsVisible="{Binding IsBusy}" />
+            </Grid>
+        </Border>
+
+        <TabControl SelectedIndex="{Binding SelectedTab}" Padding="0">
+            <TabItem Header="Projekt">
+                <views:ProjectView />
+            </TabItem>
+            <TabItem Header="Editor">
+                <views:EditorView DataContext="{Binding Editor}" />
+            </TabItem>
+            <TabItem Header="TM &amp; Terminologie">
+                <views:ResourcesView DataContext="{Binding Resources}" />
+            </TabItem>
+            <TabItem Header="Wissen">
+                <views:KnowledgeView DataContext="{Binding Knowledge}" />
+            </TabItem>
+            <TabItem Header="Agenten">
+                <views:AgentsView DataContext="{Binding Agents}" />
+            </TabItem>
+            <TabItem Header="Einstellungen">
+                <views:SettingsView DataContext="{Binding Settings}" />
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</UserControl>

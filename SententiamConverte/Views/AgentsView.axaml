@@ -1,0 +1,153 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SententiamConverte.ViewModels"
+             xmlns:agents="using:SententiamConverte.Core.Agents"
+             x:Class="SententiamConverte.Views.AgentsView"
+             x:DataType="vm:AgentsViewModel">
+    <Grid RowDefinitions="*,Auto,Auto">
+        <TabControl Padding="8">
+            <!-- Recherche -->
+            <TabItem Header="Themenrecherche">
+                <ScrollViewer>
+                    <StackPanel Spacing="8" MaxWidth="1100" HorizontalAlignment="Left">
+                        <TextBlock TextWrapping="Wrap" Opacity="0.8"
+                                   Text="Der Agent sucht zu einem Thema Fachtexte in jeder gewählten Sprache, liest sie und stellt eine mehrsprachige Begriffsliste mit Belegstellen zusammen. Gute Begriffe übernimmst du mit einem Klick in die Projekt-Terminologie." />
+                        <TextBlock Text="Thema / Fachgebiet" />
+                        <TextBox Text="{Binding Topic}" PlaceholderText="z. B. Hydraulikpumpen – Wartung und Dichtungen" />
+                        <Grid ColumnDefinitions="Auto,16,*,16,Auto">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Ausgangssprache" />
+                                <TextBox Text="{Binding SourceLanguage}" Width="110" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Spacing="4">
+                                <TextBlock Text="Zielsprachen" />
+                                <WrapPanel>
+                                    <ItemsControl ItemsSource="{Binding TargetChoices}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:LanguageChoice">
+                                                <CheckBox Content="{Binding Code}" IsChecked="{Binding IsChecked}" Margin="0,0,10,0" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBox Text="{Binding ExtraLanguages}" PlaceholderText="weitere, z. B. fr-FR" Width="170" />
+                                </WrapPanel>
+                            </StackPanel>
+                            <StackPanel Grid.Column="4" Spacing="4">
+                                <TextBlock Text="Seiten je Sprache" />
+                                <NumericUpDown Value="{Binding PagesPerLanguage}" Minimum="1" Maximum="8" FormatString="0" Width="120" />
+                            </StackPanel>
+                        </Grid>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="Begriffe, für die Entsprechungen gesucht werden sollen (optional, einer pro Zeile)" VerticalAlignment="Bottom" />
+                            <Button Grid.Column="1" Content="Aus dem Projekt vorschlagen" Command="{Binding SuggestSeedsFromProjectCommand}" />
+                        </Grid>
+                        <TextBox Text="{Binding SeedTerms}" AcceptsReturn="True" Height="90" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Recherche starten" Command="{Binding ResearchCommand}" Classes="accent" />
+                            <Button Content="Abbrechen" Command="{Binding CancelCommand}" IsVisible="{Binding IsRunning}" />
+                            <Button Content="Markierte in Terminologie übernehmen" Command="{Binding AddSelectedToTermbaseCommand}" />
+                        </StackPanel>
+
+                        <SelectableTextBlock Text="{Binding ResearchSummary}" TextWrapping="Wrap" FontStyle="Italic" />
+
+                        <ItemsControl ItemsSource="{Binding Candidates}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:CandidateRowViewModel">
+                                    <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" Padding="0,6">
+                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                            <CheckBox IsChecked="{Binding Selected}" VerticalAlignment="Top" />
+                                            <StackPanel Grid.Column="1" Spacing="2">
+                                                <SelectableTextBlock Text="{Binding Terms}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding Definition}" TextWrapping="Wrap" Opacity="0.8" />
+                                                <Expander Header="Belege">
+                                                    <SelectableTextBlock Text="{Binding Evidence}" TextWrapping="Wrap" FontSize="12" />
+                                                </Expander>
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="2" Text="{Binding Confidence}" Margin="8,0" ToolTip.Tip="Sicherheit der Zuordnung" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Expander Header="Gelesene Quellen">
+                            <ItemsControl ItemsSource="{Binding Sources}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="agents:SourceRef">
+                                        <SelectableTextBlock TextWrapping="Wrap">
+                                            <Run Text="{Binding Language, StringFormat='[{0}] '}" />
+                                            <Run Text="{Binding Title}" />
+                                            <Run Text=" – " />
+                                            <Run Text="{Binding Url}" />
+                                        </SelectableTextBlock>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Expander>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Usus -->
+            <TabItem Header="Usus-Prüfung">
+                <ScrollViewer>
+                    <StackPanel Spacing="8" MaxWidth="900" HorizontalAlignment="Left">
+                        <TextBlock TextWrapping="Wrap" Opacity="0.8"
+                                   Text="Ist ein Ausdruck üblich oder wird er nirgends verwendet? Der Agent sucht die genaue Wortfolge (und gleichbedeutende Alternativen) im Netz, zählt wörtliche Belege und urteilt anhand der Belege." />
+                        <TextBlock Text="Ausdruck" />
+                        <TextBox Text="{Binding UsageExpression}" PlaceholderText="z. B. Anzugsdrehmoment prüfen" />
+                        <Grid ColumnDefinitions="Auto,16,*">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Sprache" />
+                                <TextBox Text="{Binding UsageLanguage}" Width="110" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Spacing="4">
+                                <TextBlock Text="Alternativen zum Vergleich (optional, je Zeile; leer = KI schlägt vor)" />
+                                <TextBox Text="{Binding UsageAlternatives}" AcceptsReturn="True" Height="70" />
+                            </StackPanel>
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Prüfen" Command="{Binding CheckUsageCommand}" Classes="accent" />
+                            <Button Content="Abbrechen" Command="{Binding CancelCommand}" IsVisible="{Binding IsRunning}" />
+                        </StackPanel>
+                        <SelectableTextBlock Text="{Binding UsageResult}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Bewertung -->
+            <TabItem Header="Übersetzungen bewerten">
+                <ScrollViewer>
+                    <StackPanel Spacing="8" MaxWidth="900" HorizontalAlignment="Left">
+                        <TextBlock TextWrapping="Wrap" Opacity="0.8"
+                                   Text="Mehrere Übersetzungen eines Satzes vergleichen: Richtigkeit, Sprachfluss, Terminologie und Stil, mit Begründung und Verbesserungsvorschlag." />
+                        <TextBlock Text="Quelltext" />
+                        <TextBox Text="{Binding EvalSource}" AcceptsReturn="True" TextWrapping="Wrap" Height="70" />
+                        <TextBlock Text="Übersetzungen (eine pro Zeile)" />
+                        <TextBox Text="{Binding EvalCandidates}" AcceptsReturn="True" TextWrapping="Wrap" Height="110" />
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <TextBlock Text="Zielsprache" VerticalAlignment="Center" />
+                            <TextBox Text="{Binding EvalTargetLanguage}" Width="110" />
+                            <CheckBox Content="Fragliche Wendungen im Netz prüfen" IsChecked="{Binding EvalCheckUsage}" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Bewerten" Command="{Binding EvaluateCommand}" Classes="accent" />
+                            <Button Content="Abbrechen" Command="{Binding CancelCommand}" IsVisible="{Binding IsRunning}" />
+                        </StackPanel>
+                        <SelectableTextBlock Text="{Binding EvalResult}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <ProgressBar Grid.Row="1" IsIndeterminate="True" IsVisible="{Binding IsRunning}" />
+        <Expander Grid.Row="2" Header="Protokoll der Agenten" IsExpanded="True" Margin="8,4">
+            <ScrollViewer MaxHeight="180">
+                <SelectableTextBlock Text="{Binding Log}" TextWrapping="Wrap" FontSize="12" />
+            </ScrollViewer>
+        </Expander>
+    </Grid>
+</UserControl>

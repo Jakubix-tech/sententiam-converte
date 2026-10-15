@@ -1,0 +1,161 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SententiamConverte.ViewModels"
+             x:Class="SententiamConverte.Views.ResourcesView"
+             x:DataType="vm:ResourcesViewModel">
+    <ScrollViewer>
+        <StackPanel Margin="16" Spacing="12" MaxWidth="1100" HorizontalAlignment="Left">
+            <TextBlock Text="Angebundene Ressourcen" FontSize="18" FontWeight="SemiBold" />
+            <TextBlock TextWrapping="Wrap" Opacity="0.8" FontSize="12"
+                       Text="Zusätzlich zu Projekt-TM, Projekt-Terminologie und Projekt-Wissen lassen sich weitere Datenbanken anbinden – lokale Dateien oder gemeinsame Ressourcen auf einem Teamserver, wahlweise nur für bestimmte Sprachen. „Schreibt zurück“: bestätigte Übersetzungen und neue Begriffe landen auch dort, damit das ganze Team davon profitiert." />
+            <SelectableTextBlock Text="{Binding ResourceErrors}" Foreground="#C53030" TextWrapping="Wrap" />
+            <ItemsControl ItemsSource="{Binding Attached}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:AttachedRow">
+                        <Grid ColumnDefinitions="170,*,180,130,Auto" Margin="0,2">
+                            <TextBlock Text="{Binding Kind}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Column="2" Text="{Binding Languages}" VerticalAlignment="Center" Opacity="0.75" />
+                            <TextBlock Grid.Column="3" Text="{Binding WriteBack}" VerticalAlignment="Center" Opacity="0.75" />
+                            <Button Grid.Column="4" Content="Lösen" Padding="6,2"
+                                    Command="{Binding $parent[UserControl].((vm:ResourcesViewModel)DataContext).DetachCommand}" CommandParameter="{Binding}" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Border Padding="12" CornerRadius="6" BorderThickness="1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Ressource anbinden" FontWeight="SemiBold" />
+                    <WrapPanel>
+                        <ComboBox ItemsSource="{Binding KindNames}" SelectedIndex="{Binding AttachKind}" Width="190" Margin="0,0,8,4" />
+                        <TextBox Text="{Binding AttachLanguages}" PlaceholderText="Sprachen (leer = alle), z. B. pl-PL" Width="240" Margin="0,0,8,4" />
+                        <CheckBox Content="schreibt zurück" IsChecked="{Binding AttachWriteBack}" Margin="0,0,8,4" />
+                    </WrapPanel>
+                    <WrapPanel>
+                        <TextBlock Text="Teamserver:" VerticalAlignment="Center" Margin="0,0,6,4" />
+                        <ComboBox ItemsSource="{Binding ServerNames}" SelectedItem="{Binding AttachServer}" MinWidth="150" Margin="0,0,8,4" />
+                        <ComboBox ItemsSource="{Binding RemoteNames}" SelectedItem="{Binding AttachRemoteName}" MinWidth="200" Margin="0,0,8,4" />
+                        <Button Content="Vom Server anbinden" Command="{Binding AttachRemoteCommand}" Classes="accent" Margin="0,0,8,4" />
+                    </WrapPanel>
+                    <WrapPanel>
+                        <TextBlock Text="Lokal:" VerticalAlignment="Center" Margin="0,0,6,4" />
+                        <Button Content="Vorhandene Datei(en) anbinden …" Command="{Binding AttachLocalCommand}" Margin="0,0,8,4" />
+                        <Button Content="Neue lokale Datenbank anlegen" Command="{Binding CreateLocalCommand}" Margin="0,0,8,4"
+                                ToolTip.Tip="Legt eine gemeinsame Datei im Benutzerordner an (Name aus dem Feld rechts neben dem Server, sonst „Gemeinsam“)" />
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="Translation Memories" FontSize="18" FontWeight="SemiBold" Margin="0,10,0,0" />
+            <ItemsControl ItemsSource="{Binding TmInfo}" />
+            <WrapPanel>
+                <Button Content="TMX importieren …" Command="{Binding ImportTmxCommand}" Margin="0,0,8,8" />
+                <Button Content="TMX exportieren …" Command="{Binding ExportTmxCommand}" Margin="0,0,8,8" />
+                <Button Content=".sdltm übernehmen …" Command="{Binding ImportSdltmCommand}" Margin="0,0,8,8"
+                        ToolTip.Tip="Vorhandene TM-Datei im .sdltm-Format direkt einlesen" />
+                <Button Content="Weitere TMs/Terminologien einbinden …" Command="{Binding AttachTmCommand}" Margin="0,0,8,8"
+                        ToolTip.Tip="Ordner mit .sctm/.sctb-Dateien (z. B. ein Haupt-TM, das mehrere Projekte nutzen)" />
+            </WrapPanel>
+
+            <Expander Header="TM-Einträge bearbeiten" HorizontalAlignment="Stretch">
+                <StackPanel Spacing="6">
+                    <TextBox Text="{Binding TmFilter}" PlaceholderText="Filtern nach Text in Quelle oder Ziel …" />
+                    <ItemsControl ItemsSource="{Binding TmRows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:TmRowViewModel">
+                                <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" Padding="0,4">
+                                    <Grid ColumnDefinitions="*,6,*,Auto" RowDefinitions="Auto,Auto">
+                                        <TextBox Text="{Binding Source}" TextWrapping="Wrap" />
+                                        <TextBox Grid.Column="2" Text="{Binding Target}" TextWrapping="Wrap" />
+                                        <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="6,0,0,0" VerticalAlignment="Top">
+                                            <Button Content="Speichern" Padding="6,2" Margin="0,0,4,0"
+                                                    Command="{Binding $parent[UserControl].((vm:ResourcesViewModel)DataContext).SaveTmRowCommand}" CommandParameter="{Binding}" />
+                                            <Button Content="Löschen" Padding="6,2"
+                                                    Command="{Binding $parent[UserControl].((vm:ResourcesViewModel)DataContext).DeleteTmRowCommand}" CommandParameter="{Binding}" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Row="1" Grid.ColumnSpan="4" Text="{Binding Info}" FontSize="11" Opacity="0.55" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="◀ zurück" Command="{Binding PreviousTmPageCommand}" />
+                        <TextBlock VerticalAlignment="Center"><Run Text="Seite " /><Run Text="{Binding TmPage}" /></TextBlock>
+                        <Button Content="weiter ▶" Command="{Binding NextTmPageCommand}" />
+                    </StackPanel>
+                </StackPanel>
+            </Expander>
+
+            <Expander Header="Alignment: alte Übersetzungen ins TM übernehmen" HorizontalAlignment="Stretch">
+                <StackPanel Spacing="6">
+                    <TextBlock TextWrapping="Wrap" Opacity="0.8" FontSize="12"
+                               Text="Ausgangstext und vorhandene Übersetzung wählen. Die Sätze werden nach Länge und Zahlen einander zugeordnet; unsichere Paare sind nicht vorausgewählt." />
+                    <WrapPanel>
+                        <Button Content="Ausgangstext …" Command="{Binding PickAlignSourceCommand}" Margin="0,0,6,4" />
+                        <TextBlock Text="{Binding AlignSourceName}" VerticalAlignment="Center" Margin="0,0,16,4" />
+                        <Button Content="Übersetzung …" Command="{Binding PickAlignTargetCommand}" Margin="0,0,6,4" />
+                        <TextBlock Text="{Binding AlignTargetName}" VerticalAlignment="Center" Margin="0,0,16,4" />
+                        <TextBox Text="{Binding AlignTargetLanguage}" Width="100" PlaceholderText="Sprache" Margin="0,0,6,4" />
+                        <Button Content="Ausrichten" Command="{Binding RunAlignmentCommand}" Classes="accent" Margin="0,0,6,4" />
+                        <Button Content="Markierte ins TM" Command="{Binding ImportAlignmentCommand}" Margin="0,0,6,4" />
+                    </WrapPanel>
+                    <ItemsControl ItemsSource="{Binding AlignRows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:AlignRowViewModel">
+                                <Grid ColumnDefinitions="Auto,*,8,*,60" Margin="0,2">
+                                    <CheckBox IsChecked="{Binding Accepted}" IsEnabled="{Binding IsComplete}" VerticalAlignment="Top" />
+                                    <TextBlock Grid.Column="1" Text="{Binding SourceText}" TextWrapping="Wrap" />
+                                    <TextBlock Grid.Column="3" Text="{Binding TargetText}" TextWrapping="Wrap" />
+                                    <TextBlock Grid.Column="4" Text="{Binding Confidence}" HorizontalAlignment="Right" Opacity="0.7" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Expander>
+
+            <TextBlock Text="Terminologie" FontSize="18" FontWeight="SemiBold" Margin="0,10,0,0" />
+            <ItemsControl ItemsSource="{Binding TermbaseInfo}" />
+            <WrapPanel>
+                <Button Content="TBX / Terminologie-XML importieren …" Command="{Binding ImportTbxCommand}" Margin="0,0,8,8" />
+                <Button Content="TBX exportieren …" Command="{Binding ExportTbxCommand}" Margin="0,0,8,8" />
+            </WrapPanel>
+
+            <Border Padding="12" CornerRadius="6" BorderThickness="1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Neuer Eintrag" FontWeight="SemiBold" />
+                    <Grid ColumnDefinitions="*,8,*,8,110">
+                        <TextBox Text="{Binding NewSourceTerm}" PlaceholderText="Ausgangsbegriff" />
+                        <TextBox Grid.Column="2" Text="{Binding NewTargetTerm}" PlaceholderText="Zielbegriff" />
+                        <TextBox Grid.Column="4" Text="{Binding NewTargetLanguage}" PlaceholderText="Sprache" />
+                    </Grid>
+                    <TextBox Text="{Binding NewDefinition}" PlaceholderText="Definition (optional)" />
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <CheckBox Content="Zielbegriff ist verboten" IsChecked="{Binding NewTargetForbidden}" />
+                        <Button Content="Hinzufügen" Command="{Binding AddConceptCommand}" Classes="accent" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <TextBox Text="{Binding TermSearch}" PlaceholderText="Terminologie durchsuchen …" />
+            <ItemsControl ItemsSource="{Binding Concepts}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ConceptRow">
+                        <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" Padding="0,4">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel>
+                                    <SelectableTextBlock Text="{Binding Terms}" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding Definition}" FontSize="12" Opacity="0.7" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="Löschen" VerticalAlignment="Top"
+                                        Command="{Binding $parent[UserControl].((vm:ResourcesViewModel)DataContext).DeleteConceptCommand}"
+                                        CommandParameter="{Binding}" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
