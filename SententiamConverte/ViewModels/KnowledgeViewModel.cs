@@ -178,7 +178,8 @@ public partial class KnowledgeViewModel : ViewModelBase
             var ctx = AgentContext.From(AppServices.Ai, AppServices.Ai.ResearchProviderId, new Progress<string>(m => Log += m + "\n"));
             var target = SelectedBase;
             var result = await new KnowledgeAgent(ctx).RunAsync(AgentTopic.Trim(), langs, target,
-                AgentFocus.Trim().Length > 0 ? AgentFocus.Trim() : null, Math.Clamp(AgentPages, 1, 8), Environment.UserName, _cts.Token);
+                AgentFocus.Trim().Length > 0 ? AgentFocus.Trim() : null, Math.Clamp(AgentPages, 1, 8), Environment.UserName, _cts.Token,
+                _main.CurrentProfile);
             _main.Status = $"Wissens-Agent: {result.Added} neue Einträge in „{target.Name}“.";
             Load();
         }

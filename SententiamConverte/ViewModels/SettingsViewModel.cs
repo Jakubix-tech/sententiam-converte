@@ -51,6 +51,22 @@ public partial class ServerAccountViewModel : ObservableObject
     public override string ToString() => Name;
 }
 
+public partial class ProfileViewModel : ObservableObject
+{
+    [ObservableProperty] public partial string Name { get; set; } = "";
+    [ObservableProperty] public partial string Description { get; set; } = "";
+    [ObservableProperty] public partial string Text { get; set; } = "";
+
+    public static ProfileViewModel From(SententiamConverte.Core.Ai.SourceProfile p) =>
+        new() { Name = p.Name, Description = p.Description ?? "", Text = p.ToText() };
+
+    public SententiamConverte.Core.Ai.SourceProfile ToProfile() => new()
+    {
+        Name = Name.Trim(), Description = Description.Trim().Length > 0 ? Description.Trim() : null,
+        Languages = SententiamConverte.Core.Ai.SourceProfile.ParseText(Text),
+    };
+}
+
 public partial class SettingsViewModel : ViewModelBase
 {
     private readonly MainViewModel _main;
@@ -78,6 +94,34 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] public partial string ExplanationLanguage { get; set; } = "Deutsch";
     [ObservableProperty] public partial string TestResult { get; set; } = "";
     [ObservableProperty] public partial bool IsTesting { get; set; }
+
+    // Fachquellen
+    public ObservableCollection<ProfileViewModel> Profiles { get; } = new();
+    [ObservableProperty] public partial ProfileViewModel? SelectedProfile { get; set; }
+
+    [RelayCommand]
+    private void AddProfile()
+    {
+        var p = new ProfileViewModel { Name = "Neues Thema", Text = "* |  | \nde-DE |  | " };
+        Profiles.Add(p);
+        SelectedProfile = p;
+    }
+
+    [RelayCommand]
+    private void RemoveProfile()
+    {
+        if (SelectedProfile == null) return;
+        Profiles.Remove(SelectedProfile);
+        SelectedProfile = Profiles.FirstOrDefault();
+    }
+
+    [RelayCommand]
+    private void ResetProfiles()
+    {
+        Profiles.Clear();
+        foreach (var p in SententiamConverte.Core.Ai.SourceProfile.Defaults()) Profiles.Add(ProfileViewModel.From(p));
+        SelectedProfile = Profiles.FirstOrDefault();
+    }
 
     // Teamserver
     public ObservableCollection<ServerAccountViewModel> ServerAccounts { get; } = new();
@@ -183,6 +227,9 @@ public partial class SettingsViewModel : ViewModelBase
         ExplanationLanguage = s.ExplanationLanguage;
         Selected = Providers.FirstOrDefault();
         UpdateDictionaryStatus();
+        Profiles.Clear();
+        foreach (var p in s.SourceProfiles) Profiles.Add(ProfileViewModel.From(p));
+        SelectedProfile = Profiles.FirstOrDefault();
         ServerAccounts.Clear();
         foreach (var a in AppServices.Servers.Servers) ServerAccounts.Add(new ServerAccountViewModel(a));
         SelectedServer = ServerAccounts.FirstOrDefault();
@@ -220,6 +267,7 @@ public partial class SettingsViewModel : ViewModelBase
             ResearchProviderId = ResearchProvider?.Id,
             EvaluateProviderId = EvaluateProvider?.Id,
             ExplanationLanguage = ExplanationLanguage,
+            SourceProfiles = Profiles.Where(p => p.Name.Trim().Length > 0).Select(p => p.ToProfile()).ToList(),
             Search = new SearchConfig
             {
                 Kind = (SearchProviderKind)SearchKindIndex,

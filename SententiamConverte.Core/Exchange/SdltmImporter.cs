@@ -22,14 +22,14 @@ public static class SdltmImporter
         cmd.CommandText = "SELECT source_segment, target_segment, creation_date FROM translation_units";
         using var r = cmd.ExecuteReader();
 
-        IEnumerable<(string, string, string, string, DateTime?)> Units()
+        IEnumerable<TmEntry> Units()
         {
             while (r.Read())
             {
                 var (srcLang, src) = Parse(r.GetString(0));
                 var (tgtLang, tgt) = Parse(r.GetString(1));
                 DateTime? created = r.IsDBNull(2) ? null : DateTime.TryParse(r.GetValue(2).ToString(), out var d) ? d : null;
-                if (src.Length > 0 && tgt.Length > 0) yield return (srcLang, tgtLang, src, tgt, created);
+                if (src.Length > 0 && tgt.Length > 0) yield return new TmEntry(srcLang, tgtLang, src, tgt, created, "import");
             }
         }
         return target.AddMany(Units());

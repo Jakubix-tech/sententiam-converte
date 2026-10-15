@@ -22,7 +22,7 @@ public sealed class KnowledgeAgent(AgentContext ctx)
 
     public async Task<KnowledgeRunResult> RunAsync(
         string topic, IReadOnlyList<string> languages, IKnowledgeBase target, string? focus = null,
-        int pagesPerLanguage = 3, string? author = null, CancellationToken ct = default)
+        int pagesPerLanguage = 3, string? author = null, CancellationToken ct = default, SourceProfile? profile = null)
     {
         var search = ctx.RequireSearch();
         var langList = string.Join(", ", languages.Select(l => $"{l} ({Languages.DisplayName(l)})"));
@@ -50,7 +50,7 @@ public sealed class KnowledgeAgent(AgentContext ctx)
             {
                 ct.ThrowIfCancellationRequested();
                 ctx.Say($"[{lang}] Suche: {q}");
-                try { results.AddRange(await search.SearchAsync(q, lang, 6, ct)); }
+                try { results.AddRange((await SiteSearch.SearchAsync(search, q, lang, profile?.SitesFor(lang) ?? [], 6, ctx.Say, ct)).Results); }
                 catch (Exception ex) when (ex is HttpRequestException or AiException) { ctx.Say($"[{lang}] Suche fehlgeschlagen: {ex.Message}"); }
             }
 

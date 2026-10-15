@@ -16,11 +16,13 @@ public interface ILanguageResource : IDisposable
 public interface ITranslationMemory : ILanguageResource
 {
     long Count();
-    void Add(string srcLang, string tgtLang, string source, string target, string? origin = null, string? context = null, DateTime? created = null);
-    int AddMany(IEnumerable<(string SrcLang, string TgtLang, string Source, string Target, DateTime? Created)> units);
+    /// <summary>Speichert eine Übersetzung; <paramref name="previous"/>/<paramref name="next"/> sind die Nachbarsätze (Kontext), <paramref name="context"/> die Stelle im Dokument.</summary>
+    void Add(string srcLang, string tgtLang, string source, string target, string? origin = null, string? context = null,
+        DateTime? created = null, string? previous = null, string? next = null);
+    int AddMany(IEnumerable<TmEntry> units);
     void Update(long id, string source, string target);
     void Delete(long id);
-    List<TmMatch> Search(string srcLang, string tgtLang, string source, int minScore = 70, int max = 10);
+    List<TmMatch> Search(string srcLang, string tgtLang, string source, int minScore = 70, int max = 10, TmContext? context = null);
     List<FragmentMatch> Fragments(string srcLang, string tgtLang, string source, int max = 15);
     List<TmUnit> Concordance(string srcLang, string tgtLang, string phrase, bool inTarget = false, int max = 50);
     List<TmUnit> Browse(string? filter, int offset, int limit);

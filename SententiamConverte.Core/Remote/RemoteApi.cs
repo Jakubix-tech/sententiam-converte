@@ -17,8 +17,10 @@ public sealed record ActivityEntry(DateTime When, string User, ResourceKind Kind
 public sealed record WhoAmI(string User, string Role);
 
 // Anfragen
-public sealed record TmSearchRequest(string SrcLang, string TgtLang, string Text, int MinScore, int Max, bool InTarget = false);
-public sealed record TmAddRequest(string SrcLang, string TgtLang, string Source, string Target, string? Origin, string? Context, DateTime? Created);
+public sealed record TmSearchRequest(string SrcLang, string TgtLang, string Text, int MinScore, int Max, bool InTarget = false,
+    string? Previous = null, string? Next = null, string? Structure = null, bool StructureIsId = false);
+public sealed record TmAddRequest(string SrcLang, string TgtLang, string Source, string Target, string? Origin, string? Context, DateTime? Created,
+    string? Previous = null, string? Next = null);
 public sealed record TmUpdateRequest(string Source, string Target);
 public sealed record TermRecognizeRequest(string Text, string SrcLang, string TgtLang);
 public sealed record ConceptAddRequest(List<TermDto> Terms, string? Definition, string? Domain, string? Source);

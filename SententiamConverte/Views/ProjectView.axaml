@@ -78,6 +78,12 @@
                         <NumericUpDown Value="{Binding PretranslateMinScore}" Minimum="50" Maximum="100" Increment="5" FormatString="0" Width="140" />
                     </StackPanel>
                 </Grid>
+                <WrapPanel>
+                    <TextBlock Text="Fachquellen für die Agenten:" VerticalAlignment="Center" Margin="0,0,8,4" />
+                    <ComboBox ItemsSource="{Binding ProfileNames}" SelectedItem="{Binding ProjectProfile}" MinWidth="200" Margin="0,0,16,4" />
+                    <CheckBox Content="Kontexttreffer (101 %) beim Vorübersetzen bestätigen" IsChecked="{Binding ConfirmContextMatches}" Margin="0,0,0,4"
+                              ToolTip.Tip="Gleicher Satz im gleichen Zusammenhang (vorheriger Satz bzw. gleiche ID) wie im TM" />
+                </WrapPanel>
 
                 <WrapPanel>
                     <Button Content="Dateien hinzufügen …" Command="{Binding AddFilesCommand}" Margin="0,0,8,8" Classes="accent" />

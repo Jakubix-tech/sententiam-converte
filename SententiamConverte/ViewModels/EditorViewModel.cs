@@ -18,10 +18,24 @@ namespace SententiamConverte.ViewModels;
 
 public sealed record MatchRow(int Number, TmMatch Match)
 {
-    public string Score => $"{Match.Score} %";
+    public string Score => Match.Score >= 101 ? "101 % Kontext" : $"{Match.Score} %";
     public string Source => Match.Unit.Source;
     public string Target => Match.Unit.Target;
-    public string Info => $"{Match.TmName} · {Match.Unit.Modified.ToLocalTime():d}";
+    public string Info => string.Join(" · ", new[]
+    {
+        Match.TmName,
+        Match.Unit.Modified.ToLocalTime().ToString("d"),
+        Match.Unit.Origin,
+        Match.ContextMatch switch
+        {
+            TmContextMatch.Previous => "gleicher vorheriger Satz",
+            TmContextMatch.PreviousAndNext => "gleiche Nachbarsätze",
+            TmContextMatch.Id => "gleiche ID",
+            _ => null,
+        },
+        Match.Ambiguous ? "mehrere Übersetzungen – Kontext prüfen" : null,
+    }.Where(x => !string.IsNullOrEmpty(x)));
+    public string? ContextText => Match.Unit.ContextPrevious is { Length: > 0 } p ? $"zuvor: {p}" : null;
 }
 
 public sealed record TermRow(TermHit Hit)
@@ -673,6 +687,67 @@ public partial class EditorViewModel : ViewModelBase
     }
 
     private EvaluationResult? _lastEvaluation;
+    private TermComparisonResult? _lastComparison;
+    private string? _lastComparisonTopic;
+
+    [ObservableProperty] public partial bool HasComparison { get; set; }
+
+    /// <summary>
+    /// Terminologie-Assistent: klärt einen Begriff im Satzkontext, vergleicht die Begriffe beider Sprachen/Systeme
+    /// auf Fachseiten und empfiehlt mit Begründung eine Entsprechung.
+    /// </summary>
+    public async Task ClarifyTermAsync(string term)
+    {
+        if (Selected == null || _doc == null || Project == null || IsAiRunning || term.Trim().Length == 0) return;
+        var seg = Selected;
+        IsAiRunning = true;
+        AiLog = "";
+        AiResult = "";
+        HasComparison = false;
+        SidePanelTab = 6;
+        try
+        {
+            var ctx = CreateContext(AppServices.Ai.ResearchProviderId);
+            var (prev, next) = Neighbours(seg);
+            var context = string.Join("\n", new[] { prev, seg.Source, next }.Where(x => x != null).Select(x => TagText.StripTags(x!)));
+            var query = new TermQuery(term.Trim(), _doc.SourceLanguage, _doc.TargetLanguage, context, Project.Topic,
+                _main.CurrentProfile, null, Terms.Select(t => t.Hit).ToList());
+            _lastComparison = await new TermComparisonAgent(ctx).RunAsync(query);
+            _lastComparisonTopic = Project.Topic;
+            AiResult = TermComparisonAgent.Format(_lastComparison);
+            HasComparison = true;
+        }
+        catch (Exception ex) { AiResult = "Fehler: " + ex.Message; }
+        finally { IsAiRunning = false; }
+    }
+
+    [RelayCommand]
+    private void SaveComparisonToTermbase()
+    {
+        if (_lastComparison == null || _doc == null || Project == null) return;
+        var tb = Project.SharedTermbasesToWrite(_doc.TargetLanguage).FirstOrDefault() ?? Project.ProjectTermbase;
+        try
+        {
+            TermComparisonAgent.SaveToTermbase(_lastComparison, tb, _doc.SourceLanguage, _doc.TargetLanguage, _lastComparisonTopic);
+            _main.Status = $"„{_lastComparison.Source.Term}“ → „{_lastComparison.Recommendation.Term}“ in „{tb.Name}“ übernommen.";
+            _main.Resources.Refresh();
+            if (Selected != null) OnSelectedChanged(Selected);
+        }
+        catch (Exception ex) { _main.Status = ex.Message; }
+    }
+
+    [RelayCommand]
+    private void SaveComparisonToKnowledge()
+    {
+        if (_lastComparison == null || _doc == null || Project == null) return;
+        var kb = Project.KnowledgeFor(_doc.TargetLanguage).FirstOrDefault(k => k.IsRemote) ?? Project.ProjectKnowledge;
+        try
+        {
+            TermComparisonAgent.SaveToKnowledge(_lastComparison, kb, _doc.TargetLanguage, _lastComparisonTopic, Environment.UserName);
+            _main.Status = $"Begründung als Wissen in „{kb.Name}“ gespeichert.";
+        }
+        catch (Exception ex) { _main.Status = ex.Message; }
+    }
 
     [RelayCommand]
     private void UseBestEvaluated()

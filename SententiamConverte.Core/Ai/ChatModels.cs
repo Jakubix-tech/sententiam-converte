@@ -101,8 +101,8 @@ public sealed class ClaudeChatModel : IChatModel
         SendAsync(system, messages, webSearch: false, ct);
 
     /// <summary>Anfrage mit eingeschalteter Websuche; Claude sucht selbst und antwortet mit Text.</summary>
-    public Task<string> CompleteWithWebSearchAsync(string system, string user, CancellationToken ct = default) =>
-        SendAsync(system, [new ChatTurn(true, user)], webSearch: true, ct);
+    public Task<string> CompleteWithWebSearchAsync(string system, string user, CancellationToken ct = default, IReadOnlyList<string>? allowedDomains = null) =>
+        SendAsync(system, [new ChatTurn(true, user)], webSearch: true, ct, allowedDomains);
 
     /// <summary>
     /// Texterkennung für gescannte PDFs: Claude liest das PDF (auch Bilder) und gibt die Absätze zurück,
@@ -145,7 +145,8 @@ public sealed class ClaudeChatModel : IChatModel
         }
     }
 
-    private async Task<string> SendAsync(string system, IReadOnlyList<ChatTurn> messages, bool webSearch, CancellationToken ct)
+    private async Task<string> SendAsync(string system, IReadOnlyList<ChatTurn> messages, bool webSearch, CancellationToken ct,
+        IReadOnlyList<string>? allowedDomains = null)
     {
         if (string.IsNullOrEmpty(_client.ApiKey))
             throw new AiException($"{_config.Name}: kein API-Schlüssel hinterlegt.");
@@ -161,7 +162,12 @@ public sealed class ClaudeChatModel : IChatModel
             }).ToList(),
         };
         if (webSearch)
-            parameters = parameters with { Tools = [new ToolUnion(new WebSearchTool20260209 { MaxUses = 6 })] };
+            parameters = parameters with
+            {
+                Tools = [new ToolUnion(allowedDomains is { Count: > 0 }
+                    ? new WebSearchTool20260209 { MaxUses = 6, AllowedDomains = allowedDomains.ToList() }
+                    : new WebSearchTool20260209 { MaxUses = 6 })],
+            };
 
         try
         {

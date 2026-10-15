@@ -110,7 +110,9 @@
                                                 </Grid>
                                                 <TextBlock c:TagHighlight.Text="{Binding Source}" TextWrapping="Wrap" Opacity="0.75" />
                                                 <TextBlock c:TagHighlight.Text="{Binding Target}" TextWrapping="Wrap" />
-                                                <TextBlock Text="{Binding Info}" FontSize="11" Opacity="0.5" />
+                                                <TextBlock Text="{Binding Info}" FontSize="11" Opacity="0.55" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding ContextText}" FontSize="11" Opacity="0.5" TextWrapping="Wrap" FontStyle="Italic"
+                                                           IsVisible="{Binding ContextText, Converter={x:Static ObjectConverters.IsNotNull}}" />
                                             </StackPanel>
                                         </Border>
                                     </DataTemplate>
@@ -288,6 +290,12 @@
                                 <Button Content="Usus prüfen" ToolTip.Tip="Strg+Umschalt+U: markierten Zieltext (oder ganze Übersetzung) im Netz prüfen"
                                         Command="{Binding CheckUsageOfTargetCommand}" Margin="0,0,6,4" />
                                 <Button Content="Beste übernehmen" Command="{Binding UseBestEvaluatedCommand}" Margin="0,0,6,4" />
+                                <Button Content="Begriff im Kontext klären" Click="OnClarifyTermClick" Margin="0,0,6,4"
+                                        ToolTip.Tip="Strg+Umschalt+B: markierten Begriff im Quelltext auf Fachseiten beider Sprachen vergleichen" />
+                            </WrapPanel>
+                            <WrapPanel IsVisible="{Binding HasComparison}">
+                                <Button Content="Empfehlung → Terminologie" Command="{Binding SaveComparisonToTermbaseCommand}" Margin="0,0,6,4" />
+                                <Button Content="Begründung → Wissen" Command="{Binding SaveComparisonToKnowledgeCommand}" Margin="0,0,6,4" />
                             </WrapPanel>
                             <CheckBox Content="Fragliche Wendungen beim Bewerten im Netz prüfen" IsChecked="{Binding AiCheckUsage}" />
                             <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsAiRunning}" />

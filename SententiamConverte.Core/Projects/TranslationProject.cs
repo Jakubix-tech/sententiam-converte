@@ -55,6 +55,12 @@ public sealed class TranslationProject : IDisposable
     /// <summary>Ab welcher Trefferquote beim Vorübersetzen eingesetzt wird.</summary>
     public int PretranslateMinScore { get; set; } = 100;
     public int LookupMinScore { get; set; } = 70;
+
+    /// <summary>Fachquellen-Profil (Einstellungen → Fachquellen), das die Agenten für dieses Projekt nutzen.</summary>
+    public string? SourceProfile { get; set; }
+
+    /// <summary>Kontexttreffer (101 %) beim Vorübersetzen gleich bestätigen.</summary>
+    public bool ConfirmContextMatches { get; set; } = true;
     public QaSettings Qa { get; set; } = new();
 
     [JsonIgnore] public string Folder { get; private set; } = "";

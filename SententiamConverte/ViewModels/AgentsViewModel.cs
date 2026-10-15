@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SententiamConverte.Core.Agents;
+using SententiamConverte.Core.Ai;
+using System.Collections.Generic;
 using SententiamConverte.Core.Model;
 using SententiamConverte.Core.Terminology;
 using SententiamConverte.Services;
@@ -52,6 +54,21 @@ public partial class AgentsViewModel : ViewModelBase
     public ObservableCollection<CandidateRowViewModel> Candidates { get; } = new();
     public ObservableCollection<SourceRef> Sources { get; } = new();
 
+    // Fachquellen
+    public IEnumerable<string> ProfileNames => new[] { "(keins)" }.Concat(AppServices.Ai.SourceProfiles.Select(p => p.Name));
+    [ObservableProperty] public partial string? ProfileName { get; set; } = "(keins)";
+    private SourceProfile? Profile => AppServices.Ai.Profile(ProfileName is "(keins)" ? null : ProfileName);
+
+    // Begriffsvergleich
+    [ObservableProperty] public partial string CompareTerm { get; set; } = "";
+    [ObservableProperty] public partial string CompareContext { get; set; } = "";
+    [ObservableProperty] public partial string CompareCandidates { get; set; } = "";
+    [ObservableProperty] public partial string CompareSourceLanguage { get; set; } = "de-DE";
+    [ObservableProperty] public partial string CompareTargetLanguage { get; set; } = "en-GB";
+    [ObservableProperty] public partial string CompareResult { get; set; } = "";
+    [ObservableProperty] public partial bool HasCompareResult { get; set; }
+    private TermComparisonResult? _comparison;
+
     // Usus
     [ObservableProperty] public partial string UsageExpression { get; set; } = "";
     [ObservableProperty] public partial string UsageLanguage { get; set; } = "de-DE";
@@ -75,6 +92,10 @@ public partial class AgentsViewModel : ViewModelBase
         foreach (var l in p.TargetLanguages) TargetChoices.Add(new LanguageChoice { Code = l, IsChecked = true });
         UsageLanguage = p.TargetLanguages.FirstOrDefault() ?? p.SourceLanguage;
         EvalTargetLanguage = UsageLanguage;
+        CompareSourceLanguage = p.SourceLanguage;
+        CompareTargetLanguage = UsageLanguage;
+        OnPropertyChanged(nameof(ProfileNames));
+        ProfileName = p.SourceProfile ?? "(keins)";
     }
 
     private AgentContext Context(string? providerId) =>
@@ -111,7 +132,7 @@ public partial class AgentsViewModel : ViewModelBase
         Sources.Clear();
         ResearchSummary = "";
         var result = await new TermResearchAgent(Context(AppServices.Ai.ResearchProviderId))
-            .RunAsync(Topic.Trim(), SourceLanguage.Trim(), targets, seeds, Math.Clamp(PagesPerLanguage, 1, 8), ct);
+            .RunAsync(Topic.Trim(), SourceLanguage.Trim(), targets, seeds, Math.Clamp(PagesPerLanguage, 1, 8), ct, Profile);
         foreach (var c in result.Candidates) Candidates.Add(new CandidateRowViewModel { Candidate = c, Selected = c.Confidence >= 0.6 });
         foreach (var s in result.Sources) Sources.Add(s);
         ResearchSummary = result.Summary;
@@ -148,6 +169,45 @@ public partial class AgentsViewModel : ViewModelBase
         }
         Log += $"{n} Begriffe in die Projekt-Terminologie übernommen.\n";
         _main.Resources.Refresh();
+    }
+
+    // ---------- Begriffsvergleich ----------
+
+    [RelayCommand]
+    private Task Compare() => Run(async ct =>
+    {
+        if (CompareTerm.Trim().Length == 0) { Log = "Bitte einen Begriff angeben.\n"; return; }
+        HasCompareResult = false;
+        var p = _main.Project;
+        var hints = CompareCandidates.Split(['\n', ';', ','], StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToList();
+        var known = p?.TermbasesFor(CompareTargetLanguage.Trim())
+            .SelectMany(tb => tb.Recognize(CompareTerm, CompareSourceLanguage.Trim(), CompareTargetLanguage.Trim())).ToList();
+        var query = new TermQuery(CompareTerm.Trim(), CompareSourceLanguage.Trim(), CompareTargetLanguage.Trim(),
+            CompareContext.Trim().Length > 0 ? CompareContext.Trim() : null, Topic, Profile, hints, known);
+        _comparison = await new TermComparisonAgent(Context(AppServices.Ai.ResearchProviderId)).RunAsync(query, Math.Clamp(PagesPerLanguage, 1, 6), ct);
+        CompareResult = TermComparisonAgent.Format(_comparison);
+        HasCompareResult = true;
+    });
+
+    [RelayCommand]
+    private void SaveCompareToTermbase()
+    {
+        var p = _main.Project;
+        if (p == null || _comparison == null) { Log += "Kein Projekt geöffnet.\n"; return; }
+        var tb = p.SharedTermbasesToWrite(CompareTargetLanguage.Trim()).FirstOrDefault() ?? p.ProjectTermbase;
+        TermComparisonAgent.SaveToTermbase(_comparison, tb, CompareSourceLanguage.Trim(), CompareTargetLanguage.Trim(), Topic);
+        Log += $"In „{tb.Name}“ übernommen.\n";
+        _main.Resources.Refresh();
+    }
+
+    [RelayCommand]
+    private void SaveCompareToKnowledge()
+    {
+        var p = _main.Project;
+        if (p == null || _comparison == null) { Log += "Kein Projekt geöffnet.\n"; return; }
+        var kb = p.KnowledgeFor(CompareTargetLanguage.Trim()).FirstOrDefault(k => k.IsRemote) ?? p.ProjectKnowledge;
+        TermComparisonAgent.SaveToKnowledge(_comparison, kb, CompareTargetLanguage.Trim(), Topic, Environment.UserName);
+        Log += $"Als Wissen in „{kb.Name}“ gespeichert.\n";
     }
 
     // ---------- Usus ----------

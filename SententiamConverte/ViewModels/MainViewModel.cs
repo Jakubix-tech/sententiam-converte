@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
@@ -107,6 +108,12 @@ public partial class MainViewModel : ViewModelBase
     // Projekteinstellungen, die man im Projektbereich ändern kann
     [ObservableProperty] public partial string ProjectTopic { get; set; } = "";
     [ObservableProperty] public partial int PretranslateMinScore { get; set; } = 100;
+    [ObservableProperty] public partial bool ConfirmContextMatches { get; set; } = true;
+    [ObservableProperty] public partial string? ProjectProfile { get; set; }
+    public IEnumerable<string> ProfileNames => new[] { "(keins)" }.Concat(AppServices.Ai.SourceProfiles.Select(p => p.Name));
+
+    /// <summary>Das Fachquellen-Profil des offenen Projekts.</summary>
+    public SourceProfile? CurrentProfile => AppServices.Ai.Profile(Project?.SourceProfile);
 
     public string ProjectsRoot
     {
@@ -179,6 +186,9 @@ public partial class MainViewModel : ViewModelBase
         Project = project;
         ProjectTopic = project.Topic;
         PretranslateMinScore = project.PretranslateMinScore;
+        ConfirmContextMatches = project.ConfirmContextMatches;
+        OnPropertyChanged(nameof(ProfileNames));
+        ProjectProfile = project.SourceProfile ?? "(keins)";
         Qa = project.Qa;
         IsPackageProject = project.IsFromPackage;
         ForbiddenWords = string.Join(", ", project.Qa.ForbiddenWords);
@@ -210,6 +220,23 @@ public partial class MainViewModel : ViewModelBase
         if (Project == null || Project.Topic == value) return;
         Project.Topic = value;
         Project.Save();
+    }
+
+    partial void OnConfirmContextMatchesChanged(bool value)
+    {
+        if (Project == null || Project.ConfirmContextMatches == value) return;
+        Project.ConfirmContextMatches = value;
+        Project.Save();
+    }
+
+    partial void OnProjectProfileChanged(string? value)
+    {
+        if (Project == null) return;
+        var name = value is null or "(keins)" ? null : value;
+        if (Project.SourceProfile == name) return;
+        Project.SourceProfile = name;
+        Project.Save();
+        Agents.OnProjectChanged();
     }
 
     partial void OnPretranslateMinScoreChanged(int value)
@@ -434,18 +461,21 @@ public partial class MainViewModel : ViewModelBase
         await RunBusy("Vorübersetzung …", async () =>
         {
             var applied = 0;
+            var confirmed = 0;
             await Task.Run(() =>
             {
                 foreach (var (f, lang) in Project.Documents())
                 {
                     var doc = Project.LoadDocument(f, lang);
-                    applied += Workflow.Pretranslate(Project, doc, confirmExact: false).Applied;
+                    var (a, c) = Workflow.Pretranslate(Project, doc, confirmExact: false);
+                    applied += a;
+                    confirmed += c;
                     Project.SaveDocument(f, doc);
                 }
             });
             Editor.Reload();
             RefreshFiles();
-            Status = $"Vorübersetzung fertig: {applied} Segmente aus dem TM eingesetzt (ab {Project.PretranslateMinScore} %).";
+            Status = $"Vorübersetzung fertig: {applied} Segmente aus dem TM eingesetzt (ab {Project.PretranslateMinScore} %), {confirmed} Kontexttreffer bestätigt.";
         });
     }
 

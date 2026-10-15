@@ -215,6 +215,14 @@ public class UiFlowTests
         Assert.Contains("screw", editor.SuggestionsFor("scr"));
         Shot(window, "06b-editor-tm");
 
+        // Fachquellen-Profil und Kontext-Option werden im Projekt gespeichert
+        vm.ProjectProfile = "Recht";
+        vm.ConfirmContextMatches = false;
+        Assert.Equal("Recht", vm.Project!.SourceProfile);
+        Assert.Equal("Recht", vm.CurrentProfile?.Name);
+        Assert.Equal("Recht", vm.Agents.ProfileName);
+        vm.ConfirmContextMatches = true;
+
         // Analyse & Zieldatei
         vm.SelectedTab = 0;
         await Run(vm.AnalyzeCommand);

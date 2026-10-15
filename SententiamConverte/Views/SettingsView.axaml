@@ -96,6 +96,31 @@
             </StackPanel>
             <SelectableTextBlock Text="{Binding TestResult}" TextWrapping="Wrap" />
 
+            <TextBlock Text="Fachquellen je Thema" FontSize="16" FontWeight="SemiBold" Margin="0,12,0,0" />
+            <TextBlock TextWrapping="Wrap" Opacity="0.8"
+                       Text="Auf diese Seiten beschränken die Agenten ihre Suche (findet sich dort nichts, wird allgemein gesucht). Je Zeile: Sprache | System (z. B. Rechtsordnung) | Domains, mit Komma getrennt. „*“ gilt für alle Sprachen. Das Profil wird pro Projekt gewählt." />
+            <Grid ColumnDefinitions="200,16,*">
+                <StackPanel Spacing="6">
+                    <ListBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}" Height="160">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ProfileViewModel">
+                                <TextBlock Text="{Binding Name}" />
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <WrapPanel>
+                        <Button Content="Neu" Command="{Binding AddProfileCommand}" Margin="0,0,6,4" />
+                        <Button Content="Entfernen" Command="{Binding RemoveProfileCommand}" Margin="0,0,6,4" />
+                        <Button Content="Vorschläge" Command="{Binding ResetProfilesCommand}" Margin="0,0,6,4" ToolTip.Tip="Mitgelieferte Profile wiederherstellen" />
+                    </WrapPanel>
+                </StackPanel>
+                <StackPanel Grid.Column="2" Spacing="6" DataContext="{Binding SelectedProfile}" x:DataType="vm:ProfileViewModel">
+                    <TextBox Text="{Binding Name}" PlaceholderText="Thema, z. B. Recht" />
+                    <TextBox Text="{Binding Description}" PlaceholderText="Beschreibung" />
+                    <TextBox Text="{Binding Text}" AcceptsReturn="True" TextWrapping="NoWrap" MinHeight="150" FontFamily="Consolas,Menlo,monospace" FontSize="12" />
+                </StackPanel>
+            </Grid>
+
             <TextBlock Text="Teamserver" FontSize="16" FontWeight="SemiBold" Margin="0,12,0,0" />
             <TextBlock TextWrapping="Wrap" Opacity="0.8"
                        Text="Über einen eigenen Teamserver teilen mehrere Übersetzer TMs, Terminologien und Wissensdatenbanken – gleichzeitig und sofort sichtbar. Den Zugangsschlüssel erhält jeder vom Server-Admin. Im Internet nur über HTTPS betreiben." />

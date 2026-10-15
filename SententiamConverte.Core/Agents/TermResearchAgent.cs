@@ -36,7 +36,7 @@ public sealed class TermResearchAgent(AgentContext ctx)
 
     public async Task<ResearchResult> RunAsync(
         string topic, string sourceLanguage, IReadOnlyList<string> targetLanguages,
-        IReadOnlyList<string>? seedTerms = null, int pagesPerLanguage = 3, CancellationToken ct = default)
+        IReadOnlyList<string>? seedTerms = null, int pagesPerLanguage = 3, CancellationToken ct = default, SourceProfile? profile = null)
     {
         var search = ctx.RequireSearch();
         var languages = new[] { sourceLanguage }.Concat(targetLanguages).Distinct().ToList();
@@ -67,7 +67,7 @@ public sealed class TermResearchAgent(AgentContext ctx)
             {
                 ct.ThrowIfCancellationRequested();
                 ctx.Say($"[{lang}] Suche: {q}");
-                try { urls.AddRange(await search.SearchAsync(q, lang, 6, ct)); }
+                try { urls.AddRange((await SiteSearch.SearchAsync(search, q, lang, profile?.SitesFor(lang) ?? [], 6, ctx.Say, ct)).Results); }
                 catch (Exception ex) when (ex is HttpRequestException or AiException) { ctx.Say($"[{lang}] Suche fehlgeschlagen: {ex.Message}"); }
             }
             var picked = urls.DistinctBy(u => u.Url).Where(u => !IsUnwanted(u.Url)).Take(pagesPerLanguage * 2).ToList();

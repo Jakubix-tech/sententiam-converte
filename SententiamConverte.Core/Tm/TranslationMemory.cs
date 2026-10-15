@@ -6,9 +6,38 @@ namespace SententiamConverte.Core.Tm;
 
 public sealed record TmUnit(
     long Id, string SourceLanguage, string TargetLanguage, string Source, string Target,
-    DateTime Created, DateTime Modified, int UsageCount, string? Origin, string? Context);
+    DateTime Created, DateTime Modified, int UsageCount, string? Origin, string? Context,
+    string? ContextPrevious = null, string? ContextNext = null);
 
-public sealed record TmMatch(TmUnit Unit, int Score, string TmName);
+/// <summary>Wodurch ein Treffer zum Kontexttreffer wird.</summary>
+public enum TmContextMatch
+{
+    None,
+    /// <summary>Der vorherige Satz ist derselbe.</summary>
+    Previous,
+    /// <summary>Vorheriger und nächster Satz sind dieselben.</summary>
+    PreviousAndNext,
+    /// <summary>Gleiche ID/gleicher Schlüssel (Software-Texte: RESX, JSON, PO).</summary>
+    Id,
+}
+
+/// <summary>
+/// Ein TM-Treffer. Score 101 = Kontexttreffer (gleicher Satz im gleichen Zusammenhang).
+/// <see cref="Ambiguous"/>: für denselben Satz gibt es mehrere Übersetzungen, keine passt zum Kontext (1 % Abzug).
+/// </summary>
+public sealed record TmMatch(TmUnit Unit, int Score, string TmName, TmContextMatch ContextMatch = TmContextMatch.None, bool Ambiguous = false);
+
+/// <summary>Zusammenhang eines Segments: Nachbarsätze und Stelle im Dokument (Überschrift, Zelle, ID …).</summary>
+public sealed record TmContext(string? Previous, string? Next, string? Structure, bool StructureIsId = false)
+{
+    /// <summary>Vergleichsform: ohne Tags, Leerraum vereinheitlicht.</summary>
+    public static string Key(string? text) =>
+        text == null ? "" : string.Join(' ', TagText.StripTags(text).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+}
+
+/// <summary>Eine Einheit zum Einfügen, z. B. aus einem TMX-Import.</summary>
+public sealed record TmEntry(string SrcLang, string TgtLang, string Source, string Target, DateTime? Created = null,
+    string? Origin = null, string? Structure = null, string? Previous = null, string? Next = null);
 
 /// <summary>Ein kürzerer TM-Eintrag, der vollständig im aktuellen Segment vorkommt (Fragment-Treffer).</summary>
 public sealed record FragmentMatch(string Phrase, int WordIndex, int WordCount, TmUnit Unit, string TmName);
@@ -43,7 +72,12 @@ public sealed class TranslationMemory : ITranslationMemory
               created TEXT NOT NULL, modified TEXT NOT NULL,
               usage_count INTEGER NOT NULL DEFAULT 0,
               origin TEXT, context TEXT);
-            CREATE UNIQUE INDEX IF NOT EXISTS tu_key ON tu(src_p, tgt_p, source);
+            CREATE TABLE IF NOT EXISTS tu_context(
+              tu_id INTEGER NOT NULL, prev TEXT NOT NULL, next TEXT NOT NULL DEFAULT '',
+              structure TEXT NOT NULL DEFAULT '', added TEXT NOT NULL);
+            CREATE UNIQUE INDEX IF NOT EXISTS tu_context_key ON tu_context(tu_id, prev, structure);
+            CREATE TRIGGER IF NOT EXISTS tu_ctx_ad AFTER DELETE ON tu BEGIN
+              DELETE FROM tu_context WHERE tu_id = old.id; END;
             CREATE VIRTUAL TABLE IF NOT EXISTS tu_fts USING fts5(
               source_plain, target_plain, content='tu', content_rowid='id',
               tokenize='unicode61 remove_diacritics 2');
@@ -90,6 +124,8 @@ public sealed class TranslationMemory : ITranslationMemory
             tx.Commit();
         }
         Exec("CREATE INDEX IF NOT EXISTS tu_norm ON tu(src_p, tgt_p, source_norm)");
+        // Früher eine Übersetzung je Quelle; jetzt mehrere (je Kontext), eindeutig ist Quelle + Übersetzung.
+        Exec("DROP INDEX IF EXISTS tu_key; CREATE UNIQUE INDEX IF NOT EXISTS tu_key2 ON tu(src_p, tgt_p, source, target)");
     }
 
     internal static string Norm(string text) => string.Join(' ', FuzzyMatcher.Words(text));
@@ -108,47 +144,147 @@ public sealed class TranslationMemory : ITranslationMemory
         return (long)cmd.ExecuteScalar()!;
     }
 
-    /// <summary>Speichert eine Übersetzung. Gibt es die Quelle schon, wird die Übersetzung ersetzt (übliches Standardverhalten).</summary>
-    public void Add(string srcLang, string tgtLang, string source, string target, string? origin = null, string? context = null, DateTime? created = null)
+    /// <summary>
+    /// Speichert eine Übersetzung mit ihrem Kontext (vorheriger/nächster Satz, Stelle im Dokument).
+    /// Derselbe Satz darf je Kontext unterschiedlich übersetzt sein. Eine neue Übersetzung im selben Kontext
+    /// ersetzt die alte; ohne Kontextangabe wird – wie früher – die kontextlose Übersetzung ersetzt.
+    /// </summary>
+    public void Add(string srcLang, string tgtLang, string source, string target, string? origin = null, string? context = null,
+        DateTime? created = null, string? previous = null, string? next = null)
     {
         if (string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(target)) return;
+        using var tx = _db.BeginTransaction();
+        AddCore(new TmEntry(srcLang, tgtLang, source, target, created, origin, context, previous, next));
+        tx.Commit();
+    }
+
+    private void AddCore(TmEntry e)
+    {
+        if (string.IsNullOrWhiteSpace(e.Source) || string.IsNullOrWhiteSpace(e.Target)) return;
+        var sp = Languages.Primary(e.SrcLang);
+        var tp = Languages.Primary(e.TgtLang);
+        var hasContext = e.Previous != null;
+        var prev = TmContext.Key(e.Previous);
+        var structure = e.Structure ?? "";
         var now = DateTime.UtcNow.ToString("o");
-        using var cmd = _db.CreateCommand();
-        cmd.CommandText = """
-            INSERT INTO tu(src_lang,tgt_lang,src_p,tgt_p,source,target,source_plain,target_plain,created,modified,origin,context,source_norm)
-            VALUES($sl,$tl,$sp,$tp,$s,$t,$spl,$tpl,$c,$m,$o,$ctx,$norm)
-            ON CONFLICT(src_p,tgt_p,source) DO UPDATE SET
-              target=excluded.target, target_plain=excluded.target_plain, tgt_lang=excluded.tgt_lang,
-              modified=excluded.modified, origin=excluded.origin, context=COALESCE(excluded.context, tu.context)
-            """;
-        cmd.Parameters.AddWithValue("$sl", srcLang);
-        cmd.Parameters.AddWithValue("$tl", tgtLang);
-        cmd.Parameters.AddWithValue("$sp", Languages.Primary(srcLang));
-        cmd.Parameters.AddWithValue("$tp", Languages.Primary(tgtLang));
-        cmd.Parameters.AddWithValue("$s", source);
-        cmd.Parameters.AddWithValue("$t", target);
-        cmd.Parameters.AddWithValue("$spl", TagText.StripTags(source));
-        cmd.Parameters.AddWithValue("$tpl", TagText.StripTags(target));
-        cmd.Parameters.AddWithValue("$c", (created ?? DateTime.UtcNow).ToString("o"));
-        cmd.Parameters.AddWithValue("$m", now);
-        cmd.Parameters.AddWithValue("$o", (object?)origin ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$ctx", (object?)context ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$norm", Norm(source));
+
+        long? sameTarget = Scalar("SELECT id FROM tu WHERE src_p=$sp AND tgt_p=$tp AND source=$s AND target=$t",
+            ("$sp", sp), ("$tp", tp), ("$s", e.Source), ("$t", e.Target));
+
+        if (hasContext)
+        {
+            // Gab es in genau diesem Kontext eine andere Übersetzung? Dann ist sie hier überholt.
+            var superseded = Ids("""
+                SELECT tu.id FROM tu JOIN tu_context c ON c.tu_id = tu.id
+                WHERE tu.src_p=$sp AND tu.tgt_p=$tp AND tu.source=$s AND tu.target<>$t AND c.prev=$prev AND c.structure=$st
+                """, ("$sp", sp), ("$tp", tp), ("$s", e.Source), ("$t", e.Target), ("$prev", prev), ("$st", structure));
+            foreach (var old in superseded)
+            {
+                Run("DELETE FROM tu_context WHERE tu_id=$id AND prev=$prev AND structure=$st", ("$id", old), ("$prev", prev), ("$st", structure));
+                // Hatte die alte Übersetzung keinen anderen Kontext mehr, ist es eine Korrektur: Ziel ersetzen.
+                if (sameTarget == null && Scalar("SELECT COUNT(*) FROM tu_context WHERE tu_id=$id", ("$id", old)) == 0)
+                {
+                    UpdateTarget(old, e.Target, e.Origin);
+                    sameTarget = old;
+                }
+            }
+        }
+        else if (sameTarget == null)
+        {
+            // Ohne Kontext: kontextlose Übersetzung desselben Satzes ersetzen (früheres Verhalten)
+            var plain = Scalar("""
+                SELECT id FROM tu WHERE src_p=$sp AND tgt_p=$tp AND source=$s
+                  AND NOT EXISTS (SELECT 1 FROM tu_context c WHERE c.tu_id = tu.id) ORDER BY modified DESC LIMIT 1
+                """, ("$sp", sp), ("$tp", tp), ("$s", e.Source));
+            if (plain != null)
+            {
+                UpdateTarget(plain.Value, e.Target, e.Origin);
+                sameTarget = plain;
+            }
+        }
+
+        long id;
+        if (sameTarget != null)
+        {
+            id = sameTarget.Value;
+            Run("UPDATE tu SET modified=$m, origin=COALESCE($o, origin), context=COALESCE($ctx, context), tgt_lang=$tl WHERE id=$id",
+                ("$m", now), ("$o", e.Origin), ("$ctx", e.Structure), ("$tl", e.TgtLang), ("$id", id));
+        }
+        else
+        {
+            id = Scalar("""
+                INSERT INTO tu(src_lang,tgt_lang,src_p,tgt_p,source,target,source_plain,target_plain,created,modified,origin,context,source_norm)
+                VALUES($sl,$tl,$sp,$tp,$s,$t,$spl,$tpl,$c,$m,$o,$ctx,$norm); SELECT last_insert_rowid();
+                """,
+                ("$sl", e.SrcLang), ("$tl", e.TgtLang), ("$sp", sp), ("$tp", tp), ("$s", e.Source), ("$t", e.Target),
+                ("$spl", TagText.StripTags(e.Source)), ("$tpl", TagText.StripTags(e.Target)),
+                ("$c", (e.Created ?? DateTime.UtcNow).ToString("o")), ("$m", now), ("$o", e.Origin), ("$ctx", e.Structure),
+                ("$norm", Norm(e.Source)))!.Value;
+        }
+
+        if (hasContext)
+            Run("""
+                INSERT INTO tu_context(tu_id, prev, next, structure, added) VALUES($id, $prev, $next, $st, $m)
+                ON CONFLICT(tu_id, prev, structure) DO UPDATE SET next=excluded.next, added=excluded.added
+                """, ("$id", id), ("$prev", prev), ("$next", TmContext.Key(e.Next)), ("$st", structure), ("$m", now));
+    }
+
+    private void UpdateTarget(long id, string target, string? origin) =>
+        Run("UPDATE tu SET target=$t, target_plain=$tpl, modified=$m, origin=COALESCE($o, origin) WHERE id=$id",
+            ("$t", target), ("$tpl", TagText.StripTags(target)), ("$m", DateTime.UtcNow.ToString("o")), ("$o", origin), ("$id", id));
+
+    private SqliteCommand Command(string sql, (string Name, object? Value)[] args)
+    {
+        var cmd = _db.CreateCommand();
+        cmd.CommandText = sql;
+        foreach (var (n, v) in args) cmd.Parameters.AddWithValue(n, v ?? DBNull.Value);
+        return cmd;
+    }
+
+    private void Run(string sql, params (string, object?)[] args)
+    {
+        using var cmd = Command(sql, args);
         cmd.ExecuteNonQuery();
     }
 
+    private long? Scalar(string sql, params (string, object?)[] args)
+    {
+        using var cmd = Command(sql, args);
+        var v = cmd.ExecuteScalar();
+        return v is null or DBNull ? null : Convert.ToInt64(v);
+    }
+
+    private List<long> Ids(string sql, params (string, object?)[] args)
+    {
+        using var cmd = Command(sql, args);
+        using var r = cmd.ExecuteReader();
+        var list = new List<long>();
+        while (r.Read()) list.Add(r.GetInt64(0));
+        return list;
+    }
+
     /// <summary>Viele Einträge in einer Transaktion (TMX-Import).</summary>
-    public int AddMany(IEnumerable<(string SrcLang, string TgtLang, string Source, string Target, DateTime? Created)> units)
+    public int AddMany(IEnumerable<TmEntry> units)
     {
         var n = 0;
         using var tx = _db.BeginTransaction();
         foreach (var u in units)
         {
-            Add(u.SrcLang, u.TgtLang, u.Source, u.Target, "import", null, u.Created);
+            AddCore(u with { Origin = u.Origin ?? "import" });
             n++;
         }
         tx.Commit();
         return n;
+    }
+
+    /// <summary>Alle gespeicherten Kontexte einer Einheit (für den TMX-Export).</summary>
+    public List<(string Previous, string Next, string Structure)> ContextsOf(long id)
+    {
+        using var cmd = Command("SELECT prev, next, structure FROM tu_context WHERE tu_id=$id ORDER BY added DESC", [("$id", id)]);
+        using var r = cmd.ExecuteReader();
+        var list = new List<(string, string, string)>();
+        while (r.Read()) list.Add((r.GetString(0), r.GetString(1), r.GetString(2)));
+        return list;
     }
 
     /// <summary>Eintrag bearbeiten (TM-Pflege).</summary>
@@ -201,7 +337,7 @@ public sealed class TranslationMemory : ITranslationMemory
     }
 
     /// <summary>Unscharfe Suche: alle Treffer ab <paramref name="minScore"/>, beste zuerst.</summary>
-    public List<TmMatch> Search(string srcLang, string tgtLang, string source, int minScore = 70, int max = 10)
+    public List<TmMatch> Search(string srcLang, string tgtLang, string source, int minScore = 70, int max = 10, TmContext? context = null)
     {
         var results = new Dictionary<long, TmMatch>();
 
@@ -235,9 +371,51 @@ public sealed class TranslationMemory : ITranslationMemory
             }
         }
 
-        return results.Values.Where(r => r.Score >= minScore)
+        var scored = ApplyContext(results.Values.ToList(), context);
+        return scored.Where(r => r.Score >= minScore)
             .OrderByDescending(r => r.Score).ThenByDescending(r => r.Unit.Modified)
             .Take(max).ToList();
+    }
+
+    /// <summary>
+    /// Kontext bewerten: gleicher Satz im gleichen Zusammenhang → 101 %. Gibt es für denselben Satz mehrere
+    /// Übersetzungen und passt eine nicht zum Kontext, wird sie um 1 % abgewertet (nicht blind einsetzen).
+    /// </summary>
+    private List<TmMatch> ApplyContext(List<TmMatch> matches, TmContext? context)
+    {
+        var exact = matches.Where(m => m.Score >= 99).ToList();
+        if (exact.Count == 0) return matches;
+        var prevKey = context?.Previous == null ? null : TmContext.Key(context.Previous);
+        var nextKey = context?.Next == null ? null : TmContext.Key(context.Next);
+        var multiple = exact.Select(m => m.Unit.Target).Distinct().Count() > 1;
+
+        var result = new List<TmMatch>();
+        foreach (var m in matches)
+        {
+            if (m.Score < 99) { result.Add(m); continue; }
+            var contexts = ContextsOf(m.Unit.Id);
+            var kind = TmContextMatch.None;
+            if (prevKey != null)
+            {
+                var hit = contexts.FirstOrDefault(c => c.Previous == prevKey &&
+                                                       (c.Structure == (context!.Structure ?? "") || c.Structure.Length == 0 || string.IsNullOrEmpty(context.Structure)));
+                if (hit.Previous != null)
+                    kind = nextKey != null && hit.Next == nextKey ? TmContextMatch.PreviousAndNext : TmContextMatch.Previous;
+            }
+            if (kind == TmContextMatch.None && context is { StructureIsId: true, Structure: { Length: > 0 } id } &&
+                (contexts.Any(c => c.Structure == id) || m.Unit.Context == id))
+                kind = TmContextMatch.Id;
+
+            var last = contexts.FirstOrDefault();
+            var unit = last.Previous == null ? m.Unit : m.Unit with { ContextPrevious = last.Previous, ContextNext = last.Next };
+            if (kind != TmContextMatch.None && m.Score == 100)
+                result.Add(m with { Unit = unit, Score = 101, ContextMatch = kind });
+            else if (multiple)
+                result.Add(m with { Unit = unit, Score = Math.Max(0, m.Score - 1), Ambiguous = true });
+            else
+                result.Add(m with { Unit = unit });
+        }
+        return result;
     }
 
     /// <summary>

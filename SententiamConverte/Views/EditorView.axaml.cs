@@ -136,6 +136,23 @@ public partial class EditorView : UserControl
         box.Focus();
     }
 
+    // ---------- Begriff klären ----------
+
+    private void OnClarifyTermClick(object? sender, RoutedEventArgs e) => ClarifySelectedTerm();
+
+    private void ClarifySelectedTerm()
+    {
+        if (_vm == null) return;
+        var term = SelectedSourceText() ?? SelectedTargetText();
+        if (term == null)
+        {
+            _vm.AiResult = "Bitte zuerst den Begriff im Quelltext markieren.";
+            _vm.SidePanelTab = 6;
+            return;
+        }
+        _ = _vm.ClarifyTermAsync(term);
+    }
+
     private void OnQaDoubleTapped(object? sender, TappedEventArgs e)
     {
         if (QaList.SelectedItem is QaRow row) _vm?.GoToSegmentCommand.Execute(row);
@@ -220,6 +237,9 @@ public partial class EditorView : UserControl
                 break;
             case Key.E when ctrl && shift:
                 _vm.EvaluateSegmentCommand.Execute(null);
+                break;
+            case Key.B when ctrl && shift:
+                ClarifySelectedTerm();
                 break;
             case Key.U when ctrl && shift:
                 _ = _vm.CheckUsageAsync(SelectedTargetText() ?? TagText.StripTags(_vm.Selected?.Target ?? ""));

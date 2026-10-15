@@ -24,7 +24,7 @@ public static class TmxIo
         var headerSrc = (string?)header?.Attribute("srclang");
         var langs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        IEnumerable<(string, string, string, string, DateTime?)> Units()
+        IEnumerable<TmEntry> Units()
         {
             foreach (var tu in x.Descendants("tu"))
             {
@@ -37,13 +37,17 @@ public static class TmxIo
                 var src = srcLang is null or "*all*" ? tuvs[0] : tuvs.FirstOrDefault(v => Languages.Matches(v.Lang, srcLang));
                 if (src.Seg == null) continue;
                 var created = ParseDate((string?)tu.Attribute("changedate") ?? (string?)tu.Attribute("creationdate"));
+                string? Prop(string type) => tu.Elements("prop").FirstOrDefault(p => (string?)p.Attribute("type") == type)?.Value;
+                var prev = Prop(PrevProp);
+                var next = Prop(NextProp);
+                var structure = Prop(StructureProp);
                 foreach (var tgt in tuvs.Where(v => !ReferenceEquals(v.Seg, src.Seg)))
                 {
                     if (onlySource != null && !Languages.Matches(src.Lang, onlySource)) continue;
                     if (onlyTarget != null && !Languages.Matches(tgt.Lang, onlyTarget)) continue;
                     langs.Add(src.Lang);
                     langs.Add(tgt.Lang);
-                    yield return (src.Lang, tgt.Lang, SegToTagged(src.Seg!), SegToTagged(tgt.Seg!), created);
+                    yield return new TmEntry(src.Lang, tgt.Lang, SegToTagged(src.Seg!), SegToTagged(tgt.Seg!), created, "import", structure, prev, next);
                 }
             }
         }
@@ -89,18 +93,32 @@ public static class TmxIo
         }
     }
 
+    private const string PrevProp = "x-context-prev";
+    private const string NextProp = "x-context-next";
+    private const string StructureProp = "x-context";
+
     public static int Export(ITranslationMemory tm, Stream output)
     {
         var units = tm.All().ToList();
         var srcLang = units.GroupBy(u => u.SourceLanguage).OrderByDescending(g => g.Count()).Select(g => g.Key).FirstOrDefault() ?? "*all*";
-        var body = new XElement("body",
-            units.Select(u => new XElement("tu",
-                new XAttribute("creationdate", u.Created.ToUniversalTime().ToString("yyyyMMdd'T'HHmmss'Z'")),
-                new XAttribute("changedate", u.Modified.ToUniversalTime().ToString("yyyyMMdd'T'HHmmss'Z'")),
-                new XAttribute("srclang", u.SourceLanguage),
-                u.UsageCount > 0 ? new XAttribute("usagecount", u.UsageCount) : null,
-                new XElement("tuv", new XAttribute(XNamespace.Xml + "lang", u.SourceLanguage), new XElement("seg", TaggedToSeg(u.Source))),
-                new XElement("tuv", new XAttribute(XNamespace.Xml + "lang", u.TargetLanguage), new XElement("seg", TaggedToSeg(u.Target))))));
+        // Eine Einheit mit mehreren Kontexten wird je Kontext ausgegeben (TMX kennt nur einen Kontext je tu).
+        XElement Tu(TmUnit u, (string Previous, string Next, string Structure)? c) => new("tu",
+            new XAttribute("creationdate", u.Created.ToUniversalTime().ToString("yyyyMMdd'T'HHmmss'Z'")),
+            new XAttribute("changedate", u.Modified.ToUniversalTime().ToString("yyyyMMdd'T'HHmmss'Z'")),
+            new XAttribute("srclang", u.SourceLanguage),
+            u.UsageCount > 0 ? new XAttribute("usagecount", u.UsageCount) : null,
+            c != null ? new XElement("prop", new XAttribute("type", PrevProp), c.Value.Previous) : null,
+            c is { Next.Length: > 0 } ? new XElement("prop", new XAttribute("type", NextProp), c.Value.Next) : null,
+            (c?.Structure ?? u.Context) is { Length: > 0 } st ? new XElement("prop", new XAttribute("type", StructureProp), st) : null,
+            new XElement("tuv", new XAttribute(XNamespace.Xml + "lang", u.SourceLanguage), new XElement("seg", TaggedToSeg(u.Source))),
+            new XElement("tuv", new XAttribute(XNamespace.Xml + "lang", u.TargetLanguage), new XElement("seg", TaggedToSeg(u.Target))));
+        var body = new XElement("body", units.SelectMany(u =>
+        {
+            var contexts = tm is TranslationMemory local ? local.ContextsOf(u.Id) : [];
+            return contexts.Count == 0
+                ? [Tu(u, null)]
+                : contexts.Select(c => Tu(u, c));
+        }));
         var x = new XDocument(new XDeclaration("1.0", "utf-8", null),
             new XElement("tmx", new XAttribute("version", "1.4"),
                 new XElement("header",

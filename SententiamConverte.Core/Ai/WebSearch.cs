@@ -12,6 +12,10 @@ public interface ISearchProvider
 {
     string Name { get; }
     Task<List<SearchResult>> SearchAsync(string query, string language, int max, CancellationToken ct = default);
+
+    /// <summary>Suche nur auf bestimmten Seiten. Standard: „site:“-Operatoren, die Brave und SearXNG verstehen.</summary>
+    Task<List<SearchResult>> SearchInSitesAsync(string query, string language, IReadOnlyList<string> sites, int max, CancellationToken ct = default) =>
+        SearchAsync($"{query} ({string.Join(" OR ", sites.Take(8).Select(x => "site:" + x))})", language, max, ct);
 }
 
 public static class SearchProviderFactory
@@ -79,13 +83,21 @@ public sealed class BraveSearch(string apiKey) : ISearchProvider
 public sealed class TavilySearch(string apiKey) : ISearchProvider
 {
     private static readonly HttpClient Http = SearchProviderFactory.NewHttp();
+    private string[]? _sites;
     public string Name => "Tavily";
+
+    public async Task<List<SearchResult>> SearchInSitesAsync(string query, string language, IReadOnlyList<string> sites, int max, CancellationToken ct = default)
+    {
+        _sites = sites.ToArray();
+        try { return await SearchAsync(query, language, max, ct); }
+        finally { _sites = null; }
+    }
 
     public async Task<List<SearchResult>> SearchAsync(string query, string language, int max, CancellationToken ct = default)
     {
         using var req = new HttpRequestMessage(HttpMethod.Post, "https://api.tavily.com/search")
         {
-            Content = JsonContent.Create(new { query, max_results = max, search_depth = "basic" }),
+            Content = JsonContent.Create(new { query, max_results = max, search_depth = "basic", include_domains = _sites }),
         };
         req.Headers.Add("Authorization", "Bearer " + apiKey);
         using var response = await Http.SendAsync(req, ct);
@@ -102,7 +114,13 @@ public sealed class ClaudeSearch(ClaudeChatModel claude) : ISearchProvider
 {
     public string Name => "Claude-Websuche";
 
-    public async Task<List<SearchResult>> SearchAsync(string query, string language, int max, CancellationToken ct = default)
+    public Task<List<SearchResult>> SearchAsync(string query, string language, int max, CancellationToken ct = default) =>
+        Run(query, language, max, null, ct);
+
+    public Task<List<SearchResult>> SearchInSitesAsync(string query, string language, IReadOnlyList<string> sites, int max, CancellationToken ct = default) =>
+        Run(query, language, max, sites, ct);
+
+    private async Task<List<SearchResult>> Run(string query, string language, int max, IReadOnlyList<string>? sites, CancellationToken ct)
     {
         var answer = await claude.CompleteWithWebSearchAsync(
             "You are a search backend. Use the web_search tool, then output only JSON.",
@@ -111,7 +129,7 @@ public sealed class ClaudeSearch(ClaudeChatModel claude) : ISearchProvider
             Prefer pages written in {{Languages.DisplayName(language)}} ({{language}}).
             Return up to {{max}} results as JSON: [{"title": "...", "url": "...", "snippet": "verbatim sentence from the page that contains the searched words"}]
             Only include results you actually found. No commentary.
-            """, ct);
+            """, ct, sites);
         return JsonExtract.Parse<List<SearchResult>>(answer).Take(max).ToList();
     }
 }

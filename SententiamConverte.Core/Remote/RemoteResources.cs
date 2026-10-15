@@ -16,23 +16,25 @@ public sealed class RemoteTranslationMemory(RemoteApi api, string name) : ITrans
 
     public long Count() => api.Send<long>(HttpMethod.Get, P + "count");
 
-    public void Add(string srcLang, string tgtLang, string source, string target, string? origin = null, string? context = null, DateTime? created = null) =>
-        api.Send(HttpMethod.Post, P + "units", new TmAddRequest(srcLang, tgtLang, source, target, origin, context, created));
+    public void Add(string srcLang, string tgtLang, string source, string target, string? origin = null, string? context = null,
+        DateTime? created = null, string? previous = null, string? next = null) =>
+        api.Send(HttpMethod.Post, P + "units", new TmAddRequest(srcLang, tgtLang, source, target, origin, context, created, previous, next));
 
-    public int AddMany(IEnumerable<(string SrcLang, string TgtLang, string Source, string Target, DateTime? Created)> units)
+    public int AddMany(IEnumerable<TmEntry> units)
     {
         var total = 0;
         foreach (var chunk in units.Chunk(500))
             total += api.Send<int>(HttpMethod.Post, P + "units/batch",
-                chunk.Select(u => new TmAddRequest(u.SrcLang, u.TgtLang, u.Source, u.Target, "import", null, u.Created)).ToList());
+                chunk.Select(u => new TmAddRequest(u.SrcLang, u.TgtLang, u.Source, u.Target, u.Origin ?? "import", u.Structure, u.Created, u.Previous, u.Next)).ToList());
         return total;
     }
 
     public void Update(long id, string source, string target) => api.Send(HttpMethod.Put, P + $"units/{id}", new TmUpdateRequest(source, target));
     public void Delete(long id) => api.Send(HttpMethod.Delete, P + $"units/{id}");
 
-    public List<TmMatch> Search(string srcLang, string tgtLang, string source, int minScore = 70, int max = 10) =>
-        api.Send<List<TmMatch>>(HttpMethod.Post, P + "search", new TmSearchRequest(srcLang, tgtLang, source, minScore, max));
+    public List<TmMatch> Search(string srcLang, string tgtLang, string source, int minScore = 70, int max = 10, TmContext? context = null) =>
+        api.Send<List<TmMatch>>(HttpMethod.Post, P + "search", new TmSearchRequest(srcLang, tgtLang, source, minScore, max, false,
+            context?.Previous, context?.Next, context?.Structure, context?.StructureIsId ?? false));
 
     public List<FragmentMatch> Fragments(string srcLang, string tgtLang, string source, int max = 15) =>
         api.Send<List<FragmentMatch>>(HttpMethod.Post, P + "fragments", new TmSearchRequest(srcLang, tgtLang, source, 0, max));

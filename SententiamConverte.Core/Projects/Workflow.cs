@@ -7,12 +7,35 @@ namespace SententiamConverte.Core.Projects;
 /// <summary>Die Arbeitsschritte im Editor und in den Stapelaufgaben.</summary>
 public static class Workflow
 {
-    /// <summary>Alle TM-Treffer für ein Segment aus allen TMs des Projekts, beste zuerst.</summary>
-    public static List<TmMatch> Lookup(TranslationProject project, BilingualDocument doc, Segment segment, int? minScore = null) =>
-        project.TmsFor(doc.TargetLanguage)
-            .SelectMany(tm => Safe(() => tm.Search(doc.SourceLanguage, doc.TargetLanguage, segment.Source, minScore ?? project.LookupMinScore, 10)))
-            .OrderByDescending(m => m.Score).ThenBy(m => m.TmName == "Projekt-TM" ? 0 : 1)
+    /// <summary>Formate, deren Absatzkontext eine eindeutige ID ist (Ressourcenschlüssel, JSON-Pfad, PO-Eintrag).</summary>
+    private static readonly HashSet<string> IdFormats = ["resx", "json", "po"];
+
+    /// <summary>Zusammenhang eines Segments: vorheriger und nächster Satz, Stelle im Dokument.</summary>
+    public static TmContext ContextOf(BilingualDocument doc, Segment segment)
+    {
+        var all = doc.Segments.ToList();
+        return ContextOf(doc, all, all.IndexOf(segment));
+    }
+
+    /// <summary>Wie <see cref="ContextOf(BilingualDocument, Segment)"/>, mit vorab ermittelter Segmentliste (Stapelaufgaben).</summary>
+    public static TmContext ContextOf(BilingualDocument doc, IReadOnlyList<Segment> all, int index)
+    {
+        if (index < 0) return new TmContext(null, null, null);
+        var segment = all[index];
+        var previous = index > 0 ? TmContext.Key(all[index - 1].Source) : "";      // "" = Dokumentanfang
+        var next = index < all.Count - 1 ? TmContext.Key(all[index + 1].Source) : "";
+        return new TmContext(previous, next, doc.ParagraphOf(segment)?.Context, IdFormats.Contains(doc.FilterId));
+    }
+
+    /// <summary>Alle TM-Treffer für ein Segment aus allen TMs des Projekts, beste zuerst; Kontexttreffer = 101 %.</summary>
+    public static List<TmMatch> Lookup(TranslationProject project, BilingualDocument doc, Segment segment, int? minScore = null, TmContext? context = null)
+    {
+        context ??= ContextOf(doc, segment);
+        return project.TmsFor(doc.TargetLanguage)
+            .SelectMany(tm => Safe(() => tm.Search(doc.SourceLanguage, doc.TargetLanguage, segment.Source, minScore ?? project.LookupMinScore, 10, context)))
+            .OrderByDescending(m => m.Score).ThenBy(m => m.TmName == "Projekt-TM" ? 0 : 1).ThenByDescending(m => m.Unit.Modified)
             .Take(10).ToList();
+    }
 
     /// <summary>Setzt einen TM-Treffer ins Segment ein; abweichende Zahlen werden angepasst.</summary>
     public static void ApplyMatch(Segment segment, TmMatch match, string targetLanguage = "")
@@ -40,11 +63,18 @@ public static class Workflow
         segment.Status = status;
         segment.Modified = DateTime.UtcNow;
         if (segment.Origin == TranslationOrigin.None) segment.Origin = TranslationOrigin.Manual;
-        var context = doc.ParagraphOf(segment)?.Context;
-        project.ProjectTm.Add(doc.SourceLanguage, doc.TargetLanguage, segment.Source, segment.Target, segment.Origin.ToString(), context);
+        // Mit Kontext speichern: so wird derselbe Satz später im gleichen Zusammenhang als 101 % erkannt
+        var ctx = ContextOf(doc, segment);
+        project.ProjectTm.Add(doc.SourceLanguage, doc.TargetLanguage, segment.Source, segment.Target, segment.Origin.ToString(),
+            ctx.Structure, null, ctx.Previous, ctx.Next);
         // gemeinsame TMs (z. B. Teamserver) erhalten bestätigte Übersetzungen ebenfalls
         foreach (var shared in project.SharedTmsToWrite(doc.TargetLanguage))
-            Safe(() => { shared.Add(doc.SourceLanguage, doc.TargetLanguage, segment.Source, segment.Target, segment.Origin.ToString(), context); return new List<int>(); });
+            Safe(() =>
+            {
+                shared.Add(doc.SourceLanguage, doc.TargetLanguage, segment.Source, segment.Target, segment.Origin.ToString(),
+                    ctx.Structure, null, ctx.Previous, ctx.Next);
+                return new List<int>();
+            });
 
         var propagated = 0;
         foreach (var other in doc.Segments)
@@ -59,20 +89,25 @@ public static class Workflow
         return propagated;
     }
 
-    /// <summary>Vorübersetzung aus den TMs. Treffer ab 100 % werden auf Wunsch gleich bestätigt.</summary>
+    /// <summary>
+    /// Vorübersetzung aus den TMs. Kontexttreffer (101 %) werden – je nach Projekteinstellung – gleich bestätigt,
+    /// 100-%-Treffer auf Wunsch. Mehrdeutige Treffer (mehrere Übersetzungen, keine passt zum Kontext) nie.
+    /// </summary>
     public static (int Applied, int Confirmed) Pretranslate(TranslationProject project, BilingualDocument doc, bool confirmExact = false, bool overwrite = false)
     {
         var applied = 0;
         var confirmed = 0;
-        foreach (var s in doc.Segments)
+        var all = doc.Segments.ToList();
+        for (var i = 0; i < all.Count; i++)
         {
+            var s = all[i];
             if (s.Locked) { if (s.Target.Length == 0) s.Target = s.Source; continue; }
             if (s.IsConfirmed || (!overwrite && s.Target.Length > 0)) continue;
-            var best = Lookup(project, doc, s, project.PretranslateMinScore).FirstOrDefault();
+            var best = Lookup(project, doc, s, project.PretranslateMinScore, ContextOf(doc, all, i)).FirstOrDefault();
             if (best == null) continue;
             ApplyMatch(s, best, doc.TargetLanguage);
             applied++;
-            if (confirmExact && best.Score == 100)
+            if ((best.Score == 101 && project.ConfirmContextMatches) || (confirmExact && best.Score == 100))
             {
                 s.Status = SegmentStatus.Translated;
                 confirmed++;

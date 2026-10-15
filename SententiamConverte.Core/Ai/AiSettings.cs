@@ -104,6 +104,12 @@ public sealed class AiSettings
 
     public SearchConfig Search { get; set; } = new();
 
+    /// <summary>Fachquellen je Thema und Sprache (Recht, Medizin, Technik …).</summary>
+    public List<SourceProfile> SourceProfiles { get; set; } = SourceProfile.Defaults();
+
+    public SourceProfile? Profile(string? name) =>
+        string.IsNullOrEmpty(name) ? null : SourceProfiles.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+
     /// <summary>In welcher Sprache die Agenten ihre Begründungen schreiben.</summary>
     public string ExplanationLanguage { get; set; } = "Deutsch";
 

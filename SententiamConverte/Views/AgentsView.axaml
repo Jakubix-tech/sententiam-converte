@@ -6,6 +6,45 @@
              x:DataType="vm:AgentsViewModel">
     <Grid RowDefinitions="*,Auto,Auto">
         <TabControl Padding="8">
+            <!-- Begriffsvergleich -->
+            <TabItem Header="Begriffsvergleich">
+                <ScrollViewer>
+                    <StackPanel Spacing="8" MaxWidth="1100" HorizontalAlignment="Left">
+                        <TextBlock TextWrapping="Wrap" Opacity="0.8"
+                                   Text="Für kontextabhängige Fachbegriffe, etwa im Recht: Der Assistent klärt die Bedeutung im angegebenen Zusammenhang, sucht auf den Fachseiten beider Sprachen (Fachquellen-Profil) nach Definitionen und vergleicht die Begriffe der beiden Systeme – z. B. Rechtsordnungen. Ergebnis: volle, teilweise oder keine Entsprechung, Unterschiede, empfohlene Lösung mit Begründung und überprüften Belegen." />
+                        <Grid ColumnDefinitions="*,12,Auto,12,Auto,12,Auto">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Begriff" />
+                                <TextBox Text="{Binding CompareTerm}" PlaceholderText="z. B. Rechtsanwalt, Gewährleistung, Bescheid" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Spacing="4">
+                                <TextBlock Text="von" />
+                                <TextBox Text="{Binding CompareSourceLanguage}" Width="90" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="4" Spacing="4">
+                                <TextBlock Text="nach" />
+                                <TextBox Text="{Binding CompareTargetLanguage}" Width="90" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="6" Spacing="4">
+                                <TextBlock Text="Fachquellen" />
+                                <ComboBox ItemsSource="{Binding ProfileNames}" SelectedItem="{Binding ProfileName}" MinWidth="160" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="Kontext (der Satz bzw. Absatz, in dem der Begriff vorkommt)" />
+                        <TextBox Text="{Binding CompareContext}" AcceptsReturn="True" TextWrapping="Wrap" Height="80" />
+                        <TextBlock Text="Eigene Kandidaten (optional, mit Komma getrennt)" />
+                        <TextBox Text="{Binding CompareCandidates}" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Vergleichen" Command="{Binding CompareCommand}" Classes="accent" />
+                            <Button Content="Abbrechen" Command="{Binding CancelCommand}" IsVisible="{Binding IsRunning}" />
+                            <Button Content="Empfehlung → Terminologie" Command="{Binding SaveCompareToTermbaseCommand}" IsVisible="{Binding HasCompareResult}" />
+                            <Button Content="Begründung → Wissen" Command="{Binding SaveCompareToKnowledgeCommand}" IsVisible="{Binding HasCompareResult}" />
+                        </StackPanel>
+                        <SelectableTextBlock Text="{Binding CompareResult}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
             <!-- Recherche -->
             <TabItem Header="Themenrecherche">
                 <ScrollViewer>
@@ -36,6 +75,8 @@
                                 </WrapPanel>
                             </StackPanel>
                             <StackPanel Grid.Column="4" Spacing="4">
+                                <TextBlock Text="Fachquellen" />
+                                <ComboBox ItemsSource="{Binding ProfileNames}" SelectedItem="{Binding ProfileName}" MinWidth="150" />
                                 <TextBlock Text="Seiten je Sprache" />
                                 <NumericUpDown Value="{Binding PagesPerLanguage}" Minimum="1" Maximum="8" FormatString="0" Width="120" />
                             </StackPanel>

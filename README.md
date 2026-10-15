@@ -33,6 +33,10 @@ Läuft auf **Windows, Linux, macOS** (Desktop) und **Android** aus einer gemeins
 **Editor**
 - Quelle/Ziel nebeneinander, Tags farbig hervorgehoben, Status je Segment, Filter, Suchen/Ersetzen
 - TM-Treffer mit Prozentwert; Zahlen in unscharfen Treffern werden automatisch angepasst
+- **Kontext im TM**: Jede Übersetzung wird mit vorherigem/nächstem Satz und Stelle im Dokument gespeichert.
+  Gleicher Satz im gleichen Zusammenhang = **Kontexttreffer (101 %)**; bei Software-Texten zählt die gleiche ID.
+  Derselbe Satz darf je Kontext verschieden übersetzt sein; gibt es mehrere Übersetzungen und keine passt zum
+  Kontext, wird um 1 % abgewertet. Kontexttreffer werden beim Vorübersetzen auf Wunsch gleich bestätigt.
 - Fragment-Treffer (kürzere TM-Einträge, die im Segment vorkommen) und AutoSuggest beim Tippen
 - Terminologieerkennung (auch mit Endungen), verbotene Benennungen, Begriffe direkt aufnehmen
 - Automatische Übernahme in gleiche Segmente, Segmente teilen und zusammenführen
@@ -56,6 +60,18 @@ Läuft auf **Windows, Linux, macOS** (Desktop) und **Android** aus einer gemeins
   Team-Aktivität zeigt, wer was beigetragen hat. Rollen: Admin, Bearbeiter, Leser.
 - Jede Ressource (lokal oder Server) lässt sich auf bestimmte Sprachen beschränken; ist der Server nicht
   erreichbar, arbeitet das Projekt mit den lokalen Daten weiter
+
+**Terminologie-Assistent (Begriffsvergleich)**
+- Für kontextabhängige Fachbegriffe, z. B. im Recht: klärt die Bedeutung im konkreten Satz, sucht auf den
+  **Fachseiten** beider Sprachen nach Definitionen und Verwendungen und vergleicht die Begriffe der beiden
+  Systeme (z. B. Rechtsordnungen): volle, teilweise oder keine Entsprechung, gemeinsame Merkmale, Unterschiede,
+  wann eine Lösung passt und wann nicht
+- Empfiehlt eine Lösung mit Strategie (funktionale Entsprechung, wörtlich mit Erläuterung, Original mit
+  Erklärung, Umschreibung) und begründet sie mit nummerierten, **überprüften Belegzitaten**
+- Ergebnis per Klick in die Terminologie (empfohlen = bevorzugt, Teilentsprechungen = zugelassen) oder als Wissen
+- Im Editor: Begriff im Quelltext markieren, Strg+Umschalt+B
+- **Fachquellen-Profile** je Thema (Recht, Medizin, Technik, EU – frei erweiterbar): je Sprache das System
+  (z. B. Rechtsordnung) und die bevorzugten Fachseiten; gilt auch für Themenrecherche und Wissens-Agent
 
 **KI**
 - KI-Zugänge frei definierbar: Claude (Anthropic-API) oder jeder Server mit OpenAI-kompatibler Schnittstelle,
@@ -131,6 +147,7 @@ Für kleine lokale Modelle „Zeichen pro Webseite“ auf etwa 2000–3000 senke
 | F3 | markierten Text in der Konkordanz suchen |
 | Strg+F2 | markierten Quell- und Zieltext als Begriff aufnehmen |
 | Strg+Umschalt+T / E / U | KI-Übersetzung / Varianten bewerten / Usus prüfen |
+| Strg+Umschalt+B | markierten Begriff im Kontext klären (Begriffsvergleich) |
 | Strg+S | speichern |
 
 ## Projektordner

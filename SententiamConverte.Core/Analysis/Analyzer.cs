@@ -36,7 +36,7 @@ public sealed class AnalysisResult
 
     public static string BandName(MatchBand b) => b switch
     {
-        MatchBand.PerfectMatch => "Kontexttreffer",
+        MatchBand.PerfectMatch => "Kontexttreffer (101 %)",
         MatchBand.Repetition => "Wiederholungen",
         MatchBand.Exact => "100 %",
         MatchBand.Fuzzy95 => "95–99 %",
@@ -71,12 +71,13 @@ public static class Analyzer
                 else if (!seen.Add(s.Source)) band = MatchBand.Repetition;
                 else
                 {
-                    var best = tms.SelectMany(tm => Projects.Workflow.Safe(() => tm.Search(doc.SourceLanguage, doc.TargetLanguage, s.Source, 50, 3)))
+                    var context = Projects.Workflow.ContextOf(doc, segs, i);
+                    var best = tms.SelectMany(tm => Projects.Workflow.Safe(() => tm.Search(doc.SourceLanguage, doc.TargetLanguage, s.Source, 50, 3, context)))
                                   .OrderByDescending(m => m.Score).FirstOrDefault();
                     band = best?.Score switch
                     {
                         null => MatchBand.NoMatch,
-                        100 when i > 0 && IsContextMatch(tms, doc, segs[i - 1]) => MatchBand.PerfectMatch,
+                        >= 101 => MatchBand.PerfectMatch,
                         100 => MatchBand.Exact,
                         >= 95 => MatchBand.Fuzzy95,
                         >= 85 => MatchBand.Fuzzy85,
@@ -94,6 +95,4 @@ public static class Analyzer
         return result;
     }
 
-    private static bool IsContextMatch(IReadOnlyList<ITranslationMemory> tms, BilingualDocument doc, Segment previous) =>
-        tms.Any(tm => Projects.Workflow.Safe(() => tm.Search(doc.SourceLanguage, doc.TargetLanguage, previous.Source, 100, 1)).Count > 0);
 }

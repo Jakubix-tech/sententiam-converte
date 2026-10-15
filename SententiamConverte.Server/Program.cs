@@ -148,7 +148,8 @@ namespace SententiamConverte.Server
             var tm = api.MapGroup("/tm/{name}");
             tm.MapGet("/count", (string name, ResourceStore s) => Do(s, ResourceKind.Tm, name, (ITranslationMemory t) => t.Count()));
             tm.MapPost("/search", (string name, TmSearchRequest r, ResourceStore s) =>
-                Do(s, ResourceKind.Tm, name, (ITranslationMemory t) => t.Search(r.SrcLang, r.TgtLang, r.Text, r.MinScore, Math.Clamp(r.Max, 1, 50))));
+                Do(s, ResourceKind.Tm, name, (ITranslationMemory t) => t.Search(r.SrcLang, r.TgtLang, r.Text, r.MinScore, Math.Clamp(r.Max, 1, 50),
+                    r.Previous == null && r.Structure == null ? null : new TmContext(r.Previous, r.Next, r.Structure, r.StructureIsId))));
             tm.MapPost("/fragments", (string name, TmSearchRequest r, ResourceStore s) =>
                 Do(s, ResourceKind.Tm, name, (ITranslationMemory t) => t.Fragments(r.SrcLang, r.TgtLang, r.Text, Math.Clamp(r.Max, 1, 50))));
             tm.MapPost("/concordance", (string name, TmSearchRequest r, ResourceStore s) =>
@@ -161,7 +162,7 @@ namespace SententiamConverte.Server
                 var user = User(ctx)!.Name;
                 var result = Do(s, ResourceKind.Tm, name, (ITranslationMemory t) =>
                 {
-                    t.Add(r.SrcLang, r.TgtLang, r.Source, r.Target, user, r.Context, r.Created);
+                    t.Add(r.SrcLang, r.TgtLang, r.Source, r.Target, user, r.Context, r.Created, r.Previous, r.Next);
                     return 0;
                 });
                 log.Add(user, ResourceKind.Tm, name, $"{TagTextPlain(r.Source)} → {TagTextPlain(r.Target)}");
@@ -171,7 +172,7 @@ namespace SententiamConverte.Server
             {
                 if (Require(ctx, Role.Editor) is { } denied) return denied;
                 var result = Do(s, ResourceKind.Tm, name, (ITranslationMemory t) =>
-                    t.AddMany(units.Select(u => (u.SrcLang, u.TgtLang, u.Source, u.Target, u.Created))));
+                    t.AddMany(units.Select(u => new TmEntry(u.SrcLang, u.TgtLang, u.Source, u.Target, u.Created, User(ctx)!.Name, u.Context, u.Previous, u.Next))));
                 log.Add(User(ctx)!.Name, ResourceKind.Tm, name, $"{units.Count} Einheiten importiert");
                 return result;
             });
