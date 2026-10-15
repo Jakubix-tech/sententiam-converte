@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Vorlage für eigene Erweiterungen. Bauen mit „dotnet build -c Release“ erzeugt neben der DLL das Paket
+    Beispiel.Erweiterung.scext (ZIP mit extension.json und der Bibliothek) – das wird im Reiter „Erweiterungen“ installiert.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Beispiel.Erweiterung</RootNamespace>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Die Schnittstellen liefert das Programm selbst: nicht mitkopieren -->
+    <ProjectReference Include="..\..\SententiamConverte.Core\SententiamConverte.Core.csproj" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="extension.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="PackExtension" AfterTargets="Build">
+    <PropertyGroup>
+      <ExtensionStage>$(IntermediateOutputPath)scext\</ExtensionStage>
+    </PropertyGroup>
+    <RemoveDir Directories="$(ExtensionStage)" />
+    <Copy SourceFiles="$(TargetPath);extension.json" DestinationFolder="$(ExtensionStage)" />
+    <ZipDirectory SourceDirectory="$(ExtensionStage)" DestinationFile="$(OutDir)$(AssemblyName).scext" Overwrite="true" />
+  </Target>
+</Project>

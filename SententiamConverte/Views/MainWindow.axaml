@@ -6,7 +6,7 @@
         xmlns:views="using:SententiamConverte.Views"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="SententiamConverte.Views.MainWindow"
-        Icon="/Assets/avalonia-logo.ico"
+        Icon="/Assets/Icon.ico"
         Title="{Binding Title}" Width="1400" Height="900"
         x:DataType="vm:MainViewModel">
         <views:MainView />

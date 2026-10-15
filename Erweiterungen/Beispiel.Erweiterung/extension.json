@@ -1,0 +1,8 @@
+{
+  "id": "beispiel.erweiterung",
+  "name": "Beispiel-Erweiterung",
+  "version": "1.0.0",
+  "author": "Sententiam converte",
+  "description": "Zeigt alle Bausteine einer Erweiterung: ein Dateiformat (CSV), eine QA-Prüfung und Befehle für Dokument und Segment – einer davon nutzt die eingestellte KI.",
+  "assembly": "Beispiel.Erweiterung.dll"
+}

@@ -1,7 +1,11 @@
 <Solution>
+  <Folder Name="/Erweiterungen/">
+    <Project Path="Erweiterungen/Beispiel.Erweiterung/Beispiel.Erweiterung.csproj" />
+  </Folder>
   <Project Path="SententiamConverte.Android/SententiamConverte.Android.csproj">
     <Deploy />
   </Project>
+  <Project Path="SententiamConverte.Api/SententiamConverte.Api.csproj" />
   <Project Path="SententiamConverte.Core.Tests/SententiamConverte.Core.Tests.csproj" />
   <Project Path="SententiamConverte.Core/SententiamConverte.Core.csproj" />
   <Project Path="SententiamConverte.Desktop/SententiamConverte.Desktop.csproj" />

@@ -19,7 +19,8 @@ public static partial class FuzzyMatcher
     public static IEnumerable<string> Words(string text) =>
         Tokenize(TagText.StripTags(text)).Where(t => char.IsLetterOrDigit(t[0])).Select(t => t.ToLowerInvariant());
 
-    public static int Score(string query, string candidate)
+    /// <summary>Ähnlichkeit in Prozent. Mit <paramref name="minScore"/> wird früh abgebrochen, wenn er unerreichbar ist (gibt dann 0).</summary>
+    public static int Score(string query, string candidate, int minScore = 0)
     {
         if (query == candidate) return 100;
         var qPlain = TagText.StripTags(query).Trim();
@@ -30,14 +31,19 @@ public static partial class FuzzyMatcher
         var a = Tokenize(qPlain);
         var b = Tokenize(cPlain);
         if (a.Count == 0 || b.Count == 0) return 0;
+        // Längenunterschied allein begrenzt die erreichbare Quote
+        if (minScore > 0 && 100.0 * Math.Min(a.Count, b.Count) / Math.Max(a.Count, b.Count) < minScore) return 0;
 
-        var cost = WeightedEditDistance(a, b);
+        // Höchstens so viel „Abstand“, dass die Mindestquote noch erreichbar ist – sonst früh abbrechen
+        var maxCost = minScore > 0 ? (1.0 - minScore / 100.0) * Math.Max(a.Count, b.Count) + 0.01 : double.MaxValue;
+        var cost = WeightedEditDistance(a, b, maxCost);
+        if (cost > maxCost) return 0;
         var score = (int)Math.Floor(100.0 * (1.0 - cost / Math.Max(a.Count, b.Count)));
         if (TagText.TagSignature(query) != TagText.TagSignature(candidate)) score -= 1;
         return Math.Clamp(score, 0, 98);
     }
 
-    private static double WeightedEditDistance(List<string> a, List<string> b)
+    private static double WeightedEditDistance(List<string> a, List<string> b, double maxCost = double.MaxValue)
     {
         var prev = new double[b.Count + 1];
         var cur = new double[b.Count + 1];
@@ -50,6 +56,10 @@ public static partial class FuzzyMatcher
                 var sub = prev[j - 1] + SubstitutionCost(a[i - 1], b[j - 1]);
                 cur[j] = Math.Min(Math.Min(prev[j] + 1, cur[j - 1] + 1), sub);
             }
+            // Ist schon die ganze Zeile teurer als erlaubt, wird es nicht mehr besser
+            var rowMin = double.MaxValue;
+            for (var j = 0; j <= b.Count; j++) if (cur[j] < rowMin) rowMin = cur[j];
+            if (rowMin > maxCost) return double.MaxValue;
             (prev, cur) = (cur, prev);
         }
         return prev[b.Count];
@@ -62,6 +72,8 @@ public static partial class FuzzyMatcher
         // Zahlen werden beim Einsetzen automatisch angepasst – nur kleiner Abzug
         if (char.IsDigit(x[0]) && char.IsDigit(y[0])) return 0.15;
         if (!char.IsLetter(x[0]) || !char.IsLetter(y[0])) return 1;
+        // Sehr verschieden lange Wörter können nicht ähnlich genug sein
+        if (Math.Abs(x.Length - y.Length) > 0.4 * Math.Max(x.Length, y.Length)) return 1;
         var d = CharDistance(x.ToLowerInvariant(), y.ToLowerInvariant());
         var sim = 1.0 - (double)d / Math.Max(x.Length, y.Length);
         // erst ab deutlicher Ähnlichkeit (Flexion, Tippfehler) wird es billiger

@@ -33,6 +33,7 @@ internal static class TestSetup
     {
         Directory.CreateDirectory(Home);
         Environment.SetEnvironmentVariable("SENTENTIAM_HOME", Home);
+        Environment.SetEnvironmentVariable("SENTENTIAM_LANG", "de");
     }
 
     public static string ScreenshotDir

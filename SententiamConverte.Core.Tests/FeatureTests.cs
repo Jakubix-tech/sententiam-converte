@@ -129,7 +129,7 @@ public class FeatureTests
         Assert.True(general.Allows("/privat/offen.html"));
     }
 
-    private static string SdlSegment(string lang, string text) =>
+    private static string SegmentXml(string lang, string text) =>
         $"<Segment><Elements><Text><Value>{text}</Value></Text></Elements><CultureName>{lang}</CultureName></Segment>";
 
     [Fact]
@@ -143,8 +143,8 @@ public class FeatureTests
             using var cmd = db.CreateCommand();
             cmd.CommandText = "CREATE TABLE translation_units(id INTEGER PRIMARY KEY, source_segment TEXT, target_segment TEXT, creation_date TEXT);" +
                               "INSERT INTO translation_units(source_segment,target_segment,creation_date) VALUES($s,$t,'2024-05-01 10:00:00')";
-            cmd.Parameters.AddWithValue("$s", SdlSegment("de-DE", "Guten Morgen"));
-            cmd.Parameters.AddWithValue("$t", SdlSegment("en-GB", "Good morning"));
+            cmd.Parameters.AddWithValue("$s", SegmentXml("de-DE", "Guten Morgen"));
+            cmd.Parameters.AddWithValue("$t", SegmentXml("en-GB", "Good morning"));
             cmd.ExecuteNonQuery();
         }
         using var tm = new TranslationMemory(dir.File("neu.sctm"));

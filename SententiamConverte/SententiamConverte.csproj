@@ -10,6 +10,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Hilfe im Programm: dieselben Texte wie im Ordner docs -->
+    <EmbeddedResource Include="..\docs\*.md" LogicalName="Hilfe.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="..\docs\en\*.md" LogicalName="Hilfe.en.%(Filename)%(Extension)" />
+    <!-- Übersetzungen der Oberfläche: deutscher Text → Zielsprache -->
+    <EmbeddedResource Include="Strings.*.json" LogicalName="SententiamConverte.%(Filename)%(Extension)" WithCulture="false" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Avalonia" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="Avalonia.Fonts.Inter" />

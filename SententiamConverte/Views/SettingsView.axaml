@@ -1,14 +1,21 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="using:SententiamConverte.Services"
              xmlns:vm="using:SententiamConverte.ViewModels"
              xmlns:ai="using:SententiamConverte.Core.Ai"
              x:Class="SententiamConverte.Views.SettingsView"
              x:DataType="vm:SettingsViewModel">
     <ScrollViewer>
         <StackPanel Margin="16" Spacing="12" MaxWidth="1100" HorizontalAlignment="Left">
-            <TextBlock Text="KI-Zugänge" FontSize="18" FontWeight="SemiBold" />
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="{l:T 'Sprache der Oberfläche'}" VerticalAlignment="Center" FontWeight="SemiBold" />
+                <ComboBox ItemsSource="{Binding UiLanguageNames}" SelectedIndex="{Binding UiLanguageIndex}" MinWidth="180" />
+                <TextBlock Text="{Binding UiLanguageInfo}" VerticalAlignment="Center" Opacity="0.75" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <TextBlock Text="{l:T 'KI-Zugänge'}" FontSize="18" FontWeight="SemiBold" />
             <TextBlock TextWrapping="Wrap" Opacity="0.8"
-                       Text="Beliebig viele Zugänge: Claude über die Anthropic-API oder jeder Server mit OpenAI-Schnittstelle – lokal (Strata/llama.cpp, Ollama, LM Studio, vLLM) oder in der Cloud. API-Schlüssel als „env:NAME“ werden aus der Umgebungsvariablen gelesen und nicht in der Datei gespeichert." />
+                       Text="{l:T 'Beliebig viele Zugänge: Claude über die Anthropic-API oder jeder Server mit OpenAI-Schnittstelle – lokal (Strata/llama.cpp, Ollama, LM Studio, vLLM) oder in der Cloud. API-Schlüssel als „env:NAME“ werden aus der Umgebungsvariablen gelesen und nicht in der Datei gespeichert.'}" />
 
             <Grid ColumnDefinitions="260,16,*">
                 <StackPanel Spacing="6">
@@ -19,7 +26,7 @@
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
-                    <ComboBox ItemsSource="{Binding Presets}" SelectedItem="{Binding SelectedPreset}" PlaceholderText="Vorlage wählen …" HorizontalAlignment="Stretch">
+                    <ComboBox ItemsSource="{Binding Presets}" SelectedItem="{Binding SelectedPreset}" PlaceholderText="{l:T 'Vorlage wählen …'}" HorizontalAlignment="Stretch">
                         <ComboBox.ItemTemplate>
                             <DataTemplate x:DataType="ai:AiProviderConfig">
                                 <TextBlock Text="{Binding Name}" />
@@ -27,35 +34,35 @@
                         </ComboBox.ItemTemplate>
                     </ComboBox>
                     <StackPanel Orientation="Horizontal" Spacing="6">
-                        <Button Content="Hinzufügen" Command="{Binding AddFromPresetCommand}" />
-                        <Button Content="Entfernen" Command="{Binding RemoveSelectedCommand}" />
+                        <Button Content="{l:T 'Hinzufügen'}" Command="{Binding AddFromPresetCommand}" />
+                        <Button Content="{l:T 'Entfernen'}" Command="{Binding RemoveSelectedCommand}" />
                     </StackPanel>
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Spacing="6" DataContext="{Binding Selected}" x:DataType="vm:ProviderViewModel">
-                    <TextBlock Text="Name" />
+                    <TextBlock Text="{l:T 'Name'}" />
                     <TextBox Text="{Binding Name}" />
-                    <TextBlock Text="Art" />
+                    <TextBlock Text="{l:T 'Art'}" />
                     <ComboBox ItemsSource="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).KindNames}"
                               SelectedIndex="{Binding KindIndex}" HorizontalAlignment="Stretch" />
-                    <TextBlock Text="Adresse (Basis-URL)" />
-                    <TextBox Text="{Binding BaseUrl}" PlaceholderText="http://localhost:8080/v1" />
-                    <TextBlock Text="API-Schlüssel (leer bei lokalen Servern, oder env:VARIABLE)" />
+                    <TextBlock Text="{l:T 'Adresse (Basis-URL)'}" />
+                    <TextBox Text="{Binding BaseUrl}" PlaceholderText="{l:T 'http://localhost:8080/v1'}" />
+                    <TextBlock Text="{l:T 'API-Schlüssel (leer bei lokalen Servern, oder env:VARIABLE)'}" />
                     <TextBox Text="{Binding ApiKey}" PasswordChar="•" />
-                    <TextBlock Text="{Binding PrivacyNote}" TextWrapping="Wrap" FontStyle="Italic" Opacity="0.85" />
-                    <TextBlock Text="Modell" />
+                    <TextBlock Text="{Binding PrivacyNote, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontStyle="Italic" Opacity="0.85" />
+                    <TextBlock Text="{l:T 'Modell'}" />
                     <TextBox Text="{Binding Model}" />
                     <Grid ColumnDefinitions="*,8,*,8,*">
                         <StackPanel Spacing="4">
-                            <TextBlock Text="Temperatur (leer = Standard)" />
+                            <TextBlock Text="{l:T 'Temperatur (leer = Standard)'}" />
                             <TextBox Text="{Binding Temperature}" />
                         </StackPanel>
                         <StackPanel Grid.Column="2" Spacing="4">
-                            <TextBlock Text="Max. Antwort-Tokens" />
+                            <TextBlock Text="{l:T 'Max. Antwort-Tokens'}" />
                             <NumericUpDown Value="{Binding MaxTokens}" Minimum="256" Maximum="128000" Increment="1024" FormatString="0" />
                         </StackPanel>
                         <StackPanel Grid.Column="4" Spacing="4">
-                            <TextBlock Text="Zeichen pro Webseite" />
+                            <TextBlock Text="{l:T 'Zeichen pro Webseite'}" />
                             <NumericUpDown Value="{Binding MaxCharsPerPage}" Minimum="1000" Maximum="50000" Increment="1000" FormatString="0" />
                         </StackPanel>
                     </Grid>
@@ -63,42 +70,42 @@
             </Grid>
 
             <StackPanel Orientation="Horizontal" Spacing="8">
-                <Button Content="Gewählten Zugang testen" Command="{Binding TestSelectedCommand}" />
+                <Button Content="{l:T 'Gewählten Zugang testen'}" Command="{Binding TestSelectedCommand}" />
                 <ProgressBar IsIndeterminate="True" Width="100" IsVisible="{Binding IsTesting}" />
             </StackPanel>
 
-            <TextBlock Text="Wer macht was" FontSize="16" FontWeight="SemiBold" Margin="0,8,0,0" />
+            <TextBlock Text="{l:T 'Wer macht was'}" FontSize="16" FontWeight="SemiBold" Margin="0,8,0,0" />
             <Grid ColumnDefinitions="220,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="6">
-                <TextBlock Text="Übersetzen im Editor" VerticalAlignment="Center" />
+                <TextBlock Text="{l:T 'Übersetzen im Editor'}" VerticalAlignment="Center" />
                 <ComboBox Grid.Column="1" ItemsSource="{Binding Providers}" SelectedItem="{Binding TranslateProvider}" MinWidth="280" />
-                <TextBlock Grid.Row="1" Text="Recherche &amp; Usus-Prüfung" VerticalAlignment="Center" />
+                <TextBlock Grid.Row="1" Text="{l:T 'Recherche &amp; Usus-Prüfung'}" VerticalAlignment="Center" />
                 <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Providers}" SelectedItem="{Binding ResearchProvider}" MinWidth="280" />
-                <TextBlock Grid.Row="2" Text="Bewertung" VerticalAlignment="Center" />
+                <TextBlock Grid.Row="2" Text="{l:T 'Bewertung'}" VerticalAlignment="Center" />
                 <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding Providers}" SelectedItem="{Binding EvaluateProvider}" MinWidth="280" />
-                <TextBlock Grid.Row="3" Text="Sprache der Begründungen" VerticalAlignment="Center" />
+                <TextBlock Grid.Row="3" Text="{l:T 'Sprache der Begründungen'}" VerticalAlignment="Center" />
                 <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding ExplanationLanguage}" Width="200" HorizontalAlignment="Left" />
             </Grid>
 
-            <TextBlock Text="Websuche für die Agenten" FontSize="16" FontWeight="SemiBold" Margin="0,8,0,0" />
+            <TextBlock Text="{l:T 'Websuche für die Agenten'}" FontSize="16" FontWeight="SemiBold" Margin="0,8,0,0" />
             <TextBlock TextWrapping="Wrap" Opacity="0.8"
-                       Text="Lokale Modelle können nicht selbst suchen; die Suche übernimmt dieser Dienst. Es werden nur offizielle Schnittstellen benutzt. Beim Lesen von Webseiten beachtet das Programm robots.txt und Nutzungsvorbehalte für Text und Data Mining (§ 44b UrhG) und übernimmt nur kurze Belegzitate. Für eine eigene SearXNG-Instanz gelten die Bedingungen der dort eingebundenen Suchmaschinen." />
+                       Text="{l:T 'Lokale Modelle können nicht selbst suchen; die Suche übernimmt dieser Dienst. Es werden nur offizielle Schnittstellen benutzt. Beim Lesen von Webseiten beachtet das Programm robots.txt und Nutzungsvorbehalte für Text und Data Mining (§ 44b UrhG) und übernimmt nur kurze Belegzitate. Für eine eigene SearXNG-Instanz gelten die Bedingungen der dort eingebundenen Suchmaschinen.'}" />
             <ComboBox ItemsSource="{Binding SearchNames}" SelectedIndex="{Binding SearchKindIndex}" MinWidth="300" />
-            <TextBox Text="{Binding SearchBaseUrl}" PlaceholderText="SearXNG-Adresse, z. B. http://localhost:8888" />
-            <TextBox Text="{Binding SearchApiKey}" PlaceholderText="API-Schlüssel (Brave/Tavily) oder env:VARIABLE" PasswordChar="•" />
+            <TextBox Text="{Binding SearchBaseUrl}" PlaceholderText="{l:T 'SearXNG-Adresse, z. B. http://localhost:8888'}" />
+            <TextBox Text="{Binding SearchApiKey}" PlaceholderText="{l:T 'API-Schlüssel (Brave/Tavily) oder env:VARIABLE'}" PasswordChar="•" />
             <StackPanel Orientation="Horizontal" Spacing="8">
-                <TextBlock Text="Claude-Zugang für Claude-Websuche:" VerticalAlignment="Center" />
+                <TextBlock Text="{l:T 'Claude-Zugang für Claude-Websuche:'}" VerticalAlignment="Center" />
                 <ComboBox ItemsSource="{Binding Providers}" SelectedItem="{Binding SearchClaudeProvider}" MinWidth="240" />
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
-                <Button Content="Speichern" Command="{Binding SaveCommand}" Classes="accent" />
-                <Button Content="Websuche testen" Command="{Binding TestSearchCommand}" />
+                <Button Content="{l:T 'Speichern'}" Command="{Binding SaveCommand}" Classes="accent" />
+                <Button Content="{l:T 'Websuche testen'}" Command="{Binding TestSearchCommand}" />
             </StackPanel>
-            <SelectableTextBlock Text="{Binding TestResult}" TextWrapping="Wrap" />
+            <SelectableTextBlock Text="{Binding TestResult, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" />
 
-            <TextBlock Text="Fachquellen je Thema" FontSize="16" FontWeight="SemiBold" Margin="0,12,0,0" />
+            <TextBlock Text="{l:T 'Fachquellen je Thema'}" FontSize="16" FontWeight="SemiBold" Margin="0,12,0,0" />
             <TextBlock TextWrapping="Wrap" Opacity="0.8"
-                       Text="Auf diese Seiten beschränken die Agenten ihre Suche (findet sich dort nichts, wird allgemein gesucht). Je Zeile: Sprache | System (z. B. Rechtsordnung) | Domains, mit Komma getrennt. „*“ gilt für alle Sprachen. Das Profil wird pro Projekt gewählt." />
+                       Text="{l:T 'Auf diese Seiten beschränken die Agenten ihre Suche (findet sich dort nichts, wird allgemein gesucht). Je Zeile: Sprache | System (z. B. Rechtsordnung) | Domains, mit Komma getrennt. „*“ gilt für alle Sprachen. Das Profil wird pro Projekt gewählt.'}" />
             <Grid ColumnDefinitions="200,16,*">
                 <StackPanel Spacing="6">
                     <ListBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}" Height="160">
@@ -109,21 +116,24 @@
                         </ListBox.ItemTemplate>
                     </ListBox>
                     <WrapPanel>
-                        <Button Content="Neu" Command="{Binding AddProfileCommand}" Margin="0,0,6,4" />
-                        <Button Content="Entfernen" Command="{Binding RemoveProfileCommand}" Margin="0,0,6,4" />
-                        <Button Content="Vorschläge" Command="{Binding ResetProfilesCommand}" Margin="0,0,6,4" ToolTip.Tip="Mitgelieferte Profile wiederherstellen" />
+                        <Button Content="{l:T 'Neu'}" Command="{Binding AddProfileCommand}" Margin="0,0,6,4" />
+                        <Button Content="{l:T 'Entfernen'}" Command="{Binding RemoveProfileCommand}" Margin="0,0,6,4" />
+                        <Button Content="{l:T 'Vorschläge'}" Command="{Binding ResetProfilesCommand}" Margin="0,0,6,4" ToolTip.Tip="{l:T 'Mitgelieferte Profile wiederherstellen'}" />
+                        <Button Content="{l:T 'Fachseiten prüfen'}" Command="{Binding CheckProfileSitesCommand}" Margin="0,0,6,4"
+                                ToolTip.Tip="{l:T 'Erlauben die Seiten das automatische Lesen (robots.txt, Nutzungsvorbehalte), und liefern sie lesbaren Text?'}" />
                     </WrapPanel>
+                    <SelectableTextBlock Text="{Binding ProfileCheckResult, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontSize="12" />
                 </StackPanel>
                 <StackPanel Grid.Column="2" Spacing="6" DataContext="{Binding SelectedProfile}" x:DataType="vm:ProfileViewModel">
-                    <TextBox Text="{Binding Name}" PlaceholderText="Thema, z. B. Recht" />
-                    <TextBox Text="{Binding Description}" PlaceholderText="Beschreibung" />
+                    <TextBox Text="{Binding Name}" PlaceholderText="{l:T 'Thema, z. B. Recht'}" />
+                    <TextBox Text="{Binding Description}" PlaceholderText="{l:T 'Beschreibung'}" />
                     <TextBox Text="{Binding Text}" AcceptsReturn="True" TextWrapping="NoWrap" MinHeight="150" FontFamily="Consolas,Menlo,monospace" FontSize="12" />
                 </StackPanel>
             </Grid>
 
-            <TextBlock Text="Teamserver" FontSize="16" FontWeight="SemiBold" Margin="0,12,0,0" />
+            <TextBlock Text="{l:T 'Teamserver'}" FontSize="16" FontWeight="SemiBold" Margin="0,12,0,0" />
             <TextBlock TextWrapping="Wrap" Opacity="0.8"
-                       Text="Über einen eigenen Teamserver teilen mehrere Übersetzer TMs, Terminologien und Wissensdatenbanken – gleichzeitig und sofort sichtbar. Den Zugangsschlüssel erhält jeder vom Server-Admin. Im Internet nur über HTTPS betreiben." />
+                       Text="{l:T 'Über einen eigenen Teamserver teilen mehrere Übersetzer TMs, Terminologien und Wissensdatenbanken – gleichzeitig und sofort sichtbar. Den Zugangsschlüssel erhält jeder vom Server-Admin. Im Internet nur über HTTPS betreiben.'}" />
             <Grid ColumnDefinitions="220,16,*">
                 <StackPanel Spacing="6">
                     <ListBox ItemsSource="{Binding ServerAccounts}" SelectedItem="{Binding SelectedServer}" Height="120">
@@ -134,36 +144,56 @@
                         </ListBox.ItemTemplate>
                     </ListBox>
                     <StackPanel Orientation="Horizontal" Spacing="6">
-                        <Button Content="Hinzufügen" Command="{Binding AddServerCommand}" />
-                        <Button Content="Entfernen" Command="{Binding RemoveServerCommand}" />
+                        <Button Content="{l:T 'Hinzufügen'}" Command="{Binding AddServerCommand}" />
+                        <Button Content="{l:T 'Entfernen'}" Command="{Binding RemoveServerCommand}" />
                     </StackPanel>
                 </StackPanel>
                 <StackPanel Grid.Column="2" Spacing="6" DataContext="{Binding SelectedServer}" x:DataType="vm:ServerAccountViewModel">
-                    <TextBox Text="{Binding Name}" PlaceholderText="Name, z. B. Büro" />
-                    <TextBox Text="{Binding Url}" PlaceholderText="Adresse, z. B. https://server.firma.de" />
-                    <TextBox Text="{Binding Token}" PlaceholderText="Zugangsschlüssel oder env:VARIABLE" PasswordChar="•" />
+                    <TextBox Text="{Binding Name}" PlaceholderText="{l:T 'Name, z. B. Büro'}" />
+                    <TextBox Text="{Binding Url}" PlaceholderText="{l:T 'Adresse, z. B. https://server.firma.de'}" />
+                    <TextBox Text="{Binding Token}" PlaceholderText="{l:T 'Zugangsschlüssel oder env:VARIABLE'}" PasswordChar="•" />
                 </StackPanel>
             </Grid>
             <StackPanel Orientation="Horizontal" Spacing="8">
-                <Button Content="Verbindung testen" Command="{Binding TestServerCommand}" />
+                <Button Content="{l:T 'Verbindung testen'}" Command="{Binding TestServerCommand}" />
             </StackPanel>
-            <Expander Header="Ressource auf dem Server anlegen (nur Admin)">
+            <Expander Header="{l:T 'Ressource auf dem Server anlegen (nur Admin)'}">
                 <WrapPanel>
                     <ComboBox ItemsSource="{Binding ResourceKindNames}" SelectedIndex="{Binding NewResourceKind}" Width="190" Margin="0,0,8,4" />
-                    <TextBox Text="{Binding NewResourceName}" PlaceholderText="Name" Width="200" Margin="0,0,8,4" />
-                    <TextBox Text="{Binding NewResourceDescription}" PlaceholderText="Beschreibung" Width="260" Margin="0,0,8,4" />
-                    <Button Content="Anlegen" Command="{Binding CreateServerResourceCommand}" Margin="0,0,8,4" />
+                    <TextBox Text="{Binding NewResourceName}" PlaceholderText="{l:T 'Name'}" Width="200" Margin="0,0,8,4" />
+                    <TextBox Text="{Binding NewResourceDescription}" PlaceholderText="{l:T 'Beschreibung'}" Width="260" Margin="0,0,8,4" />
+                    <Button Content="{l:T 'Anlegen'}" Command="{Binding CreateServerResourceCommand}" Margin="0,0,8,4" />
                 </WrapPanel>
             </Expander>
-            <SelectableTextBlock Text="{Binding ServerResult}" TextWrapping="Wrap" />
+            <SelectableTextBlock Text="{Binding ServerResult, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" />
 
-            <TextBlock Text="Rechtschreibprüfung" FontSize="16" FontWeight="SemiBold" Margin="0,12,0,0" />
+            <StackPanel Spacing="6" IsVisible="{Binding LocalApiAvailable}">
+                <TextBlock Text="{l:T 'Schnittstelle (API)'}" FontSize="16" FontWeight="SemiBold" Margin="0,12,0,0" />
+                <TextBlock TextWrapping="Wrap" Opacity="0.8"
+                           Text="{l:T 'Über die REST-Schnittstelle können eigene Skripte und andere Programme alle Funktionen nutzen: Projekte, Dateien, Segmente, Vorübersetzung, Analyse, QA, TM, Terminologie, Wissen, Agenten und Erweiterungen. Sie ist nur auf diesem Rechner erreichbar (127.0.0.1) und verlangt den Zugangsschlüssel (Kopfzeile „Authorization: Bearer …“). Für mehrere Personen den Teamserver verwenden – er bietet dieselbe Schnittstelle.'}" />
+                <WrapPanel>
+                    <CheckBox Content="{l:T 'Lokale API einschalten'}" IsChecked="{Binding LocalApiEnabled}" Margin="0,0,16,4" />
+                    <TextBlock Text="{l:T 'Port'}" VerticalAlignment="Center" Margin="0,0,6,4" />
+                    <NumericUpDown Value="{Binding LocalApiPort}" Minimum="1024" Maximum="65535" FormatString="0" Width="130" Margin="0,0,16,4" />
+                </WrapPanel>
+                <Grid ColumnDefinitions="*,8,Auto,8,Auto">
+                    <TextBox Text="{Binding LocalApiToken}" PlaceholderText="{l:T 'Zugangsschlüssel'}" PasswordChar="•" RevealPassword="{Binding #ShowApiToken.IsChecked}" />
+                    <CheckBox Grid.Column="2" x:Name="ShowApiToken" Content="{l:T 'Anzeigen'}" />
+                    <Button Grid.Column="4" Content="{l:T 'Neuer Schlüssel'}" Command="{Binding NewApiTokenCommand}" />
+                </Grid>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="{l:T 'Übernehmen'}" Command="{Binding ApplyLocalApiCommand}" />
+                    <SelectableTextBlock Text="{Binding LocalApiStatus, Converter={x:Static l:L.Text}}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                </StackPanel>
+            </StackPanel>
+
+            <TextBlock Text="{l:T 'Rechtschreibprüfung'}" FontSize="16" FontWeight="SemiBold" Margin="0,12,0,0" />
             <TextBlock TextWrapping="Wrap" Opacity="0.8"
-                       Text="Wörterbücher werden nicht mitgeliefert, sondern auf Wunsch aus dem freien LibreOffice-Wörterbuchprojekt geladen. Es gilt die Lizenz des jeweiligen Wörterbuchs (meist GPL, LGPL oder MPL)." />
+                       Text="{l:T 'Wörterbücher werden nicht mitgeliefert, sondern auf Wunsch aus dem freien LibreOffice-Wörterbuchprojekt geladen. Es gilt die Lizenz des jeweiligen Wörterbuchs (meist GPL, LGPL oder MPL).'}" />
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <ComboBox ItemsSource="{Binding DictionaryLanguages}" SelectedItem="{Binding DictionaryLanguage}" MinWidth="140" />
-                <Button Content="Wörterbuch laden" Command="{Binding DownloadDictionaryCommand}" />
-                <TextBlock Text="{Binding DictionaryStatus}" VerticalAlignment="Center" />
+                <Button Content="{l:T 'Wörterbuch laden'}" Command="{Binding DownloadDictionaryCommand}" />
+                <TextBlock Text="{Binding DictionaryStatus, Converter={x:Static l:L.Text}}" VerticalAlignment="Center" />
             </StackPanel>
         </StackPanel>
     </ScrollViewer>

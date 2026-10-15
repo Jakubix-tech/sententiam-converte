@@ -1,0 +1,102 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="using:SententiamConverte.Services"
+             xmlns:vm="using:SententiamConverte.ViewModels"
+             x:Class="SententiamConverte.Views.ExtensionsView"
+             x:DataType="vm:ExtensionsViewModel">
+    <ScrollViewer>
+        <StackPanel Margin="16" Spacing="10" MaxWidth="1100" HorizontalAlignment="Left">
+            <TextBlock Text="{l:T 'Erweiterungen'}" FontSize="18" FontWeight="SemiBold" />
+            <TextBlock TextWrapping="Wrap" Opacity="0.8"
+                       Text="{l:T 'Erweiterungen von anderen Entwicklern fügen Dateiformate, QA-Prüfungen und Befehle hinzu. Eine Erweiterung ist Programmcode und läuft mit Ihren Rechten – installieren und einschalten Sie nur Erweiterungen aus vertrauenswürdiger Quelle. Neu installierte Erweiterungen sind zunächst ausgeschaltet.'}" />
+            <WrapPanel>
+                <Button Content="{l:T 'Erweiterung installieren …'}" Command="{Binding InstallCommand}" Classes="accent" Margin="0,0,8,4" />
+                <Button Content="{l:T 'Ordner öffnen'}" Command="{Binding OpenFolderCommand}" Margin="0,0,8,4" />
+                <Button Content="{l:T 'Aktualisieren'}" Command="{Binding RefreshCommand}" Margin="0,0,8,4" />
+            </WrapPanel>
+            <TextBlock Text="{Binding Message, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontWeight="SemiBold" IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+            <Grid ColumnDefinitions="280,16,*" MinHeight="220">
+                <Border BorderThickness="1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+                    <Panel>
+                        <ListBox ItemsSource="{Binding Items}" SelectedItem="{Binding Selected}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ExtensionRow">
+                                    <StackPanel Spacing="2" Margin="0,2">
+                                        <TextBlock Text="{Binding Header, Converter={x:Static l:L.Text}}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding State, Converter={x:Static l:L.Text}}" FontSize="11" Opacity="0.7" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <TextBlock Text="{l:T 'Noch keine Erweiterungen installiert.'}" Opacity="0.6" Margin="10" TextWrapping="Wrap"
+                                   IsVisible="{Binding !Items.Count}" />
+                    </Panel>
+                </Border>
+
+                <StackPanel Grid.Column="2" Spacing="6" IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    <TextBlock Text="{Binding Selected.Header}" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Selected.Author, Converter={x:Static l:L.Text}}" Opacity="0.75" />
+                    <TextBlock Text="{Binding Selected.State, Converter={x:Static l:L.Text}}" />
+                    <TextBlock Text="{Binding Selected.Description}" TextWrapping="Wrap" />
+                    <TextBlock Text="{l:T 'Stellt bereit:'}" FontWeight="SemiBold" Margin="0,6,0,0" />
+                    <TextBlock Text="{Binding Selected.Contributions, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" />
+                    <WrapPanel Margin="0,6,0,0">
+                        <Button Content="{l:T 'Einschalten …'}" Command="{Binding RequestEnableCommand}" IsVisible="{Binding !Selected.Enabled}" Margin="0,0,8,4" />
+                        <Button Content="{l:T 'Ausschalten'}" Command="{Binding DisableCommand}" IsVisible="{Binding Selected.Enabled}" Margin="0,0,8,4" />
+                        <Button Content="{l:T 'Entfernen'}" Command="{Binding RemoveCommand}" Margin="0,0,8,4" />
+                    </WrapPanel>
+                    <Border IsVisible="{Binding ConfirmEnable}" Padding="12" CornerRadius="4"
+                            Background="{DynamicResource SystemControlBackgroundAltMediumLowBrush}"
+                            BorderBrush="#D9822B" BorderThickness="2">
+                        <StackPanel Spacing="8">
+                            <TextBlock FontWeight="SemiBold" Text="{l:T 'Wirklich einschalten?'}" />
+                            <TextBlock TextWrapping="Wrap"
+                                       Text="{l:T 'Die Erweiterung erhält vollen Zugriff auf Ihre Projekte, Dateien und das Netzwerk – mit Ihren Benutzerrechten. Sententiam converte prüft fremden Code nicht. Schalten Sie sie nur ein, wenn Sie dem Herausgeber vertrauen.'}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="{l:T 'Ja, einschalten'}" Command="{Binding EnableCommand}" />
+                                <Button Content="{l:T 'Abbrechen'}" Command="{Binding CancelEnableCommand}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+
+            <TextBlock Text="{l:T 'Befehle'}" FontSize="16" FontWeight="SemiBold" Margin="0,12,0,0" />
+            <TextBlock Text="{Binding ContextInfo, Converter={x:Static l:L.Text}}" Opacity="0.75" TextWrapping="Wrap" />
+            <Grid ColumnDefinitions="360,16,*">
+                <Border BorderThickness="1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" MinHeight="160">
+                    <Panel>
+                        <ListBox ItemsSource="{Binding Commands}" SelectedItem="{Binding SelectedCommand}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:CommandRow">
+                                    <StackPanel Spacing="2" Margin="0,2">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding Info, Converter={x:Static l:L.Text}}" FontSize="11" Opacity="0.7" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <TextBlock Text="{l:T 'Eingeschaltete Erweiterungen zeigen hier ihre Befehle.'}" Opacity="0.6" Margin="10" TextWrapping="Wrap"
+                                   IsVisible="{Binding !Commands.Count}" />
+                    </Panel>
+                </Border>
+                <StackPanel Grid.Column="2" Spacing="6">
+                    <TextBlock Text="{Binding SelectedCommand.Description}" TextWrapping="Wrap" />
+                    <TextBox Text="{Binding Arguments}" AcceptsReturn="True" MinHeight="56" TextWrapping="Wrap"
+                             PlaceholderText="{l:T 'Argumente (optional), je Zeile name=wert'}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="{l:T 'Ausführen'}" Command="{Binding RunCommandCommand}" Classes="accent" />
+                        <Button Content="{l:T 'Abbrechen'}" Command="{Binding CancelCommand}" IsVisible="{Binding IsRunning}" />
+                        <ProgressBar IsIndeterminate="True" Width="100" IsVisible="{Binding IsRunning}" />
+                    </StackPanel>
+                    <SelectableTextBlock Text="{Binding Output, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" />
+                </StackPanel>
+            </Grid>
+
+            <Expander Header="{l:T 'Eigene Erweiterung schreiben'}" Margin="0,12,0,0">
+                <SelectableTextBlock TextWrapping="Wrap" Text="{l:T 'Eine Erweiterung ist eine .NET-10-Bibliothek, die gegen SententiamConverte.Core kompiliert wird und eine öffentliche Klasse mit der Schnittstelle IExtension enthält. In Register() meldet sie an, was sie beisteuert: AddFileFilter (IFileFilter – neues Dateiformat lesen und zurückschreiben), AddQaCheck (IQaCheck – eigene Prüfung je Segment) und AddCommand (IExtensionCommand – Befehl für Segment, Dokument, Projekt oder allgemein; er erhält Projekt, Datei, Dokument, Segment, Argumente sowie das eingestellte Sprachmodell und die Websuche). Zum Paket gehört eine extension.json mit id, name, version, author, description und assembly. Bibliothek und extension.json als ZIP mit der Endung .scext verpacken. Eine vollständige Vorlage liegt im Quellcode unter Erweiterungen/Beispiel.Erweiterung – „dotnet build“ erzeugt dort das fertige Paket. Befehle sind auch über die REST-API aufrufbar: POST /api/v2/extensions/commands/{kennung}.'}" />
+            </Expander>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -62,7 +62,7 @@ public class TermComparisonTests
             TestContext.Current.CancellationToken);
 
         // nur Fachseiten der jeweiligen Sprache (+ EU-Quellen)
-        Assert.Contains(search.SiteCalls, s => s.Contains("gesetze-im-internet.de") && s.Contains("eur-lex.europa.eu"));
+        Assert.Contains(search.SiteCalls, s => s.Contains("gesetze-im-internet.de") && s.Contains("curia.europa.eu"));
         Assert.Contains(search.SiteCalls, s => s.Contains("legislation.gov.uk") && !s.Contains("gesetze-im-internet.de"));
         Assert.True(r.UsedSpecialistSites);
         Assert.DoesNotContain(r.Evidence, e => e.Url.Contains("andere.example"));      // fremde Seite herausgefiltert
@@ -104,7 +104,8 @@ public class TermComparisonTests
         var recht = SourceProfile.Defaults().First(p => p.Name == "Recht");
         var parsed = SourceProfile.ParseText(recht.ToText());
         Assert.Equal(recht.Languages.Count, parsed.Count);
-        Assert.Equal(["eur-lex.europa.eu", "iate.europa.eu", "curia.europa.eu"], recht.SitesFor("xx").ToList());
+        Assert.Equal(["curia.europa.eu"], recht.SitesFor("xx").ToList());
+        Assert.DoesNotContain("isap.sejm.gov.pl", recht.SitesFor("pl-PL"));          // untersagt das Lesen per robots.txt
         Assert.Equal("polnisches Recht (Kodeks cywilny, k.p.c., k.k.)", recht.SystemFor("pl-PL"));
         Assert.Equal("beispiel.de", SourceProfile.CleanDomain("https://www.Beispiel.de/pfad"));
         Assert.True(SiteSearch.IsOnSite("https://www.legislation.gov.uk/x", ["legislation.gov.uk"]));

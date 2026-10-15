@@ -38,7 +38,7 @@ public partial class AlignRowViewModel : ObservableObject
 
 public sealed record AttachedRow(ResourceRef Ref)
 {
-    public string Kind => ResourceFactory.KindName(Ref.Kind);
+    public string Kind => L.T(ResourceFactory.KindName(Ref.Kind));
     public string Name => Ref.DisplayName;
     public string Languages => Ref.LanguagesText;
     public string WriteBack => Ref.WriteBack ? "schreibt zurück" : "nur lesen";
@@ -71,7 +71,7 @@ public partial class ResourcesViewModel : ViewModelBase
     // Angebundene Ressourcen
     public ObservableCollection<AttachedRow> Attached { get; } = new();
     public ObservableCollection<string> RemoteNames { get; } = new();
-    public IReadOnlyList<string> KindNames { get; } = ["Translation Memory", "Terminologie", "Wissensdatenbank"];
+    public IReadOnlyList<string> KindNames { get; } = new[] { "Translation Memory", "Terminologie", "Wissensdatenbank" }.Select(L.T).ToList();
     [ObservableProperty] public partial int AttachKind { get; set; }
     [ObservableProperty] public partial string? AttachServer { get; set; }
     [ObservableProperty] public partial string? AttachRemoteName { get; set; }

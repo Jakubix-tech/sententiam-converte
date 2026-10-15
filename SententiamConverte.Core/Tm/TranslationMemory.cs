@@ -126,6 +126,9 @@ public sealed class TranslationMemory : ITranslationMemory
         Exec("CREATE INDEX IF NOT EXISTS tu_norm ON tu(src_p, tgt_p, source_norm)");
         // Früher eine Übersetzung je Quelle; jetzt mehrere (je Kontext), eindeutig ist Quelle + Übersetzung.
         Exec("DROP INDEX IF EXISTS tu_key; CREATE UNIQUE INDEX IF NOT EXISTS tu_key2 ON tu(src_p, tgt_p, source, target)");
+        // Schnelle exakte Suche und Wortstatistik für die Kandidatenauswahl
+        Exec("CREATE INDEX IF NOT EXISTS tu_plain ON tu(src_p, tgt_p, source_plain)");
+        Exec("CREATE VIRTUAL TABLE IF NOT EXISTS tu_vocab USING fts5vocab(tu_fts, 'col')");
     }
 
     internal static string Norm(string text) => string.Join(' ', FuzzyMatcher.Words(text));
@@ -160,6 +163,7 @@ public sealed class TranslationMemory : ITranslationMemory
 
     private void AddCore(TmEntry e)
     {
+        _total = -1;
         if (string.IsNullOrWhiteSpace(e.Source) || string.IsNullOrWhiteSpace(e.Target)) return;
         var sp = Languages.Primary(e.SrcLang);
         var tp = Languages.Primary(e.TgtLang);
@@ -351,30 +355,125 @@ public sealed class TranslationMemory : ITranslationMemory
                 results[u.Id] = new TmMatch(u, FuzzyMatcher.Score(source, u.Source), Name);
         }
 
-        var words = FuzzyMatcher.Words(source).Where(w => w.Length > 1).Distinct().Take(40).ToList();
-        if (words.Count > 0)
+        var words = QueryTerms(FuzzyMatcher.Words(source).Where(w => w.Length > 1).Distinct().Take(40).ToList());
+        foreach (var u in Candidates(words, Languages.Primary(srcLang), Languages.Primary(tgtLang), Math.Clamp(max * 20, 40, 200)))
         {
-            using var cmd = _db.CreateCommand();
-            cmd.CommandText = """
-                SELECT tu.* FROM tu_fts JOIN tu ON tu.id = tu_fts.rowid
-                WHERE tu_fts MATCH $q AND tu.src_p=$sp AND tu.tgt_p=$tp
-                ORDER BY bm25(tu_fts) LIMIT 200
-                """;
-            cmd.Parameters.AddWithValue("$q", "source_plain : (" + string.Join(" OR ", words.Select(Quote)) + ")");
-            cmd.Parameters.AddWithValue("$sp", Languages.Primary(srcLang));
-            cmd.Parameters.AddWithValue("$tp", Languages.Primary(tgtLang));
-            foreach (var u in Read(cmd))
-            {
-                if (results.ContainsKey(u.Id)) continue;
-                var score = FuzzyMatcher.Score(source, u.Source);
-                if (score >= minScore) results[u.Id] = new TmMatch(u, score, Name);
-            }
+            if (results.ContainsKey(u.Id)) continue;
+            var score = FuzzyMatcher.Score(source, u.Source, minScore);
+            if (score >= minScore) results[u.Id] = new TmMatch(u, score, Name);
         }
 
         var scored = ApplyContext(results.Values.ToList(), context);
         return scored.Where(r => r.Score >= minScore)
             .OrderByDescending(r => r.Score).ThenByDescending(r => r.Unit.Modified)
             .Take(max).ToList();
+    }
+
+    /// <summary>Nur für Messungen: Zeit je Schritt der Suche.</summary>
+    internal List<(string, double)> ProfileSearch(List<string> queries)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var terms = queries.Select(q => QueryTerms(FuzzyMatcher.Words(q).Where(w => w.Length > 1).Distinct().Take(40).ToList())).ToList();
+        var tVocab = sw.Elapsed.TotalMilliseconds / queries.Count;
+        sw.Restart();
+        var candidates = terms.Select(w => Candidates(w, "de", "en", 200)).ToList();
+        var tFts = sw.Elapsed.TotalMilliseconds / queries.Count;
+        sw.Restart();
+        for (var i = 0; i < queries.Count; i++) foreach (var u in candidates[i]) FuzzyMatcher.Score(queries[i], u.Source, 70);
+        var tScore = sw.Elapsed.TotalMilliseconds / queries.Count;
+        var postings = terms.Average(t => t.Sum(w => _docFreq.GetValueOrDefault(Fold(w))));
+        var minFreq = queries.Average(q => FuzzyMatcher.Words(q).Where(w => !w.All(char.IsDigit)).Select(w => _docFreq.GetValueOrDefault(Fold(w))).DefaultIfEmpty(0).Min());
+        return [("Wortstatistik", tVocab), ("Volltextsuche", tFts), ("Bewertung", tScore), ("Kandidaten im Schnitt", candidates.Average(c => c.Count)),
+                ("Fundstellen im Schnitt", postings), ("seltenstes Wort im Schnitt", minFreq), ("Wörter je Suche", terms.Average(t => t.Count))];
+    }
+
+    private long _total = -1;
+
+    /// <summary>
+    /// Wählt die aussagekräftigsten Wörter für die Kandidatensuche: seltene Wörter zuerst, sehr häufige
+    /// („die“, „und“ …) nur, wenn sonst zu wenig übrig bleibt. So bleibt die Suche auch bei großen TMs schnell.
+    /// </summary>
+    /// <summary>
+    /// Kandidaten: TM-Einheiten, die möglichst viele der seltenen Suchwörter enthalten. Die Fundstellen kommen direkt
+    /// aus dem Volltextindex; geladen werden nur die besten Einheiten.
+    /// </summary>
+    private List<TmUnit> Candidates(List<string> words, string sp, string tp, int max)
+    {
+        if (words.Count == 0) return [];
+        var counts = new Dictionary<long, int>();
+        using (var cmd = _db.CreateCommand())
+        {
+            cmd.CommandText = "SELECT rowid FROM tu_fts WHERE tu_fts MATCH $q";
+            var p = cmd.Parameters.Add("$q", SqliteType.Text);
+            foreach (var w in words)
+            {
+                p.Value = "source_plain : " + Quote(w);
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    var id = r.GetInt64(0);
+                    counts[id] = counts.GetValueOrDefault(id) + 1;
+                }
+            }
+        }
+        var best = counts.OrderByDescending(kv => kv.Value).Take(max).Select(kv => kv.Key).ToList();
+        if (best.Count == 0) return [];
+        using var load = _db.CreateCommand();
+        // „+“ hält SQLite davon ab, den Sprach-Index statt der direkten ID-Abfrage zu nehmen (sonst Durchlauf aller Zeilen)
+        load.CommandText = $"SELECT * FROM tu WHERE id IN ({string.Join(',', best)}) AND +src_p=$sp AND +tgt_p=$tp";
+        load.Parameters.AddWithValue("$sp", sp);
+        load.Parameters.AddWithValue("$tp", tp);
+        return Read(load).ToList();
+    }
+
+    private readonly Dictionary<string, long> _docFreq = new();
+    private long _docFreqAt = -1;
+
+    private List<string> QueryTerms(List<string> words)
+    {
+        if (words.Count <= 2) return words;
+        if (_total < 0) _total = Count();
+        // Häufigkeiten zwischenspeichern; nach deutlichem Wachstum des TMs neu ermitteln
+        if (_docFreqAt < 0 || Math.Abs(_total - _docFreqAt) > Math.Max(100, _docFreqAt / 20))
+        {
+            _docFreq.Clear();
+            _docFreqAt = _total;
+        }
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT doc FROM tu_vocab WHERE col='source_plain' AND term=$t";
+        var p = cmd.Parameters.Add("$t", SqliteType.Text);
+        var freq = new Dictionary<string, long>();
+        foreach (var w in words.Where(w => !w.All(char.IsDigit)))   // Zahlen unterscheiden sich gerade bei Fuzzy-Treffern
+        {
+            var f = Fold(w);
+            if (!_docFreq.TryGetValue(f, out var doc))
+            {
+                p.Value = f;
+                doc = cmd.ExecuteScalar() is long d ? d : 0;
+                _docFreq[f] = doc;
+            }
+            if (doc > 0) freq[w] = doc;
+        }
+        // Seltene Wörter zuerst, bis die Kandidatenmenge groß genug ist (mind. 2, höchstens 6 Wörter)
+        var picked = new List<string>();
+        long sum = 0;
+        foreach (var w in freq.Keys.OrderBy(w => freq[w]))
+        {
+            var f = freq[w];
+            var fits = sum + f <= 5000 && picked.Count < 6;
+            var secondNeeded = picked.Count < 2 && f <= Math.Max(5000, _total / 10);
+            if (picked.Count > 0 && !fits && !secondNeeded) break;
+            picked.Add(w);
+            sum += f;
+        }
+        return picked;
+    }
+
+    /// <summary>Wie der Volltextindex vergleicht: klein, ohne Akzente.</summary>
+    private static string Fold(string w)
+    {
+        var d = w.ToLowerInvariant().Normalize(System.Text.NormalizationForm.FormD);
+        return new string(d.Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark).ToArray());
     }
 
     /// <summary>
@@ -467,9 +566,9 @@ public sealed class TranslationMemory : ITranslationMemory
         using var cmd = _db.CreateCommand();
         var column = inTarget ? "target_plain" : "source_plain";
         cmd.CommandText = $"""
-            SELECT tu.* FROM tu_fts JOIN tu ON tu.id = tu_fts.rowid
-            WHERE tu_fts MATCH $q AND tu.src_p=$sp AND tu.tgt_p=$tp
-            ORDER BY bm25(tu_fts) LIMIT $max
+            SELECT tu.* FROM (SELECT rowid, rank FROM tu_fts WHERE tu_fts MATCH $q ORDER BY rank LIMIT $max * 4) best
+            JOIN tu ON tu.id = best.rowid
+            WHERE tu.src_p=$sp AND tu.tgt_p=$tp ORDER BY best.rank LIMIT $max
             """;
         cmd.Parameters.AddWithValue("$q", $"{column} : " + string.Join(" ", words.Select(Quote)));
         cmd.Parameters.AddWithValue("$sp", Languages.Primary(srcLang));

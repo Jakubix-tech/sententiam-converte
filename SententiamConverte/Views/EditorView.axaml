@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="using:SententiamConverte.Services"
              xmlns:vm="using:SententiamConverte.ViewModels"
              xmlns:c="using:SententiamConverte.Controls"
              x:Class="SententiamConverte.Views.EditorView"
@@ -23,25 +24,28 @@
             <StackPanel Spacing="6">
                 <Grid ColumnDefinitions="*,Auto">
                     <TextBlock Text="{Binding DocumentTitle}" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Grid.Column="1" Text="{Binding Progress}" VerticalAlignment="Center" Opacity="0.8" Margin="8,0,0,0" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12" Margin="8,0,0,0">
+                        <TextBlock Text="{Binding SyncInfo, Converter={x:Static l:L.Text}}" VerticalAlignment="Center" Opacity="0.7" FontSize="12" />
+                        <TextBlock Text="{Binding Progress, Converter={x:Static l:L.Text}}" VerticalAlignment="Center" Opacity="0.8" />
+                    </StackPanel>
                 </Grid>
                 <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                     <StackPanel Orientation="Horizontal" Classes="toolbar" Margin="0,0,0,4">
                         <ComboBox ItemsSource="{Binding FilterNames}" SelectedIndex="{Binding FilterIndex}" Width="170" Margin="0,0,6,0" />
-                        <Button Content="✔ Bestätigen" ToolTip.Tip="Strg+Eingabe: bestätigen, ins TM schreiben, weiter" Command="{Binding ConfirmAndNextCommand}" Classes="accent" />
-                        <Button Content="Lektoriert" ToolTip.Tip="Strg+Alt+Eingabe" Command="{Binding SetReviewedCommand}" />
-                        <Button Content="Ablehnen" Command="{Binding RejectCommand}" />
-                        <Button Content="Quelle → Ziel" ToolTip.Tip="Strg+Einfg" Command="{Binding CopySourceCommand}" />
-                        <Button Content="Leeren" ToolTip.Tip="Strg+Entf" Command="{Binding ClearTargetCommand}" />
-                        <Button Content="Teilen" ToolTip.Tip="Alt+T: Segment an der Cursorposition im Quelltext teilen" Click="OnSplitClick" IsEnabled="{Binding CanResegment}" />
-                        <Button Content="Zusammenführen" ToolTip.Tip="Alt+Z: mit dem folgenden Segment zusammenführen" Command="{Binding MergeWithNextCommand}" IsEnabled="{Binding CanResegment}" />
-                        <Button Content="KI übersetzen" ToolTip.Tip="Strg+Umschalt+T" Command="{Binding AiTranslateCommand}" />
-                        <Button Content="Leere per KI" ToolTip.Tip="Alle leeren Segmente als Entwurf per KI übersetzen" Command="{Binding AiTranslateAllCommand}" />
-                        <Button Content="Abbrechen" Command="{Binding CancelAiCommand}" IsVisible="{Binding IsAiRunning}" />
-                        <Button Content="QA" Command="{Binding RunQaCommand}" />
-                        <Button Content="Vorschau" ToolTip.Tip="Zieldatei erzeugen und öffnen" Command="{Binding PreviewCommand}" />
-                        <Button Content="Speichern" ToolTip.Tip="Strg+S" Command="{Binding SaveCommand}" />
-                        <ToggleButton x:Name="FindToggle" Content="Suchen/Ersetzen" />
+                        <Button Content="{l:T '✔ Bestätigen'}" ToolTip.Tip="{l:T 'Strg+Eingabe: bestätigen, ins TM schreiben, weiter'}" Command="{Binding ConfirmAndNextCommand}" Classes="accent" />
+                        <Button Content="{l:T 'Lektoriert'}" ToolTip.Tip="{l:T 'Strg+Alt+Eingabe'}" Command="{Binding SetReviewedCommand}" />
+                        <Button Content="{l:T 'Ablehnen'}" Command="{Binding RejectCommand}" />
+                        <Button Content="{l:T 'Quelle → Ziel'}" ToolTip.Tip="{l:T 'Strg+Einfg'}" Command="{Binding CopySourceCommand}" />
+                        <Button Content="{l:T 'Leeren'}" ToolTip.Tip="{l:T 'Strg+Entf'}" Command="{Binding ClearTargetCommand}" />
+                        <Button Content="{l:T 'Teilen'}" ToolTip.Tip="{l:T 'Alt+T: Segment an der Cursorposition im Quelltext teilen'}" Click="OnSplitClick" IsEnabled="{Binding CanResegment}" />
+                        <Button Content="{l:T 'Zusammenführen'}" ToolTip.Tip="{l:T 'Alt+Z: mit dem folgenden Segment zusammenführen'}" Command="{Binding MergeWithNextCommand}" IsEnabled="{Binding CanResegment}" />
+                        <Button Content="{l:T 'KI übersetzen'}" ToolTip.Tip="{l:T 'Strg+Umschalt+T'}" Command="{Binding AiTranslateCommand}" />
+                        <Button Content="{l:T 'Leere per KI'}" ToolTip.Tip="{l:T 'Alle leeren Segmente als Entwurf per KI übersetzen'}" Command="{Binding AiTranslateAllCommand}" />
+                        <Button Content="{l:T 'Abbrechen'}" Command="{Binding CancelAiCommand}" IsVisible="{Binding IsAiRunning}" />
+                        <Button Content="{l:T 'QA'}" Command="{Binding RunQaCommand}" />
+                        <Button Content="{l:T 'Vorschau'}" ToolTip.Tip="{l:T 'Zieldatei erzeugen und öffnen'}" Command="{Binding PreviewCommand}" />
+                        <Button Content="{l:T 'Speichern'}" ToolTip.Tip="{l:T 'Strg+S'}" Command="{Binding SaveCommand}" />
+                        <ToggleButton x:Name="FindToggle" Content="{l:T 'Suchen/Ersetzen'}" />
                     </StackPanel>
                 </ScrollViewer>
             </StackPanel>
@@ -50,9 +54,9 @@
         <!-- Suchen und Ersetzen -->
         <Border Grid.Row="1" Padding="8,4" IsVisible="{Binding #FindToggle.IsChecked}">
             <WrapPanel>
-                <TextBox Text="{Binding FindText}" PlaceholderText="Suchen im Ziel" Width="220" Margin="0,0,6,4" />
-                <TextBox Text="{Binding ReplaceText}" PlaceholderText="Ersetzen durch" Width="220" Margin="0,0,6,4" />
-                <Button Content="Alle ersetzen" Command="{Binding ReplaceAllCommand}" Margin="0,0,6,4" />
+                <TextBox Text="{Binding FindText}" PlaceholderText="{l:T 'Suchen im Ziel'}" Width="220" Margin="0,0,6,4" />
+                <TextBox Text="{Binding ReplaceText}" PlaceholderText="{l:T 'Ersetzen durch'}" Width="220" Margin="0,0,6,4" />
+                <Button Content="{l:T 'Alle ersetzen'}" Command="{Binding ReplaceAllCommand}" Margin="0,0,6,4" />
             </WrapPanel>
         </Border>
 
@@ -69,20 +73,28 @@
                         <Grid ColumnDefinitions="38,*,*,76">
                             <StackPanel>
                                 <TextBlock Text="{Binding Id}" Opacity="0.6" FontSize="12" />
-                                <TextBlock Text="⚠" Foreground="#C53030" IsVisible="{Binding HasIssues}" ToolTip.Tip="QA-Meldungen" />
+                                <TextBlock Text="⚠" Foreground="#C53030" IsVisible="{Binding HasIssues}" ToolTip.Tip="{l:T 'QA-Meldungen'}" />
                                 <TextBlock Text="✎" Opacity="0.7" IsVisible="{Binding HasComment}" ToolTip.Tip="{Binding Model.Comment}" />
                             </StackPanel>
                             <StackPanel Grid.Column="1" Margin="0,0,6,0">
                                 <SelectableTextBlock c:TagHighlight.Text="{Binding Source}" TextWrapping="Wrap" Margin="2,4" />
                                 <TextBlock Text="{Binding Context}" FontSize="11" Opacity="0.5" Margin="2,0" TextTrimming="CharacterEllipsis" />
                             </StackPanel>
-                            <TextBox Grid.Column="2" Text="{Binding Target}" TextWrapping="Wrap" AcceptsReturn="False"
-                                     IsReadOnly="{Binding IsLocked}" MinHeight="32" GotFocus="OnTargetFocused" TextChanged="OnTargetTextChanged" />
+                            <StackPanel Grid.Column="2">
+                                <TextBox Text="{Binding Target}" TextWrapping="Wrap" AcceptsReturn="False"
+                                         IsReadOnly="{Binding IsReadOnly}" MinHeight="32" GotFocus="OnTargetFocused" TextChanged="OnTargetTextChanged" />
+                                <TextBlock c:TagHighlight.Text="{Binding Target}" TextWrapping="Wrap" FontSize="12" Opacity="0.8" Margin="4,2,0,0"
+                                           IsVisible="{Binding HasTargetTags}" />
+                                <TextBlock Text="{Binding MissingTags, Converter={x:Static l:L.Text}}" FontSize="11" Foreground="#C53030" Margin="4,0,0,0"
+                                           IsVisible="{Binding MissingTags, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            </StackPanel>
                             <StackPanel Grid.Column="3" Margin="6,2,0,0" Spacing="2">
                                 <Border Background="{Binding StatusBrush}" CornerRadius="3" Padding="4,1">
-                                    <TextBlock Text="{Binding StatusText}" Foreground="White" FontSize="11" HorizontalAlignment="Center" />
+                                    <TextBlock Text="{Binding StatusText, Converter={x:Static l:L.Text}}" Foreground="White" FontSize="11" HorizontalAlignment="Center" />
                                 </Border>
-                                <TextBlock Text="{Binding OriginText}" FontSize="11" Opacity="0.7" HorizontalAlignment="Center" />
+                                <TextBlock Text="{Binding OriginText, Converter={x:Static l:L.Text}}" FontSize="11" Opacity="0.7" HorizontalAlignment="Center" />
+                                <TextBlock Text="{Binding LockText, Converter={x:Static l:L.Text}}" FontSize="11" Foreground="#B7791F" HorizontalAlignment="Center" TextWrapping="Wrap"
+                                           IsVisible="{Binding LockText, Converter={x:Static ObjectConverters.IsNotNull}}" />
                             </StackPanel>
                         </Grid>
                     </DataTemplate>
@@ -93,7 +105,7 @@
 
             <!-- Seitenleiste -->
             <TabControl x:Name="SidePanel" Grid.Column="2" Classes="side" SelectedIndex="{Binding SidePanelTab}" Padding="4">
-                <TabItem Header="TM">
+                <TabItem Header="{l:T 'TM'}">
                     <ScrollViewer>
                         <StackPanel Spacing="6">
                             <ItemsControl ItemsSource="{Binding Matches}">
@@ -102,24 +114,24 @@
                                         <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" Padding="0,4">
                                             <StackPanel Spacing="2">
                                                 <Grid ColumnDefinitions="Auto,*,Auto">
-                                                    <TextBlock FontWeight="Bold" VerticalAlignment="Center"><Run Text="Strg+" /><Run Text="{Binding Number}" /></TextBlock>
+                                                    <TextBlock FontWeight="Bold" VerticalAlignment="Center"><Run Text="{l:T 'Strg+'}" /><Run Text="{Binding Number}" /></TextBlock>
                                                     <TextBlock Grid.Column="1" Text="{Binding Score}" Margin="8,0" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                                    <Button Grid.Column="2" Content="Einsetzen" Padding="6,1"
+                                                    <Button Grid.Column="2" Content="{l:T 'Einsetzen'}" Padding="6,1"
                                                             Command="{Binding $parent[UserControl].((vm:EditorViewModel)DataContext).ApplyMatchCommand}"
                                                             CommandParameter="{Binding Number}" />
                                                 </Grid>
                                                 <TextBlock c:TagHighlight.Text="{Binding Source}" TextWrapping="Wrap" Opacity="0.75" />
                                                 <TextBlock c:TagHighlight.Text="{Binding Target}" TextWrapping="Wrap" />
-                                                <TextBlock Text="{Binding Info}" FontSize="11" Opacity="0.55" TextWrapping="Wrap" />
-                                                <TextBlock Text="{Binding ContextText}" FontSize="11" Opacity="0.5" TextWrapping="Wrap" FontStyle="Italic"
+                                                <TextBlock Text="{Binding Info, Converter={x:Static l:L.Text}}" FontSize="11" Opacity="0.55" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding ContextText, Converter={x:Static l:L.Text}}" FontSize="11" Opacity="0.5" TextWrapping="Wrap" FontStyle="Italic"
                                                            IsVisible="{Binding ContextText, Converter={x:Static ObjectConverters.IsNotNull}}" />
                                             </StackPanel>
                                         </Border>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                            <TextBlock Text="Fragment-Treffer" FontWeight="SemiBold" Margin="0,6,0,0" />
-                            <TextBlock Text="Kürzere TM-Einträge, die vollständig in diesem Segment vorkommen." FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+                            <TextBlock Text="{l:T 'Fragment-Treffer'}" FontWeight="SemiBold" Margin="0,6,0,0" />
+                            <TextBlock Text="{l:T 'Kürzere TM-Einträge, die vollständig in diesem Segment vorkommen.'}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
                             <ItemsControl ItemsSource="{Binding Fragments}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:FragmentRow">
@@ -128,7 +140,7 @@
                                                 <TextBlock Text="{Binding Phrase}" TextWrapping="Wrap" Opacity="0.75" />
                                                 <TextBlock Text="{Binding Target}" TextWrapping="Wrap" FontWeight="SemiBold" />
                                             </StackPanel>
-                                            <Button Grid.Column="1" Content="+" VerticalAlignment="Top" ToolTip.Tip="Ins Ziel einfügen"
+                                            <Button Grid.Column="1" Content="+" VerticalAlignment="Top" ToolTip.Tip="{l:T 'Ins Ziel einfügen'}"
                                                     Command="{Binding $parent[UserControl].((vm:EditorViewModel)DataContext).InsertFragmentCommand}"
                                                     CommandParameter="{Binding}" />
                                         </Grid>
@@ -139,10 +151,10 @@
                     </ScrollViewer>
                 </TabItem>
 
-                <TabItem Header="Termini">
+                <TabItem Header="{l:T 'Termini'}">
                     <DockPanel>
                         <TextBlock DockPanel.Dock="Bottom" FontSize="11" Opacity="0.6" TextWrapping="Wrap" Margin="2,6"
-                                   Text="Strg+F2: markierten Quelltext und markierten Zieltext als Begriff aufnehmen." />
+                                   Text="{l:T 'Strg+F2: markierten Quelltext und markierten Zieltext als Begriff aufnehmen.'}" />
                         <ListBox ItemsSource="{Binding Terms}">
                             <ListBox.ItemTemplate>
                                 <DataTemplate x:DataType="vm:TermRow">
@@ -152,7 +164,7 @@
                                             <TextBlock Text="{Binding Targets}" TextWrapping="Wrap" />
                                             <TextBlock Text="{Binding Definition}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
                                         </StackPanel>
-                                        <Button Grid.Column="1" Content="+" VerticalAlignment="Top" ToolTip.Tip="Ins Ziel einfügen"
+                                        <Button Grid.Column="1" Content="+" VerticalAlignment="Top" ToolTip.Tip="{l:T 'Ins Ziel einfügen'}"
                                                 Command="{Binding $parent[UserControl].((vm:EditorViewModel)DataContext).InsertTermCommand}"
                                                 CommandParameter="{Binding}" />
                                     </Grid>
@@ -162,13 +174,13 @@
                     </DockPanel>
                 </TabItem>
 
-                <TabItem Header="Konkordanz">
+                <TabItem Header="{l:T 'Konkordanz'}">
                     <DockPanel>
                         <StackPanel DockPanel.Dock="Top" Spacing="4">
-                            <TextBox Text="{Binding ConcordanceQuery}" PlaceholderText="Ausdruck (F3: markierten Text suchen)" />
+                            <TextBox Text="{Binding ConcordanceQuery}" PlaceholderText="{l:T 'Ausdruck (F3: markierten Text suchen)'}" />
                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                <CheckBox Content="im Ziel suchen" IsChecked="{Binding ConcordanceInTarget}" />
-                                <Button Content="Suchen" Command="{Binding SearchConcordanceCommand}" />
+                                <CheckBox Content="{l:T 'im Ziel suchen'}" IsChecked="{Binding ConcordanceInTarget}" />
+                                <Button Content="{l:T 'Suchen'}" Command="{Binding SearchConcordanceCommand}" />
                             </StackPanel>
                         </StackPanel>
                         <ListBox ItemsSource="{Binding Concordance}" Margin="0,6,0,0">
@@ -177,7 +189,7 @@
                                     <StackPanel Spacing="1">
                                         <TextBlock c:TagHighlight.Text="{Binding Source}" TextWrapping="Wrap" Opacity="0.75" />
                                         <TextBlock c:TagHighlight.Text="{Binding Target}" TextWrapping="Wrap" />
-                                        <TextBlock Text="{Binding Info}" FontSize="11" Opacity="0.5" />
+                                        <TextBlock Text="{Binding Info, Converter={x:Static l:L.Text}}" FontSize="11" Opacity="0.5" />
                                     </StackPanel>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
@@ -185,11 +197,11 @@
                     </DockPanel>
                 </TabItem>
 
-                <TabItem Header="QA">
+                <TabItem Header="{l:T 'QA'}">
                     <DockPanel>
                         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="6" Margin="0,0,0,6">
-                            <Button Content="Dokument prüfen" Command="{Binding RunQaCommand}" />
-                            <Button Content="Rechtschreibung (Segment)" Command="{Binding CheckSpellingCommand}" />
+                            <Button Content="{l:T 'Dokument prüfen'}" Command="{Binding RunQaCommand}" />
+                            <Button Content="{l:T 'Rechtschreibung (Segment)'}" Command="{Binding CheckSpellingCommand}" />
                         </StackPanel>
                         <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding SpellingErrors}">
                             <ItemsControl.ItemTemplate>
@@ -197,7 +209,7 @@
                                     <StackPanel Margin="0,0,0,6" Spacing="2">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <TextBlock Text="{Binding Word}" FontWeight="SemiBold" Foreground="#C53030" VerticalAlignment="Center" />
-                                            <Button Content="ins Wörterbuch" Padding="6,1" FontSize="12"
+                                            <Button Content="{l:T 'ins Wörterbuch'}" Padding="6,1" FontSize="12"
                                                     Command="{Binding $parent[UserControl].((vm:EditorViewModel)DataContext).AddToDictionaryCommand}"
                                                     CommandParameter="{Binding}" />
                                         </StackPanel>
@@ -224,11 +236,11 @@
                                         <TextBlock FontWeight="SemiBold">
                                             <Run Text="{Binding SegmentId, StringFormat='Segment {0}'}" />
                                             <Run Text=" · " />
-                                            <Run Text="{Binding Severity}" />
+                                            <Run Text="{Binding Severity, Converter={x:Static l:L.Text}}" />
                                             <Run Text=" · " />
-                                            <Run Text="{Binding Check}" />
+                                            <Run Text="{Binding Check, Converter={x:Static l:L.Text}}" />
                                         </TextBlock>
-                                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding Message, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
@@ -236,16 +248,16 @@
                     </DockPanel>
                 </TabItem>
 
-                <TabItem Header="Wissen">
+                <TabItem Header="{l:T 'Wissen'}">
                     <ScrollViewer>
                         <StackPanel Spacing="4">
-                            <TextBlock Text="Passendes aus den Wissensdatenbanken – geht auch in jede KI-Übersetzung ein." FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+                            <TextBlock Text="{l:T 'Passendes aus den Wissensdatenbanken – geht auch in jede KI-Übersetzung ein.'}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
                             <ItemsControl ItemsSource="{Binding Knowledge}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:KnowledgeRow">
                                         <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" Padding="0,4">
                                             <StackPanel Spacing="1">
-                                                <TextBlock Text="{Binding Header}" FontSize="11" Opacity="0.6" />
+                                                <TextBlock Text="{Binding Header, Converter={x:Static l:L.Text}}" FontSize="11" Opacity="0.6" />
                                                 <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
                                                 <TextBlock Text="{Binding Content}" TextWrapping="Wrap" />
                                                 <TextBlock Text="{Binding Source}" FontSize="11" Opacity="0.55" TextWrapping="Wrap" />
@@ -258,18 +270,18 @@
                     </ScrollViewer>
                 </TabItem>
 
-                <TabItem Header="Notiz">
+                <TabItem Header="{l:T 'Notiz'}">
                     <ScrollViewer>
                         <StackPanel Spacing="6">
-                            <TextBlock Text="Kommentar zum Segment" FontWeight="SemiBold" />
+                            <TextBlock Text="{l:T 'Kommentar zum Segment'}" FontWeight="SemiBold" />
                             <TextBox Text="{Binding Comment}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="70" />
-                            <TextBlock Text="Verlauf" FontWeight="SemiBold" Margin="0,8,0,0" />
-                            <TextBlock Text="Jede bestätigte Fassung; Änderungen als [−gelöscht−] {+eingefügt+}." FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+                            <TextBlock Text="{l:T 'Verlauf'}" FontWeight="SemiBold" Margin="0,8,0,0" />
+                            <TextBlock Text="{l:T 'Jede bestätigte Fassung; Änderungen als [−gelöscht−] {+eingefügt+}.'}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
                             <ItemsControl ItemsSource="{Binding History}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:HistoryRow">
                                         <StackPanel Margin="0,4" Spacing="1">
-                                            <TextBlock Text="{Binding Header}" FontSize="11" Opacity="0.6" />
+                                            <TextBlock Text="{Binding Header, Converter={x:Static l:L.Text}}" FontSize="11" Opacity="0.6" />
                                             <SelectableTextBlock Text="{Binding Text}" TextWrapping="Wrap" />
                                             <SelectableTextBlock Text="{Binding Diff}" TextWrapping="Wrap" FontSize="12" Foreground="#2B6CB0" />
                                         </StackPanel>
@@ -280,28 +292,28 @@
                     </ScrollViewer>
                 </TabItem>
 
-                <TabItem Header="KI">
+                <TabItem Header="{l:T 'KI'}">
                     <ScrollViewer>
                         <StackPanel Spacing="6">
                             <WrapPanel>
-                                <Button Content="Übersetzen" Command="{Binding AiTranslateCommand}" Margin="0,0,6,4" />
-                                <Button Content="Varianten bewerten" ToolTip.Tip="Strg+Umschalt+E: aktuelle Übersetzung, TM-Treffer und KI-Vorschlag vergleichen"
+                                <Button Content="{l:T 'Übersetzen'}" Command="{Binding AiTranslateCommand}" Margin="0,0,6,4" />
+                                <Button Content="{l:T 'Varianten bewerten'}" ToolTip.Tip="{l:T 'Strg+Umschalt+E: aktuelle Übersetzung, TM-Treffer und KI-Vorschlag vergleichen'}"
                                         Command="{Binding EvaluateSegmentCommand}" Margin="0,0,6,4" />
-                                <Button Content="Usus prüfen" ToolTip.Tip="Strg+Umschalt+U: markierten Zieltext (oder ganze Übersetzung) im Netz prüfen"
+                                <Button Content="{l:T 'Usus prüfen'}" ToolTip.Tip="{l:T 'Strg+Umschalt+U: markierten Zieltext (oder ganze Übersetzung) im Netz prüfen'}"
                                         Command="{Binding CheckUsageOfTargetCommand}" Margin="0,0,6,4" />
-                                <Button Content="Beste übernehmen" Command="{Binding UseBestEvaluatedCommand}" Margin="0,0,6,4" />
-                                <Button Content="Begriff im Kontext klären" Click="OnClarifyTermClick" Margin="0,0,6,4"
-                                        ToolTip.Tip="Strg+Umschalt+B: markierten Begriff im Quelltext auf Fachseiten beider Sprachen vergleichen" />
+                                <Button Content="{l:T 'Beste übernehmen'}" Command="{Binding UseBestEvaluatedCommand}" Margin="0,0,6,4" />
+                                <Button Content="{l:T 'Begriff im Kontext klären'}" Click="OnClarifyTermClick" Margin="0,0,6,4"
+                                        ToolTip.Tip="{l:T 'Strg+Umschalt+B: markierten Begriff im Quelltext auf Fachseiten beider Sprachen vergleichen'}" />
                             </WrapPanel>
                             <WrapPanel IsVisible="{Binding HasComparison}">
-                                <Button Content="Empfehlung → Terminologie" Command="{Binding SaveComparisonToTermbaseCommand}" Margin="0,0,6,4" />
-                                <Button Content="Begründung → Wissen" Command="{Binding SaveComparisonToKnowledgeCommand}" Margin="0,0,6,4" />
+                                <Button Content="{l:T 'Empfehlung → Terminologie'}" Command="{Binding SaveComparisonToTermbaseCommand}" Margin="0,0,6,4" />
+                                <Button Content="{l:T 'Begründung → Wissen'}" Command="{Binding SaveComparisonToKnowledgeCommand}" Margin="0,0,6,4" />
                             </WrapPanel>
-                            <CheckBox Content="Fragliche Wendungen beim Bewerten im Netz prüfen" IsChecked="{Binding AiCheckUsage}" />
+                            <CheckBox Content="{l:T 'Fragliche Wendungen beim Bewerten im Netz prüfen'}" IsChecked="{Binding AiCheckUsage}" />
                             <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsAiRunning}" />
-                            <SelectableTextBlock Text="{Binding AiResult}" TextWrapping="Wrap" />
-                            <Expander Header="Protokoll">
-                                <SelectableTextBlock Text="{Binding AiLog}" TextWrapping="Wrap" FontSize="12" Opacity="0.75" />
+                            <SelectableTextBlock Text="{Binding AiResult, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" />
+                            <Expander Header="{l:T 'Protokoll'}">
+                                <SelectableTextBlock Text="{Binding AiLog, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontSize="12" Opacity="0.75" />
                             </Expander>
                         </StackPanel>
                     </ScrollViewer>

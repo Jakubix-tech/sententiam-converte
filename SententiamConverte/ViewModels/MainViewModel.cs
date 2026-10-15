@@ -13,6 +13,7 @@ using SententiamConverte.Core.Filters;
 using SententiamConverte.Core.Model;
 using SententiamConverte.Core.Projects;
 using SententiamConverte.Core.Qa;
+using SententiamConverte.Core.Remote;
 using SententiamConverte.Services;
 
 namespace SententiamConverte.ViewModels;
@@ -28,7 +29,13 @@ public partial class FileRowViewModel : ObservableObject
     [ObservableProperty] public partial int Percent { get; set; }
 }
 
-public sealed record AnalysisRow(string Band, int Segments, int Words, int Characters);
+public sealed record AnalysisRow(string Band, int Segments, int Words, int Characters)
+{
+    public string BandText => L.T(Band);
+    public string SegmentsText => L.T($"{Segments} Segm.");
+    public string WordsText => L.T($"{Words} Wörter");
+    public string CharactersText => L.T($"{Characters} Zeichen");
+}
 
 /// <summary>Bearbeitbare Kopie einer eigenen QA-Regel.</summary>
 public partial class RegexRuleViewModel : ObservableObject
@@ -59,6 +66,10 @@ public partial class MainViewModel : ViewModelBase
     public AgentsViewModel Agents { get; }
     public SettingsViewModel Settings { get; }
     public KnowledgeViewModel Knowledge { get; }
+    public ExtensionsViewModel Extensions { get; }
+    public HelpViewModel Help { get; } = new();
+
+    public const int HelpTab = 7;
 
     public MainViewModel()
     {
@@ -67,7 +78,9 @@ public partial class MainViewModel : ViewModelBase
         Agents = new AgentsViewModel(this);
         Settings = new SettingsViewModel(this);
         Knowledge = new KnowledgeViewModel(this);
+        Extensions = new ExtensionsViewModel(this);
         Core.Projects.TranslationProject.Servers = () => AppServices.Servers;
+        AppServices.Main = this;
         foreach (var p in AppServices.Ui.RecentProjects.Where(p => File.Exists(Path.Combine(p, TranslationProject.FileName))))
             RecentProjects.Add(p);
         LanguageCodes = new ObservableCollection<string>(Languages.Common.Select(l => l.Code));
@@ -109,6 +122,15 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] public partial string ProjectTopic { get; set; } = "";
     [ObservableProperty] public partial int PretranslateMinScore { get; set; } = 100;
     [ObservableProperty] public partial bool ConfirmContextMatches { get; set; } = true;
+
+    // Gemeinsame Projekte
+    [ObservableProperty] public partial bool ShowShared { get; set; }
+    [ObservableProperty] public partial string? SharedServer { get; set; }
+    [ObservableProperty] public partial SharedProjectInfo? SelectedShared { get; set; }
+    [ObservableProperty] public partial bool NewOnServer { get; set; }
+    public ObservableCollection<SharedProjectInfo> SharedProjects { get; } = new();
+    public IEnumerable<string> ServerNames => AppServices.Servers.Servers.Select(s => s.Name);
+    public bool IsSharedProject => Project?.IsShared == true;
     [ObservableProperty] public partial string? ProjectProfile { get; set; }
     public IEnumerable<string> ProfileNames => new[] { "(keins)" }.Concat(AppServices.Ai.SourceProfiles.Select(p => p.Name));
 
@@ -144,6 +166,46 @@ public partial class MainViewModel : ViewModelBase
     private void CancelNewProject() => ShowNewProject = false;
 
     [RelayCommand]
+    private async Task BeginShared()
+    {
+        ShowShared = !ShowShared;
+        OnPropertyChanged(nameof(ServerNames));
+        SharedServer ??= ServerNames.FirstOrDefault();
+        if (ShowShared) await LoadSharedProjects();
+    }
+
+    [RelayCommand]
+    private async Task LoadSharedProjects()
+    {
+        SharedProjects.Clear();
+        var account = SharedServer == null ? null : AppServices.Servers.Get(SharedServer);
+        if (account == null) { Status = "Zuerst unter Einstellungen → Teamserver einen Zugang einrichten."; return; }
+        try
+        {
+            foreach (var p in await Task.Run(() => new SharedProjectClient(Core.Resources.ResourceFactory.Api(account)).List()))
+                SharedProjects.Add(p);
+            Status = $"{SharedProjects.Count} gemeinsame Projekte auf „{account.Name}“.";
+        }
+        catch (Exception ex) { Status = ex.Message; }
+    }
+
+    [RelayCommand]
+    private async Task OpenShared()
+    {
+        if (SelectedShared == null || SharedServer == null) return;
+        var name = SelectedShared.Name;
+        var server = SharedServer;
+        await RunBusy("Öffne gemeinsames Projekt …", async () =>
+        {
+            var safe = string.Concat($"{name} ({server})".Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
+            var project = await Task.Run(() => TranslationProject.OpenShared(Path.Combine(ProjectsRoot, "Team", safe), server, name));
+            SetProject(project);
+            ShowShared = false;
+            Status = $"Gemeinsames Projekt „{name}“ geöffnet. Änderungen werden laufend mit dem Team abgeglichen.";
+        });
+    }
+
+    [RelayCommand]
     private async Task CreateProject()
     {
         var name = NewName.Trim();
@@ -154,7 +216,16 @@ public partial class MainViewModel : ViewModelBase
         var folder = Path.Combine(ProjectsRoot, safe);
         await RunBusy("Lege Projekt an …", async () =>
         {
-            var project = await Task.Run(() => TranslationProject.Create(folder, name, NewSource.Trim(), targets, NewTopic.Trim()));
+            TranslationProject project;
+            if (NewOnServer)
+            {
+                var server = SharedServer ?? ServerNames.FirstOrDefault() ?? throw new InvalidOperationException("Kein Teamserver eingerichtet.");
+                var account = AppServices.Servers.Get(server)!;
+                await Task.Run(() => new SharedProjectClient(Core.Resources.ResourceFactory.Api(account))
+                    .Create(new SharedProjectCreate(name, NewSource.Trim(), targets, NewTopic.Trim())));
+                project = await Task.Run(() => TranslationProject.OpenShared(Path.Combine(ProjectsRoot, "Team", $"{safe} ({server})"), server, name));
+            }
+            else project = await Task.Run(() => TranslationProject.Create(folder, name, NewSource.Trim(), targets, NewTopic.Trim()));
             SetProject(project);
             ShowNewProject = false;
             Status = $"Projekt „{name}“ angelegt. Jetzt Dateien hinzufügen.";
@@ -187,6 +258,7 @@ public partial class MainViewModel : ViewModelBase
         ProjectTopic = project.Topic;
         PretranslateMinScore = project.PretranslateMinScore;
         ConfirmContextMatches = project.ConfirmContextMatches;
+        OnPropertyChanged(nameof(IsSharedProject));
         OnPropertyChanged(nameof(ProfileNames));
         ProjectProfile = project.SourceProfile ?? "(keins)";
         Qa = project.Qa;
@@ -213,6 +285,7 @@ public partial class MainViewModel : ViewModelBase
             Editor.SaveIfOpen();
             RefreshFiles();
         }
+        if (value == 6) Extensions.Refresh();      // Bezug (offenes Dokument, Segment) aktuell anzeigen
     }
 
     partial void OnProjectTopicChanged(string value)

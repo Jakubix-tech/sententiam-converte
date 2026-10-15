@@ -1,0 +1,59 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="using:SententiamConverte.Services"
+             xmlns:vm="using:SententiamConverte.ViewModels"
+             x:Class="SententiamConverte.Views.HelpView"
+             x:DataType="vm:HelpViewModel">
+    <Grid ColumnDefinitions="280,*" Margin="0">
+        <DockPanel Margin="12,12,8,12">
+            <TextBox DockPanel.Dock="Top" Text="{Binding Query}" PlaceholderText="{l:T 'In der Hilfe suchen …'}" Margin="0,0,0,6" />
+            <TextBlock DockPanel.Dock="Top" Text="{Binding ResultInfo, Converter={x:Static l:L.Text}}" Opacity="0.7" Margin="2,0,0,6"
+                       IsVisible="{Binding ResultInfo, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            <ListBox ItemsSource="{Binding Chapters}" SelectedItem="{Binding Selected}">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:HelpChapter">
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="{Binding Title}" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Group, Converter={x:Static l:L.Text}}" FontSize="10" Opacity="0.55" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </DockPanel>
+
+        <ScrollViewer Grid.Column="1" x:Name="Content">
+            <StackPanel Margin="16,12,24,24" MaxWidth="900" HorizontalAlignment="Left" Spacing="6">
+                <TextBlock Text="{Binding Selected.Title}" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,6" TextWrapping="Wrap" />
+                <ItemsControl ItemsSource="{Binding Selected.Blocks}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:HelpBlock">
+                            <Panel Margin="0,3">
+                                <TextBlock Text="{Binding Text}" FontSize="15" FontWeight="SemiBold" Margin="0,10,0,0" TextWrapping="Wrap"
+                                           IsVisible="{Binding IsHeading}" />
+                                <SelectableTextBlock Text="{Binding Text}" TextWrapping="Wrap" IsVisible="{Binding IsParagraph}" />
+                                <Grid ColumnDefinitions="26,*" IsVisible="{Binding IsBullet}">
+                                    <TextBlock Text="{Binding Key}" HorizontalAlignment="Right" Margin="0,0,8,0" />
+                                    <SelectableTextBlock Grid.Column="1" Text="{Binding Text}" TextWrapping="Wrap" />
+                                </Grid>
+                                <Grid ColumnDefinitions="300,*" IsVisible="{Binding IsRow}">
+                                    <SelectableTextBlock Text="{Binding Key}" TextWrapping="Wrap" FontFamily="Cascadia Mono, Consolas, Menlo, monospace" FontSize="12" Margin="0,0,12,0" />
+                                    <SelectableTextBlock Grid.Column="1" Text="{Binding Text}" TextWrapping="Wrap" />
+                                </Grid>
+                                <Grid ColumnDefinitions="300,*" IsVisible="{Binding IsHeaderRow}">
+                                    <TextBlock Text="{Binding Key}" FontWeight="SemiBold" Opacity="0.7" Margin="0,4,12,0" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Text}" FontWeight="SemiBold" Opacity="0.7" Margin="0,4,0,0" />
+                                </Grid>
+                                <Border IsVisible="{Binding IsCode}" Padding="10,8" CornerRadius="4"
+                                        Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+                                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                                        <SelectableTextBlock Text="{Binding Text}" FontFamily="Cascadia Mono, Consolas, Menlo, monospace" FontSize="12" />
+                                    </ScrollViewer>
+                                </Border>
+                            </Panel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

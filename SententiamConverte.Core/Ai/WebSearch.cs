@@ -187,8 +187,13 @@ public sealed partial class PageFetcher : IPageFetcher
             var text = HtmlText.ToPlain(html);
             return text.Length > maxChars ? text[..maxChars] : text;
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException { CancellationToken.IsCancellationRequested: false })
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Eine einzelne kaputte Seite (falscher Zeichensatz, Zeitüberschreitung …) darf den Agenten nicht abbrechen
             return Skip(ex.Message);
         }
     }
@@ -215,7 +220,7 @@ public sealed partial class PageFetcher : IPageFetcher
                     // 401/403: Abruf nicht erwünscht; sonst (404 usw.) gibt es keine Einschränkung
                     : (int)response.StatusCode is 401 or 403 ? RobotsRules.DenyAll : RobotsRules.AllowAll;
             }
-            catch (HttpRequestException) { rules = RobotsRules.AllowAll; }
+            catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested) { rules = RobotsRules.AllowAll; }
             Robots[key] = rules;
             return rules;
         }
@@ -283,7 +288,7 @@ public sealed class RobotsRules
 
 public static partial class HtmlText
 {
-    [GeneratedRegex("<(script|style|noscript|svg|nav|footer|header|aside|form)[^>]*>.*?</\\1>", RegexOptions.Singleline | RegexOptions.IgnoreCase)]
+    [GeneratedRegex("<(script|style|noscript|svg|nav|footer|aside|template)[^>]*>.*?</\\1>", RegexOptions.Singleline | RegexOptions.IgnoreCase)]
     private static partial Regex NoiseBlocks();
 
     [GeneratedRegex("<(br|/p|/div|/li|/h[1-6]|/tr)[^>]*>", RegexOptions.IgnoreCase)]

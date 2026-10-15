@@ -48,6 +48,18 @@ public sealed class RegexRule
 
 public static partial class QaChecker
 {
+    private static readonly List<Extensions.IQaCheck> ExtraChecks = new();
+
+    /// <summary>Zusätzliche Prüfung anmelden (Erweiterungen).</summary>
+    public static void Register(Extensions.IQaCheck check)
+    {
+        lock (ExtraChecks)
+        {
+            ExtraChecks.RemoveAll(c => c.Name == check.Name);       // erneutes Laden ersetzt statt verdoppelt
+            ExtraChecks.Add(check);
+        }
+    }
+
     [GeneratedRegex(@"\d+(?:[.,  ]\d{3})*(?:[.,]\d+)?")]
     private static partial Regex NumberRegex();
 
@@ -58,9 +70,17 @@ public static partial class QaChecker
     {
         var issues = new List<QaIssue>();
         var ignore = termbase == null ? null : TermsOf(termbase, doc.TargetLanguage);
+        List<Extensions.IQaCheck> extra;
+        lock (ExtraChecks) extra = ExtraChecks.ToList();
         foreach (var s in doc.Segments)
         {
             issues.AddRange(CheckSegment(s, doc.SourceLanguage, doc.TargetLanguage, settings, termbase));
+            if (!s.Locked)
+                foreach (var check in extra)
+                {
+                    try { issues.AddRange(check.Check(s, doc)); }
+                    catch (Exception ex) { issues.Add(new QaIssue(s.Id, QaSeverity.Info, check.Name, "Prüfung fehlgeschlagen: " + ex.Message)); }
+                }
             if (settings.Spelling && spell != null && !s.Locked && s.Target.Length > 0)
                 foreach (var e in spell.Check(s.Target, doc.TargetLanguage, ignore, withSuggestions: false))
                     issues.Add(new QaIssue(s.Id, QaSeverity.Warning, "Rechtschreibung", $"„{e.Word}“ ist nicht im Wörterbuch."));

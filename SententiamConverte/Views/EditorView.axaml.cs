@@ -136,6 +136,23 @@ public partial class EditorView : UserControl
         box.Focus();
     }
 
+    // ---------- Tags ----------
+
+    /// <summary>Fügt das nächste Tag der Quelle, das im Ziel noch fehlt, an der Cursorposition ein.</summary>
+    private void InsertNextMissingTag()
+    {
+        if (_vm?.Selected is not { } seg) return;
+        var (_, box) = RowControls(seg);
+        if (box == null) return;
+        var target = box.Text ?? "";
+        var next = TagText.Tags(seg.Source).Select(t => seg.Source.Substring(t.Index, t.Length)).FirstOrDefault(t => !target.Contains(t));
+        if (next == null) return;
+        var caret = Math.Min(box.CaretIndex, target.Length);
+        box.Text = target[..caret] + next + target[caret..];
+        box.CaretIndex = caret + next.Length;
+        box.Focus();
+    }
+
     // ---------- Begriff klären ----------
 
     private void OnClarifyTermClick(object? sender, RoutedEventArgs e) => ClarifySelectedTerm();
@@ -237,6 +254,9 @@ public partial class EditorView : UserControl
                 break;
             case Key.E when ctrl && shift:
                 _vm.EvaluateSegmentCommand.Execute(null);
+                break;
+            case Key.G when ctrl && shift:
+                InsertNextMissingTag();
                 break;
             case Key.B when ctrl && shift:
                 ClarifySelectedTerm();

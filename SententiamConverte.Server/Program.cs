@@ -1,4 +1,7 @@
 using System.Text.Json.Serialization;
+using SententiamConverte.Api;
+using SententiamConverte.Core.Ai;
+using SententiamConverte.Core.Extensions;
 using SententiamConverte.Core.Knowledge;
 using SententiamConverte.Core.Remote;
 using SententiamConverte.Core.Resources;
@@ -12,6 +15,9 @@ using SententiamConverte.Server;
 //   SententiamConverte.Server benutzer neu <name> [admin|bearbeiter|leser]
 //   SententiamConverte.Server benutzer liste | benutzer entfernen <name>
 //   SententiamConverte.Server ressource neu <tm|terminologie|wissen> <name> [beschreibung]
+//   SententiamConverte.Server erweiterung installieren <datei.scext> | erweiterung ein|aus|entfernen <kennung> | erweiterung liste
+//
+// REST-API mit allen Funktionen: /api/v2 (Beschreibung: /openapi/v2.json). KI-Einstellungen: <daten>/ki-einstellungen.json
 
 var dataDir = ArgValue(args, "--daten") ?? Environment.GetEnvironmentVariable("SENTENTIAM_SERVER_DATA") ?? Path.Combine(AppContext.BaseDirectory, "daten");
 Directory.CreateDirectory(dataDir);
@@ -49,14 +55,46 @@ namespace SententiamConverte.Server
                 case ["benutzer", "entfernen", var name]:
                     Console.WriteLine(users.Remove(name) ? "Entfernt." : "Nicht gefunden.");
                     return 0;
+                case ["erweiterung", ..]:
+                    return Extensions(args, new ExtensionManager(Path.Combine(dataDir, "erweiterungen")));
                 case ["ressource", "neu", var kind, var name, ..]:
                     using (var store = new ResourceStore(dataDir))
                         store.Create(ParseKind(kind), name, args.Length > 4 ? string.Join(' ', args[4..]) : null);
                     Console.WriteLine("Angelegt.");
                     return 0;
                 default:
-                    Console.WriteLine("Befehle: benutzer neu <name> [admin|bearbeiter|leser] | benutzer liste | benutzer entfernen <name> | ressource neu <tm|terminologie|wissen> <name> [beschreibung]");
+                    Console.WriteLine("Befehle: benutzer neu <name> [admin|bearbeiter|leser] | benutzer liste | benutzer entfernen <name> | ressource neu <tm|terminologie|wissen> <name> [beschreibung] | erweiterung installieren|ein|aus|entfernen|liste");
                     return 1;
+            }
+        }
+
+        private static int Extensions(string[] args, ExtensionManager ext)
+        {
+            ext.LoadAll();
+            switch (args)
+            {
+                case [_, "installieren", var file]:
+                    var e = ext.Install(file);
+                    Console.WriteLine($"„{e.Manifest.Name}“ ({e.Manifest.Id}) installiert – ausgeschaltet. Einschalten: erweiterung ein {e.Manifest.Id}");
+                    Console.WriteLine("Achtung: Erweiterungen führen Programmcode mit den Rechten des Servers aus. Nur aus vertrauenswürdiger Quelle einschalten.");
+                    return 0;
+                case [_, "ein", var id]:
+                    ext.SetEnabled(id, true);
+                    var loaded = ext.Extensions.First(x => x.Manifest.Id == id);
+                    Console.WriteLine(loaded.Error == null ? "Eingeschaltet (wirkt nach Neustart des Servers)." : "Fehler beim Laden: " + loaded.Error);
+                    return loaded.Error == null ? 0 : 1;
+                case [_, "aus", var id]:
+                    ext.SetEnabled(id, false);
+                    Console.WriteLine("Ausgeschaltet (wirkt nach Neustart des Servers).");
+                    return 0;
+                case [_, "entfernen", var id]:
+                    ext.Remove(id);
+                    Console.WriteLine("Entfernt.");
+                    return 0;
+                default:
+                    foreach (var x in ext.Extensions)
+                        Console.WriteLine($"{x.Manifest.Id}	{x.Manifest.Version}	{(x.Manifest.Enabled ? "ein" : "aus")}	{x.Manifest.Name}");
+                    return 0;
             }
         }
 
@@ -98,9 +136,27 @@ namespace SententiamConverte.Server
             builder.Services.AddSingleton(users);
             builder.Services.AddSingleton(new ResourceStore(dataDir));
             builder.Services.AddSingleton(new ActivityLog(dataDir));
+            var shared = new SharedProjectStore(dataDir);
+            builder.Services.AddSingleton(shared);
+
+            // REST-API v2 mit allen Funktionen – dieselben Benutzer, dieselben Projekte
+            var extensions = new ExtensionManager(Path.Combine(dataDir, "erweiterungen"));
+            extensions.CleanUp();
+            extensions.LoadAll();
+            var aiPath = Path.Combine(dataDir, "ki-einstellungen.json");
+            builder.Services.AddSententiamApi(new ApiOptions
+            {
+                ProjectsRoot = Path.Combine(dataDir, "projekte"),
+                Authorize = token => users.Authenticate(token) is { } u ? new ApiUser(u.Name, u.Role >= Role.Editor, u.Role >= Role.Admin) : null,
+                Ai = () => AiSettings.Load(aiPath),
+                OpenProject = shared.TryProject,
+                DocumentChanged = (p, fileId, lang) => shared.Reload(Path.GetFileName(p.Folder), fileId, lang, "API"),
+                Extensions = extensions,
+            });
 
             var app = builder.Build();
             Map(app);
+            app.MapSententiamApi();
             return app;
         }
 
@@ -207,6 +263,40 @@ namespace SententiamConverte.Server
             tb.MapDelete("/concepts/{id:long}", (HttpContext ctx, string name, long id, ResourceStore s) =>
                 Require(ctx, Role.Editor) ?? Do(s, ResourceKind.Termbase, name, (ITermbase t) => { t.DeleteConcept(id); return 0; }));
 
+            // ---------- Gemeinsame Projekte ----------
+            var pr = api.MapGroup("/projects");
+            pr.MapGet("", (SharedProjectStore s) => s.List());
+            pr.MapPost("", (HttpContext ctx, SharedProjectCreate c, SharedProjectStore s, ActivityLog log) =>
+            {
+                if (Require(ctx, Role.Editor) is { } denied) return denied;
+                try { s.Create(c); }
+                catch (ArgumentException ex) { return Results.BadRequest(ex.Message); }
+                log.Add(User(ctx)!.Name, ResourceKind.Tm, c.Name, "gemeinsames Projekt angelegt");
+                return Results.Ok();
+            });
+            pr.MapGet("/{project}", (string project, SharedProjectStore s) => Safe(() => s.Info(project)));
+            pr.MapPost("/{project}/files", (HttpContext ctx, string project, string name, FileUpload upload, SharedProjectStore s, ActivityLog log) =>
+            {
+                if (Require(ctx, Role.Editor) is { } denied) return denied;
+                var result = Safe(() => s.AddFile(project, name, Convert.FromBase64String(upload.Base64)));
+                log.Add(User(ctx)!.Name, ResourceKind.Tm, project, $"Datei hinzugefügt: {name}");
+                return result;
+            });
+            pr.MapDelete("/{project}/files/{file}", (HttpContext ctx, string project, string file, SharedProjectStore s) =>
+                Require(ctx, Role.Admin) ?? Safe(() => { s.DeleteFile(project, file); return 0; }));
+            pr.MapGet("/{project}/files/{file}/{lang}", (string project, string file, string lang, SharedProjectStore s) =>
+                Safe(() => s.Document(project, file, lang)));
+            pr.MapGet("/{project}/files/{file}/{lang}/changes", (string project, string file, string lang, long since, SharedProjectStore s) =>
+                Safe(() => s.Changes(project, file, lang, since)));
+            pr.MapPut("/{project}/files/{file}/{lang}/segments/{id:int}", (HttpContext ctx, string project, string file, string lang, int id, SegmentUpdate u, SharedProjectStore s) =>
+                Require(ctx, Role.Editor) ?? Safe(() => s.Update(project, file, lang, id, u, User(ctx)!.Name)));
+            pr.MapPost("/{project}/files/{file}/{lang}/segments/{id:int}/lock", (HttpContext ctx, string project, string file, string lang, int id, SharedProjectStore s) =>
+                Require(ctx, Role.Editor) ?? Safe(() => s.Lock(project, file, lang, id, User(ctx)!.Name)));
+            pr.MapDelete("/{project}/files/{file}/{lang}/segments/{id:int}/lock", (HttpContext ctx, string project, string file, string lang, int id, SharedProjectStore s) =>
+                Safe(() => { s.Unlock(project, file, lang, id, User(ctx)!.Name); return 0; }));
+            pr.MapGet("/{project}/files/{file}/{lang}/target", (string project, string file, string lang, SharedProjectStore s) =>
+                Safe(() => new FileUpload(Convert.ToBase64String(s.Target(project, file, lang)))));
+
             // ---------- Wissen ----------
             var kb = api.MapGroup("/kb/{name}");
             kb.MapGet("/count", (string name, ResourceStore s) => Do(s, ResourceKind.Knowledge, name, (IKnowledgeBase k) => k.Count()));
@@ -240,6 +330,14 @@ namespace SententiamConverte.Server
             try { return Results.Ok(store.With(kind, name, action)); }
             catch (KeyNotFoundException) { return Results.NotFound(); }
             catch (ArgumentException ex) { return Results.BadRequest(ex.Message); }
+        }
+
+        private static IResult Safe<T>(Func<T> action)
+        {
+            try { return Results.Ok(action()); }
+            catch (KeyNotFoundException) { return Results.NotFound(); }
+            catch (ArgumentException ex) { return Results.BadRequest(ex.Message); }
+            catch (NotSupportedException ex) { return Results.BadRequest(ex.Message); }
         }
 
         private static string TagTextPlain(string s) => SententiamConverte.Core.Model.TagText.StripTags(s);

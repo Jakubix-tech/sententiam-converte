@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="using:SententiamConverte.Services"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:SententiamConverte.ViewModels"
@@ -15,29 +16,35 @@
         <!-- Statusleiste -->
         <Border DockPanel.Dock="Bottom" Padding="10,4" Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
             <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Text="{Binding Status}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Status, Converter={x:Static l:L.Text}}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                 <ProgressBar Grid.Column="1" IsIndeterminate="True" Width="120" IsVisible="{Binding IsBusy}" />
             </Grid>
         </Border>
 
         <TabControl SelectedIndex="{Binding SelectedTab}" Padding="0">
-            <TabItem Header="Projekt">
+            <TabItem Header="{l:T 'Projekt'}">
                 <views:ProjectView />
             </TabItem>
-            <TabItem Header="Editor">
+            <TabItem Header="{l:T 'Editor'}">
                 <views:EditorView DataContext="{Binding Editor}" />
             </TabItem>
-            <TabItem Header="TM &amp; Terminologie">
+            <TabItem Header="{l:T 'TM &amp; Terminologie'}">
                 <views:ResourcesView DataContext="{Binding Resources}" />
             </TabItem>
-            <TabItem Header="Wissen">
+            <TabItem Header="{l:T 'Wissen'}">
                 <views:KnowledgeView DataContext="{Binding Knowledge}" />
             </TabItem>
-            <TabItem Header="Agenten">
+            <TabItem Header="{l:T 'Agenten'}">
                 <views:AgentsView DataContext="{Binding Agents}" />
             </TabItem>
-            <TabItem Header="Einstellungen">
+            <TabItem Header="{l:T 'Einstellungen'}">
                 <views:SettingsView DataContext="{Binding Settings}" />
+            </TabItem>
+            <TabItem Header="{l:T 'Erweiterungen'}">
+                <views:ExtensionsView DataContext="{Binding Extensions}" />
+            </TabItem>
+            <TabItem Header="{l:T 'Hilfe'}">
+                <views:HelpView DataContext="{Binding Help}" />
             </TabItem>
         </TabControl>
     </DockPanel>

@@ -137,6 +137,74 @@ public sealed class ServerTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public void TwoTranslatorsEditTheSameFile()
+    {
+        var servers = new ServerSettings { Servers = [new ServerAccount { Name = "Büro", Url = _url, Token = _editorA }] };
+        var serversB = new ServerSettings { Servers = [new ServerAccount { Name = "Büro", Url = _url, Token = _editorB }] };
+        // Projekt auf dem Server anlegen und Datei hochladen
+        var admin = new SharedProjectClient(Api(_admin));
+        admin.Create(new SharedProjectCreate("Vertrag", "de-DE", ["en-GB"], "Recht"));
+        var file = admin.Upload("Vertrag", "vertrag.txt", "Erster Satz.\nZweiter Satz.\nDritter Satz.\n"u8.ToArray());
+
+        try
+        {
+            TranslationProject.Servers = () => servers;
+            ResourceFactory.ResetConnections();
+            using var anna = TranslationProject.OpenShared(_dir.File("anna"), "Büro", "Vertrag");
+            TranslationProject.Servers = () => serversB;
+            ResourceFactory.ResetConnections();
+            using var bartek = TranslationProject.OpenShared(_dir.File("bartek"), "Büro", "Vertrag");
+
+            Assert.True(anna.IsShared);
+            var fa = anna.Files.Single();
+            var fb = bartek.Files.Single();
+            var docA = anna.LoadDocument(fa, "en-GB");
+            var docB = bartek.LoadDocument(fb, "en-GB");
+            var a = docA.Segments.ToList();
+            var b = docB.Segments.ToList();
+
+            // Anna übersetzt Segment 1 → Bartek sieht es beim nächsten Abgleich
+            a[0].Target = "First sentence.";
+            Workflow.Confirm(anna, docA, a[0]);
+            anna.SaveDocument(fa, docA);
+            var sync = bartek.Sync(fb, docB);
+            Assert.Contains(1, sync.ChangedSegments);
+            Assert.Equal("First sentence.", b[0].Target);
+            Assert.Equal(SegmentStatus.Translated, b[0].Status);
+
+            // Beide ändern Segment 2 gleichzeitig: der Zweite bekommt einen Konflikt, seine Fassung landet im Verlauf
+            a[1].Target = "Second sentence (Anna).";
+            b[1].Target = "Second sentence (Bartek).";
+            anna.SaveDocument(fa, docA);
+            bartek.SaveDocument(fb, docB);
+            Assert.Single(bartek.LastConflicts);
+            Assert.Equal("Second sentence (Anna).", b[1].Target);
+            Assert.Contains(b[1].History, h => h.Target == "Second sentence (Bartek).");
+
+            // Sperre: Anna arbeitet an Segment 3, Bartek darf es nicht überschreiben
+            Assert.True(anna.LockSegment(fa, "en-GB", 3));
+            Assert.False(bartek.LockSegment(fb, "en-GB", 3));
+            var locks = bartek.Sync(fb, docB).Locks;
+            Assert.Contains(locks, l => l.SegmentId == 3 && l.User == "Anna");
+            b[2].Target = "Third (Bartek).";
+            bartek.SaveDocument(fb, docB);
+            Assert.Contains(bartek.LastConflicts, c => c.StartsWith("Segment 3"));           // gesperrt – nicht übernommen
+            Assert.NotEqual("Third (Bartek).", new SharedProjectClient(Api(_admin)).Document("Vertrag", file.Id, "en-GB").Document.Segments.ToList()[2].Target);
+            anna.UnlockSegment(fa, "en-GB", 3);
+
+            // Zieldatei kommt vom Server und enthält die Arbeit beider
+            var ms = new MemoryStream();
+            bartek.ExportTarget(fb, docB, ms);
+            Assert.StartsWith("First sentence.\nSecond sentence (Anna).", System.Text.Encoding.UTF8.GetString(ms.ToArray()));
+        }
+        finally
+        {
+            TranslationProject.Servers = ServerSettings.Load;
+            ResourceFactory.ResetConnections();
+        }
+    }
+
     private sealed class Model : IChatModel
     {
         public string DisplayName => "Skript";

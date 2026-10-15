@@ -14,17 +14,22 @@ Läuft auf **Windows, Linux, macOS** (Desktop) und **Android** aus einer gemeins
 | `SententiamConverte` | Gemeinsame Oberfläche (Avalonia, MVVM) |
 | `SententiamConverte.Desktop` | Start für Windows/Linux/macOS |
 | `SententiamConverte.Android` | Start für Android |
-| `SententiamConverte.Server` | Teamserver für gemeinsame TMs, Terminologien und Wissensdatenbanken |
+| `SententiamConverte.Server` | Teamserver: gemeinsame TMs, Terminologien, Wissensdatenbanken und gemeinsame Projekte |
+| `SententiamConverte.Api` | REST-Schnittstelle (v2) mit allen Funktionen – im Teamserver und lokal in der Desktop-App |
+| `Erweiterungen/Beispiel.Erweiterung` | Vorlage für eigene Erweiterungen (Dateiformat, QA-Prüfung, Befehle) |
 | `SententiamConverte.Core.Tests` | Tests des Kerns (xUnit v3) |
 | `SententiamConverte.UiTests` | Oberflächentests ohne Bildschirm (Avalonia.Headless), erzeugen Bildschirmfotos |
+| `build/Paketbau` | erzeugt die Installationspakete aller Plattformen |
+| `docs/` | Handbuch, API-Referenz, Anleitung für Erweiterungen (Deutsch, `docs/en/` Englisch) – auch im Programm unter „Hilfe“ |
 
 ## Funktionen
 
 **Projekte und Dateien**
 - Projekte mit einer Ausgangs- und mehreren Zielsprachen, Fachgebiet, Projekt-TM und Projekt-Terminologie
-- Dateiformate: DOCX, XLSX, PPTX (Formatierungen als Tags, Bilder/Felder bleiben erhalten), XLIFF 1.2/2.x
-  (auch .sdlxliff mit Segmentstatus), PDF (Ausgabe als DOCX), HTML, Markdown, RESX, JSON, gettext PO,
-  Untertitel SRT/VTT, Text. Platzhalter wie `{0}`, `%s`, `${name}` werden in Software-Texten geschützt.
+- Dateiformate: DOCX, XLSX, PPTX (Formatierungen als Tags, Bilder/Felder bleiben erhalten), ODT/ODS/ODP
+  (OpenDocument), IDML (InDesign-Austauschformat), XLIFF 1.2/2.x (auch .sdlxliff mit Segmentstatus),
+  PDF (Ausgabe als DOCX), HTML, Markdown, RESX, JSON, gettext PO, Untertitel SRT/VTT, Text – weitere über
+  Erweiterungen. Platzhalter wie `{0}`, `%s`, `${name}` werden in Software-Texten geschützt.
 - Projektpakete im Format .sdlppx öffnen und Rückgabepakete (.sdlrpx) erzeugen
 - Gescannte PDFs per KI-Texterkennung (Claude-Zugang) in bearbeitbare DOCX umwandeln
 - Vorübersetzung, Analyse nach Trefferstufen (Kontext, Wiederholungen, 100 %, 95–99 % … kein Treffer)
@@ -58,6 +63,9 @@ Läuft auf **Windows, Linux, macOS** (Desktop) und **Android** aus einer gemeins
 - **Teamserver**: mehrere Übersetzer arbeiten gleichzeitig mit gemeinsamen TMs, Terminologien und
   Wissensdatenbanken; bestätigte Übersetzungen fließen auf Wunsch sofort ins gemeinsame TM („schreibt zurück“),
   Team-Aktivität zeigt, wer was beigetragen hat. Rollen: Admin, Bearbeiter, Leser.
+- **Gemeinsame Projekte**: mehrere Personen bearbeiten dieselben Dateien gleichzeitig. Änderungen werden alle paar
+  Sekunden abgeglichen, ein Segment in Arbeit ist für die anderen gesperrt (mit Namen), bei gleichzeitigen
+  Änderungen gilt die zuerst gespeicherte Fassung und die andere landet im Verlauf
 - Jede Ressource (lokal oder Server) lässt sich auf bestimmte Sprachen beschränken; ist der Server nicht
   erreichbar, arbeitet das Projekt mit den lokalen Daten weiter
 
@@ -72,6 +80,28 @@ Läuft auf **Windows, Linux, macOS** (Desktop) und **Android** aus einer gemeins
 - Im Editor: Begriff im Quelltext markieren, Strg+Umschalt+B
 - **Fachquellen-Profile** je Thema (Recht, Medizin, Technik, EU – frei erweiterbar): je Sprache das System
   (z. B. Rechtsordnung) und die bevorzugten Fachseiten; gilt auch für Themenrecherche und Wissens-Agent
+
+**Schnittstelle (API)**
+- REST-Schnittstelle mit **allen Funktionen**: Projekte, Dateien, Segmente (setzen, bestätigen, teilen,
+  zusammenführen, Treffer, Termini, Wissen), Vorübersetzung, Analyse, QA, TM, Terminologie, Wissen, Pakete,
+  Alignment, Texterkennung, alle Agenten und die Befehle der Erweiterungen
+- Beschreibung im OpenAPI-Format unter `/openapi/v2.json`; Anmeldung mit Zugangsschlüssel (Bearer)
+- Im Teamserver mit dessen Benutzern und Rollen; Änderungen erreichen alle, die das Projekt offen haben
+- In der Desktop-App auf Wunsch lokal (nur 127.0.0.1) – Skripte arbeiten am geöffneten Projekt, der Editor
+  zeigt Änderungen sofort
+- Referenz und Beispiele (curl, PowerShell, Python): [docs/API-Referenz.md](docs/API-Referenz.md)
+
+**Erweiterungen**
+- Reiter „Erweiterungen“: Erweiterungen anderer Entwickler installieren (`.scext`), bewusst einschalten,
+  ausschalten, entfernen; ihre Befehle wirken auf das im Editor Geöffnete
+- Erweiterungen liefern Dateiformate, QA-Prüfungen und Befehle (auch mit KI und Websuche);
+  sie laufen mit den Rechten des Benutzers und sind deshalb nach der Installation ausgeschaltet
+- Vorlage: `Erweiterungen/Beispiel.Erweiterung` (CSV-Format, Prüfung „Ausrufezeichen“, typografische
+  Anführungszeichen, Segment-Statistik, KI-Alternative); Anleitung: [docs/Erweiterungen-entwickeln.md](docs/Erweiterungen-entwickeln.md)
+
+**Oberfläche und Hilfe**
+- Deutsch und Englisch (Einstellungen → Sprache der Oberfläche; Standard: Systemsprache)
+- Handbuch, API-Referenz und Entwickleranleitung im Programm unter „Hilfe“ (F1), mit Suche
 
 **KI**
 - KI-Zugänge frei definierbar: Claude (Anthropic-API) oder jeder Server mit OpenAI-kompatibler Schnittstelle,
@@ -95,14 +125,24 @@ dotnet test --project SententiamConverte.Core.Tests
 dotnet test --project SententiamConverte.UiTests
 ```
 
-Veröffentlichen (Beispiele):
+Installationspakete für alle Plattformen (Ergebnis in `artifacts/<Version>/`):
 
 ```bash
-dotnet publish SententiamConverte.Desktop -c Release -r win-x64 --self-contained
-dotnet publish SententiamConverte.Desktop -c Release -r linux-x64 --self-contained
-dotnet publish SententiamConverte.Desktop -c Release -r osx-arm64 --self-contained
-dotnet publish SententiamConverte.Android -c Release
+dotnet run --project build/Paketbau
 ```
+
+| Paket | Inhalt |
+|---|---|
+| `SententiamConverte-<v>-win-x64.zip` | Windows 10/11, entpacken und starten |
+| `SententiamConverte-<v>-linux-x64.tar.gz` | Linux, mit `installieren.sh` für Menüeintrag |
+| `SententiamConverte-<v>-osx-arm64.tar.gz` / `-osx-x64.tar.gz` | macOS (Apple-Chip / Intel), `Sententiam converte.app` |
+| `SententiamConverte-<v>-android.apk` | Android 6 und neuer |
+| `SententiamConverte-Server-<v>.zip` | Teamserver (braucht die ASP.NET Core Runtime 10) |
+| `Beispiel.Erweiterung-<v>.scext` | Beispiel-Erweiterung |
+
+Einzelne Ziele: `dotnet run --project build/Paketbau -- win-x64 android`. Die Pakete sind nicht signiert
+(Windows SmartScreen bzw. macOS Gatekeeper fragen beim ersten Start nach; Hinweise stehen in `LIESMICH.txt`).
+Für eine Veröffentlichung im Play Store wird ein eigener Signaturschlüssel gebraucht.
 
 ## Teamserver betreiben
 
@@ -118,7 +158,15 @@ dotnet run --project SententiamConverte.Server -- --daten ./teamdaten benutzer n
 dotnet run --project SententiamConverte.Server -- --daten ./teamdaten ressource neu tm Maschinenbau
 ```
 
-Als Container: siehe `SententiamConverte.Server/Dockerfile`. Der Server lauscht auf Port 5280. Außerhalb des
+Erweiterungen auf dem Server (der Admin entscheidet, was läuft):
+
+```bash
+dotnet run --project SententiamConverte.Server -- --daten ./teamdaten erweiterung installieren Beispiel.Erweiterung.scext
+dotnet run --project SententiamConverte.Server -- --daten ./teamdaten erweiterung ein beispiel.erweiterung
+```
+
+Die REST-API (v2) läuft immer mit; die Agenten nutzen dort `<daten>/ki-einstellungen.json` (gleiches Format wie
+die KI-Einstellungen der App). Als Container: siehe `SententiamConverte.Server/Dockerfile`. Der Server lauscht auf Port 5280. Außerhalb des
 eigenen Netzes nur über HTTPS betreiben (z. B. hinter einem Reverse Proxy), da die Zugangsschlüssel sonst
 unverschlüsselt übertragen werden. In der App unter **Einstellungen → Teamserver** Adresse und Schlüssel
 eintragen, dann unter **TM & Terminologie → Ressource anbinden** die gemeinsamen Ressourcen wählen.
@@ -148,7 +196,9 @@ Für kleine lokale Modelle „Zeichen pro Webseite“ auf etwa 2000–3000 senke
 | Strg+F2 | markierten Quell- und Zieltext als Begriff aufnehmen |
 | Strg+Umschalt+T / E / U | KI-Übersetzung / Varianten bewerten / Usus prüfen |
 | Strg+Umschalt+B | markierten Begriff im Kontext klären (Begriffsvergleich) |
+| Strg+Umschalt+G | nächsten fehlenden Tag einsetzen |
 | Strg+S | speichern |
+| F1 | Hilfe |
 
 ## Projektordner
 
@@ -181,8 +231,28 @@ Für kleine lokale Modelle „Zeichen pro Webseite“ auf etwa 2000–3000 senke
 
 Diese Hinweise sind keine Rechtsberatung; vor einer Veröffentlichung oder einem Verkauf lohnt eine kurze anwaltliche Prüfung.
 
+## Leistung
+
+Gemessen auf einem Arbeitsplatzrechner mit einem TM aus 200 000 Einheiten (Test `PerformanceTests`, nur auf
+Anforderung: `dotnet test --project SententiamConverte.Core.Tests -- --explicit only`):
+
+| Vorgang | Dauer |
+|---|---|
+| 200 000 TM-Einheiten einfügen (mit Kontext) | 104 s |
+| unscharfe TM-Suche | 29 ms je Segment |
+| exakte Suche mit Kontext | 28 ms je Segment |
+| Fragment-Treffer | 1 ms je Segment |
+| Konkordanzsuche | 0,23 s je Suche |
+| Dokument mit 3 000 Segmenten laden / speichern | 0,1 s / 0,05 s |
+| Vorübersetzung (3 000 Segmente) | 22 s |
+| Analyse (3 000 Segmente) | 17 s |
+| Segment bestätigen (ins TM mit Kontext) | 4 ms |
+
+Richtwerte vom 15.10.2026 (Release-Build; auf dem Rechner liefen nebenbei andere Builds).
+
 ## Noch offen
 
-- Gemeinsames Bearbeiten derselben Datei durch mehrere Personen (bisher: gemeinsame Ressourcen, Dateien werden je Person bearbeitet)
-- Weitere Formate: IDML (InDesign), ODT/ODS (OpenDocument), DITA
-- Test mit echten KI-Zugängen (bisher: nachgebildete Modelle und ein lokaler Testserver) und auf einem Android-Gerät
+- Test auf echten Geräten: macOS-Paket (nur unter Windows gebaut, nicht auf einem Mac ausgeführt) und Android-Gerät
+- Test mit echten KI-Zugängen (bisher: nachgebildete Modelle und ein lokaler Testserver)
+- Signierte Pakete (Windows-Codesignatur, Apple-Beglaubigung, Play-Store-Schlüssel)
+- Weitere Formate, z. B. DITA, und weitere Oberflächensprachen

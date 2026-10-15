@@ -15,5 +15,9 @@
     <Using Include="Xunit" />
     <ProjectReference Include="..\SententiamConverte\SententiamConverte.csproj" />
     <ProjectReference Include="..\SententiamConverte.Server\SententiamConverte.Server.csproj" />
+    <ProjectReference Include="..\SententiamConverte.Desktop\SententiamConverte.Desktop.csproj" />
+    <!-- Beispiel-Erweiterung mitbauen und ihr Paket neben die Tests legen -->
+    <ProjectReference Include="..\Erweiterungen\Beispiel.Erweiterung\Beispiel.Erweiterung.csproj" ReferenceOutputAssembly="false" />
+    <None Include="..\Erweiterungen\Beispiel.Erweiterung\bin\$(Configuration)\net10.0\Beispiel.Erweiterung.scext" Link="Beispiel.Erweiterung.scext" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

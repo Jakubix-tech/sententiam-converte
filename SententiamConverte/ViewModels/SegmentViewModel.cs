@@ -1,3 +1,4 @@
+using System.Linq;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using SententiamConverte.Core.Model;
@@ -20,6 +21,24 @@ public partial class SegmentViewModel : ObservableObject
     public string Source => Model.Source;
     public bool IsLocked => Model.Locked;
 
+    /// <summary>Gemeinsames Projekt: wer dieses Segment gerade bearbeitet (null = niemand anderes).</summary>
+    public string? LockedBy
+    {
+        get => _lockedBy;
+        set
+        {
+            if (_lockedBy == value) return;
+            _lockedBy = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsReadOnly));
+            OnPropertyChanged(nameof(LockText));
+        }
+    }
+    private string? _lockedBy;
+
+    public bool IsReadOnly => Model.Locked || _lockedBy != null;
+    public string? LockText => _lockedBy == null ? null : "🔒 " + _lockedBy;
+
     public string Target
     {
         get => Model.Target;
@@ -33,6 +52,8 @@ public partial class SegmentViewModel : ObservableObject
             if (Model.Origin is TranslationOrigin.None or TranslationOrigin.TranslationMemory or TranslationOrigin.AutoPropagated or TranslationOrigin.Ai)
                 Model.Origin = TranslationOrigin.Manual;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(HasTargetTags));
+            OnPropertyChanged(nameof(MissingTags));
             OnPropertyChanged(nameof(StatusText));
             OnPropertyChanged(nameof(StatusBrush));
             OnPropertyChanged(nameof(OriginText));
@@ -49,6 +70,8 @@ public partial class SegmentViewModel : ObservableObject
     public void Refresh()
     {
         OnPropertyChanged(nameof(Target));
+        OnPropertyChanged(nameof(HasTargetTags));
+        OnPropertyChanged(nameof(MissingTags));
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(StatusBrush));
         OnPropertyChanged(nameof(OriginText));
@@ -56,6 +79,22 @@ public partial class SegmentViewModel : ObservableObject
     }
 
     public bool HasComment => !string.IsNullOrEmpty(Model.Comment);
+
+    /// <summary>Vorschau mit farbigen Tags unter dem Zielfeld, sobald Quelle oder Ziel Tags haben.</summary>
+    public bool HasTargetTags => Model.Target.Contains(TagText.Open) || (Model.Source.Contains(TagText.Open) && Model.Target.Length > 0);
+
+    /// <summary>Tags der Quelle, die im Ziel noch fehlen (Hinweis unter dem Zielfeld).</summary>
+    public string? MissingTags
+    {
+        get
+        {
+            if (Model.Target.Length == 0) return null;
+            var missing = TagText.Tags(Model.Source)
+                .Select(t => Model.Source.Substring(t.Index, t.Length))
+                .Where(t => !Model.Target.Contains(t)).ToList();
+            return missing.Count == 0 ? null : "fehlt: " + string.Join(" ", missing) + "  (Strg+Umschalt+G fügt ein)";
+        }
+    }
 
     public string StatusText => Model.Status switch
     {

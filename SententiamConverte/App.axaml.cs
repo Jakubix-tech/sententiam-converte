@@ -14,6 +14,7 @@ public partial class App : Application
 
     public override void Initialize()
     {
+        Services.L.SetLanguage(Services.AppServices.Ui.UiLanguage);
         AvaloniaXamlLoader.Load(this);
 #if DEBUG
         // Nur einmal je Prozess – die Oberflächentests erzeugen pro Test eine eigene App.
@@ -46,6 +47,7 @@ public partial class App : Application
             };
         }
 
+        _ = Services.AppServices.StartupAsync();
         base.OnFrameworkInitializationCompleted();
     }
 }

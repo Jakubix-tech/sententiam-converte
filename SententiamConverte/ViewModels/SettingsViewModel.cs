@@ -79,8 +79,8 @@ public partial class SettingsViewModel : ViewModelBase
 
     public ObservableCollection<ProviderViewModel> Providers { get; } = new();
     public IReadOnlyList<AiProviderConfig> Presets { get; } = AiSettings.Presets();
-    public IReadOnlyList<string> KindNames { get; } = ["OpenAI-kompatibel (lokal oder Cloud)", "Anthropic Claude"];
-    public IReadOnlyList<string> SearchNames { get; } = ["Keine", "SearXNG (eigener Server)", "Brave Search (API-Schlüssel)", "Tavily (API-Schlüssel)", "Claude-Websuche"];
+    public IReadOnlyList<string> KindNames { get; } = new[] { "OpenAI-kompatibel (lokal oder Cloud)", "Anthropic Claude" }.Select(L.T).ToList();
+    public IReadOnlyList<string> SearchNames { get; } = new[] { "Keine", "SearXNG (eigener Server)", "Brave Search (API-Schlüssel)", "Tavily (API-Schlüssel)", "Claude-Websuche" }.Select(L.T).ToList();
 
     [ObservableProperty] public partial ProviderViewModel? Selected { get; set; }
     [ObservableProperty] public partial AiProviderConfig? SelectedPreset { get; set; }
@@ -115,6 +115,24 @@ public partial class SettingsViewModel : ViewModelBase
         SelectedProfile = Profiles.FirstOrDefault();
     }
 
+    [ObservableProperty] public partial string ProfileCheckResult { get; set; } = "";
+
+    /// <summary>Prüft die Seiten des gewählten Profils: erlauben sie das Lesen, und kommt Text an?</summary>
+    [RelayCommand]
+    private async Task CheckProfileSites()
+    {
+        if (SelectedProfile == null) return;
+        IsTesting = true;
+        ProfileCheckResult = "Prüfe …";
+        try
+        {
+            var results = await SelectedProfile.ToProfile().CheckSitesAsync();
+            ProfileCheckResult = string.Join("\n", results.Select(r => $"{(r.Ok ? "✔" : "✗")} {r.Site}: {r.Info}"));
+        }
+        catch (Exception ex) { ProfileCheckResult = "Fehler: " + ex.Message; }
+        finally { IsTesting = false; }
+    }
+
     [RelayCommand]
     private void ResetProfiles()
     {
@@ -123,11 +141,60 @@ public partial class SettingsViewModel : ViewModelBase
         SelectedProfile = Profiles.FirstOrDefault();
     }
 
+    // Sprache der Oberfläche
+    public IReadOnlyList<string> UiLanguageNames { get; } = [L.T("Wie das System"), "Deutsch", "English"];
+    [ObservableProperty] public partial int UiLanguageIndex { get; set; } = AppServices.Ui.UiLanguage switch { "de" => 1, "en" => 2, _ => 0 };
+    [ObservableProperty] public partial string UiLanguageInfo { get; set; } = "";
+
+    partial void OnUiLanguageIndexChanged(int value)
+    {
+        AppServices.Ui.UiLanguage = value switch { 1 => "de", 2 => "en", _ => "" };
+        AppServices.Ui.Save();
+        UiLanguageInfo = "Wird nach einem Neustart des Programms wirksam. / Takes effect after restarting the program.";
+    }
+
+    // Lokale API
+    public bool LocalApiAvailable => AppServices.LocalApi != null;
+    [ObservableProperty] public partial bool LocalApiEnabled { get; set; } = AppServices.Ui.LocalApiEnabled;
+    [ObservableProperty] public partial int LocalApiPort { get; set; } = AppServices.Ui.LocalApiPort;
+    [ObservableProperty] public partial string LocalApiToken { get; set; } = AppServices.Ui.LocalApiToken;
+    [ObservableProperty] public partial string LocalApiStatus { get; set; } =
+        AppServices.LocalApi?.Url is { } url ? $"Läuft: {url}/api/v2 · Beschreibung: {url}/openapi/v2.json" : "Aus.";
+
+    [RelayCommand]
+    private void NewApiToken() => LocalApiToken = UiSettings.NewToken();
+
+    /// <summary>Speichert die API-Einstellungen und startet bzw. beendet die lokale API.</summary>
+    [RelayCommand]
+    private async Task ApplyLocalApi()
+    {
+        if (AppServices.LocalApi is not { } host) return;
+        if (LocalApiEnabled && LocalApiToken.Trim().Length < 16) LocalApiToken = UiSettings.NewToken();
+        AppServices.Ui.LocalApiEnabled = LocalApiEnabled;
+        AppServices.Ui.LocalApiPort = Math.Clamp(LocalApiPort, 1024, 65535);
+        AppServices.Ui.LocalApiToken = LocalApiToken.Trim();
+        AppServices.Ui.Save();
+        try
+        {
+            if (LocalApiEnabled)
+            {
+                await host.StartAsync(AppServices.Ui.LocalApiPort, AppServices.Ui.LocalApiToken);
+                LocalApiStatus = $"Läuft: {host.Url}/api/v2 · Beschreibung: {host.Url}/openapi/v2.json";
+            }
+            else
+            {
+                await host.StopAsync();
+                LocalApiStatus = "Aus.";
+            }
+        }
+        catch (Exception ex) { LocalApiStatus = "Konnte nicht starten: " + ex.Message; }
+    }
+
     // Teamserver
     public ObservableCollection<ServerAccountViewModel> ServerAccounts { get; } = new();
     [ObservableProperty] public partial ServerAccountViewModel? SelectedServer { get; set; }
     [ObservableProperty] public partial string ServerResult { get; set; } = "";
-    public IReadOnlyList<string> ResourceKindNames { get; } = ["Translation Memory", "Terminologie", "Wissensdatenbank"];
+    public IReadOnlyList<string> ResourceKindNames { get; } = new[] { "Translation Memory", "Terminologie", "Wissensdatenbank" }.Select(L.T).ToList();
     [ObservableProperty] public partial int NewResourceKind { get; set; }
     [ObservableProperty] public partial string NewResourceName { get; set; } = "";
     [ObservableProperty] public partial string NewResourceDescription { get; set; } = "";

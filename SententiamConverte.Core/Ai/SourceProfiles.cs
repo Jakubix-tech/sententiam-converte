@@ -59,23 +59,28 @@ public sealed class SourceProfile
         return s.StartsWith("www.") ? s[4..] : s;
     }
 
-    /// <summary>Vorschläge zum Start; jederzeit in den Einstellungen änderbar.</summary>
+    /// <summary>
+    /// Vorschläge zum Start; jederzeit in den Einstellungen änderbar. Aufgenommen sind nur Seiten, die das
+    /// automatische Lesen erlauben (robots.txt) und lesbaren Text liefern (geprüft am 15.10.2026).
+    /// Nicht enthalten, weil sie das Lesen durch Programme untersagen oder technisch verhindern: EUR-Lex, IATE,
+    /// Légifrance, ISAP, sn.pl, ISO, IEC/Electropedia, AWMF, BAuA, OSHA – diese bitte selbst im Browser nachschlagen.
+    /// </summary>
     public static List<SourceProfile> Defaults() =>
     [
         new()
         {
             Name = "Recht",
-            Description = "Gesetze, Rechtsprechung und EU-Recht; Begriffe hängen von der Rechtsordnung ab.",
+            Description = "Gesetze, Rechtsprechung und Behörden; Begriffe hängen von der Rechtsordnung ab.",
             Languages =
             [
-                new() { Language = "*", System = "EU-Recht", Sites = ["eur-lex.europa.eu", "iate.europa.eu", "curia.europa.eu"] },
+                new() { Language = "*", System = "EU-Recht", Sites = ["curia.europa.eu"] },
                 new() { Language = "de-DE", System = "deutsches Recht (BGB, HGB, ZPO, StGB …)", Sites = ["gesetze-im-internet.de", "dejure.org", "bundesgerichtshof.de", "bundesjustizamt.de"] },
                 new() { Language = "de-AT", System = "österreichisches Recht (ABGB, UGB, ZPO)", Sites = ["ris.bka.gv.at", "oesterreich.gv.at"] },
-                new() { Language = "de-CH", System = "schweizerisches Recht (ZGB, OR)", Sites = ["fedlex.admin.ch", "bger.ch"] },
+                new() { Language = "de-CH", System = "schweizerisches Recht (ZGB, OR)", Sites = ["fedlex.admin.ch"] },
                 new() { Language = "en-GB", System = "Recht von England und Wales (Common Law)", Sites = ["legislation.gov.uk", "judiciary.uk", "gov.uk", "lawcom.gov.uk"] },
                 new() { Language = "en-US", System = "US-amerikanisches Recht (Bundesrecht, Common Law)", Sites = ["law.cornell.edu", "uscode.house.gov", "supremecourt.gov", "uscourts.gov"] },
-                new() { Language = "pl-PL", System = "polnisches Recht (Kodeks cywilny, k.p.c., k.k.)", Sites = ["isap.sejm.gov.pl", "sn.pl", "gov.pl", "trybunal.gov.pl"] },
-                new() { Language = "fr-FR", System = "französisches Recht (Code civil …)", Sites = ["legifrance.gouv.fr", "courdecassation.fr", "service-public.fr"] },
+                new() { Language = "pl-PL", System = "polnisches Recht (Kodeks cywilny, k.p.c., k.k.)", Sites = ["lexlege.pl", "prawo.pl", "orzeczenia.ms.gov.pl", "trybunal.gov.pl", "saos.org.pl", "gov.pl"] },
+                new() { Language = "fr-FR", System = "französisches Recht (Code civil …)", Sites = ["conseil-constitutionnel.fr", "service-public.fr"] },
                 new() { Language = "it-IT", System = "italienisches Recht", Sites = ["normattiva.it", "giustizia.it"] },
                 new() { Language = "es-ES", System = "spanisches Recht", Sites = ["boe.es", "poderjudicial.es"] },
             ],
@@ -83,36 +88,54 @@ public sealed class SourceProfile
         new()
         {
             Name = "Medizin",
-            Description = "Leitlinien, Behörden und Fachinformationen.",
+            Description = "Behörden, Leitlinien und Fachinformationen.",
             Languages =
             [
-                new() { Language = "*", System = "EU-Arzneimittelrecht", Sites = ["ema.europa.eu", "who.int", "iate.europa.eu"] },
-                new() { Language = "de-DE", System = "deutsches Gesundheitswesen", Sites = ["awmf.org", "rki.de", "gesund.bund.de", "gesundheitsinformation.de", "bfarm.de"] },
-                new() { Language = "en-GB", System = "britisches Gesundheitswesen (NHS)", Sites = ["nhs.uk", "nice.org.uk", "gov.uk"] },
-                new() { Language = "en-US", System = "US-Gesundheitswesen", Sites = ["ncbi.nlm.nih.gov", "medlineplus.gov", "cdc.gov", "fda.gov"] },
-                new() { Language = "pl-PL", System = "polnisches Gesundheitswesen", Sites = ["pzh.gov.pl", "gov.pl", "mp.pl"] },
+                new() { Language = "*", System = "EU-Arzneimittelrecht, WHO", Sites = ["ema.europa.eu", "who.int"] },
+                new() { Language = "de-DE", System = "deutsches Gesundheitswesen", Sites = ["gesund.bund.de", "gesundheitsinformation.de", "bfarm.de", "msdmanuals.com"] },
+                new() { Language = "en-GB", System = "britisches Gesundheitswesen (NHS)", Sites = ["nhs.uk", "nice.org.uk"] },
+                new() { Language = "en-US", System = "US-Gesundheitswesen", Sites = ["medlineplus.gov", "cdc.gov", "fda.gov"] },
+                new() { Language = "pl-PL", System = "polnisches Gesundheitswesen", Sites = ["mp.pl", "pzh.gov.pl"] },
             ],
         },
         new()
         {
             Name = "Technik",
-            Description = "Normung, Elektrotechnik, Maschinenbau.",
+            Description = "Normung, Arbeitsschutz, Elektrotechnik, Maschinenbau.",
             Languages =
             [
-                new() { Language = "*", System = "internationale Normung (IEC/ISO)", Sites = ["electropedia.org", "iso.org", "iec.ch", "iate.europa.eu"] },
-                new() { Language = "de-DE", System = "DIN/VDE/VDI", Sites = ["din.de", "dke.de", "vdi.de", "baua.de"] },
-                new() { Language = "en-GB", System = "BSI-Normen", Sites = ["bsigroup.com", "hse.gov.uk"] },
-                new() { Language = "en-US", System = "ANSI/OSHA", Sites = ["ansi.org", "osha.gov", "nist.gov"] },
-                new() { Language = "pl-PL", System = "PKN-Normen", Sites = ["pkn.pl", "ciop.pl"] },
+                new() { Language = "*", System = "internationaler Arbeitsschutz", Sites = ["ilo.org"] },
+                new() { Language = "de-DE", System = "DIN/VDE/VDI, DGUV", Sites = ["din.de", "dke.de", "vdi.de", "dguv.de", "vde.com"] },
+                new() { Language = "en-GB", System = "BSI-Normen, HSE", Sites = ["bsigroup.com", "hse.gov.uk"] },
+                new() { Language = "en-US", System = "NIST", Sites = ["nist.gov"] },
+                new() { Language = "pl-PL", System = "PKN-Normen, CIOP", Sites = ["pkn.pl", "ciop.pl"] },
             ],
         },
         new()
         {
             Name = "EU und Verwaltung",
-            Description = "Amtliche EU-Terminologie in allen Amtssprachen.",
-            Languages = [new() { Language = "*", System = "EU-Institutionen", Sites = ["eur-lex.europa.eu", "iate.europa.eu", "europa.eu", "publications.europa.eu"] }],
+            Description = "EU-Institutionen in allen Amtssprachen.",
+            Languages = [new() { Language = "*", System = "EU-Institutionen", Sites = ["curia.europa.eu", "europa.eu", "publications.europa.eu"] }],
         },
     ];
+
+    /// <summary>
+    /// Prüft, ob die Seiten eines Profils das Lesen erlauben und Text liefern (Startseite jeder Domain).
+    /// </summary>
+    public async Task<List<(string Site, bool Ok, string Info)>> CheckSitesAsync(CancellationToken ct = default)
+    {
+        var sites = Languages.SelectMany(l => l.Sites).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var results = new List<(string, bool, string)>();
+        await Parallel.ForEachAsync(sites, new ParallelOptions { MaxDegreeOfParallelism = 6, CancellationToken = ct }, async (site, token) =>
+        {
+            var fetcher = new PageFetcher();
+            var text = await fetcher.FetchTextAsync($"https://{site}/", 20000, token);
+            var ok = text is { Length: > 200 };
+            var info = text == null ? fetcher.LastSkipReason ?? "nicht lesbar" : ok ? $"{text.Length} Zeichen" : "kaum Text (evtl. nur mit Browser lesbar)";
+            lock (results) results.Add((site, ok, info));
+        });
+        return results.OrderBy(r => r.Item2).ThenBy(r => r.Item1).ToList();
+    }
 }
 
 /// <summary>Suche, auf Fachseiten beschränkt – mit Ausweichen auf die allgemeine Suche, wenn dort nichts zu finden ist.</summary>

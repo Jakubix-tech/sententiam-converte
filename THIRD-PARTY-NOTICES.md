@@ -14,7 +14,8 @@ Sententiam converte nutzt folgende Bibliotheken. Ihre Lizenzen gelten für den j
 | SQLitePCLRaw / SQLite | SQLite-Anbindung / Datenbank-Engine | Apache-2.0 / Public Domain |
 | WeCantSpell.Hunspell | Rechtschreibprüfung (Portierung von Hunspell) | MPL 1.1 / GPL 2.0 / LGPL 2.1 (wahlweise); hier unter MPL 1.1 unverändert genutzt |
 | Anthropic (C#-SDK) | Anbindung der Claude-API | MIT |
-| ASP.NET Core | Teamserver | MIT |
+| ASP.NET Core, Microsoft.AspNetCore.OpenApi | Teamserver und REST-API (auch lokal in der Desktop-App) | MIT |
+| AndroidX (Xamarin.AndroidX.*) | Start-Bildschirm auf Android | MIT / Apache-2.0 |
 | xUnit, Avalonia.Headless | nur Tests, nicht ausgeliefert | Apache-2.0 / MIT |
 
 ## Wörterbücher
@@ -30,3 +31,8 @@ sowie zur Interoperabilität einige verbreitete Austauschformate anderer Herstel
 Dateiendungen bezeichnet werden (.sdlxliff, .sdlppx, .sdlrpx, .sdltm). Es enthält keinen Code dieser Hersteller.
 Genannte Produkt- und Dienstnamen (z. B. bei den KI-Anbietern) dienen nur der Angabe, womit eine Verbindung
 möglich ist; sie gehören ihren jeweiligen Inhabern.
+
+## Programmsymbol
+
+Eigene Gestaltung. Die Buchstaben sind mit der Schrift DejaVu Serif gesetzt (freie Lizenz, Bitstream-Vera-/DejaVu-Lizenz)
+und als Bild gespeichert; die Schrift selbst wird nicht mitgeliefert.

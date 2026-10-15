@@ -9,6 +9,8 @@
 
   <PropertyGroup>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>../SententiamConverte/Assets/Icon.ico</ApplicationIcon>
+    <AssemblyName>SententiamConverte.Desktop</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,5 +19,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SententiamConverte\SententiamConverte.csproj" />
+    <ProjectReference Include="..\SententiamConverte.Api\SententiamConverte.Api.csproj" />
   </ItemGroup>
 </Project>

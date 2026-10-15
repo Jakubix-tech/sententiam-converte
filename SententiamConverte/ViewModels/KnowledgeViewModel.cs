@@ -16,7 +16,7 @@ namespace SententiamConverte.ViewModels;
 
 public sealed record KnowledgeRow(KnowledgeEntry Entry)
 {
-    public string Header => $"[{Entry.Language}] {KnowledgeBase.KindName(Entry.Kind)} · {Entry.Topic}";
+    public string Header => $"[{Entry.Language}] {L.T(KnowledgeBase.KindName(Entry.Kind))} · {Entry.Topic}";
     public string Title => Entry.Title;
     public string Content => Entry.Content;
     public string? Quote => string.IsNullOrEmpty(Entry.Quote) ? null : $"„{Entry.Quote}“";
@@ -26,7 +26,7 @@ public sealed record KnowledgeRow(KnowledgeEntry Entry)
 
 public sealed record ActivityRow(string Server, ActivityEntry Entry)
 {
-    public string Text => $"{Entry.When.ToLocalTime():g} · {Entry.User} · {ResourceFactory.KindName(Entry.Kind)} „{Entry.Resource}“ ({Server})";
+    public string Text => $"{Entry.When.ToLocalTime():g} · {Entry.User} · {L.T(ResourceFactory.KindName(Entry.Kind))} „{Entry.Resource}“ ({Server})";
     public string Detail => Entry.Text;
 }
 
@@ -42,7 +42,7 @@ public partial class KnowledgeViewModel : ViewModelBase
     public ObservableCollection<KnowledgeRow> Entries { get; } = new();
     public ObservableCollection<ActivityRow> Activity { get; } = new();
     public ObservableCollection<LanguageChoice> AgentLanguages { get; } = new();
-    public IReadOnlyList<string> KindNames { get; } = Enum.GetValues<KnowledgeKind>().Select(KnowledgeBase.KindName).ToList();
+    public IReadOnlyList<string> KindNames { get; } = Enum.GetValues<KnowledgeKind>().Select(k => L.T(KnowledgeBase.KindName(k))).ToList();
 
     [ObservableProperty] public partial IKnowledgeBase? SelectedBase { get; set; }
     [ObservableProperty] public partial string Filter { get; set; } = "";

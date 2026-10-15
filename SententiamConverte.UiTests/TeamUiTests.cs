@@ -31,6 +31,7 @@ public class TeamUiTests
         var users = new UserStore(data);
         var admin = users.Add("admin", Role.Admin);
         var anna = users.Add("Anna", Role.Editor);
+        var bartek = users.Add("Bartek", Role.Editor);
         var l = new TcpListener(IPAddress.Loopback, 0);
         l.Start();
         var url = $"http://127.0.0.1:{((IPEndPoint)l.LocalEndpoint).Port}";
@@ -128,5 +129,44 @@ public class TeamUiTests
         editor.SidePanelTab = 4;
         Dispatcher.UIThread.RunJobs();
         window.CaptureRenderedFrame()?.Save(Path.Combine(TestSetup.ScreenshotDir, "15-editor-wissen.png"));
+
+        // ---------- Gemeinsames Projekt: Anna in der App, Bartek gleichzeitig über den Server ----------
+        vm.SelectedTab = 0;
+        await Run(vm.BeginNewProjectCommand);
+        vm.NewName = "Vertrag";
+        vm.NewTargets = "en-GB";
+        vm.NewOnServer = true;
+        vm.SharedServer = "Büro";
+        await Run(vm.CreateProjectCommand);
+        Assert.True(vm.IsSharedProject, vm.Status);
+        await Run(vm.AddFilesCommand);                                           // lädt auf den Server hoch
+        Assert.Single(vm.Files);
+        await Run(vm.OpenInEditorCommand, vm.Files[0]);
+        Assert.False(editor.CanResegment);
+
+        var barClient = new SharedProjectClient(new RemoteApi(new ServerAccount { Name = "Büro", Url = url, Token = bartek }));
+        var fileId = vm.Files[0].File.Id;
+        // Anna übersetzt Segment 1 – es kommt sofort auf dem Server an
+        editor.Selected = editor.Segments[0];
+        editor.Selected.Target = "Operating instructions";
+        await Run(editor.ConfirmAndNextCommand);
+        var onServer = barClient.Document("Vertrag", fileId, "en-GB");
+        Assert.Equal("Operating instructions", onServer.Document.Segments.First().Target);
+
+        // Bartek übersetzt Segment 3 und arbeitet an Segment 4
+        barClient.Update("Vertrag", fileId, "en-GB", 3, new SegmentUpdate("Then switch on the device.", Core.Model.SegmentStatus.Translated,
+            Core.Model.TranslationOrigin.Manual, null, null, onServer.SegmentVersions.GetValueOrDefault(3)));
+        Assert.True(barClient.LockAndReport("Vertrag", fileId, "en-GB", 4));
+        await editor.SyncNowAsync(vm.Project!, vm.Files[0].File, editor.CurrentDocument!);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("Then switch on the device.", editor.Segments.First(s => s.Id == 3).Target);
+        var locked = editor.Segments.First(s => s.Id == 4);
+        Assert.Equal("Bartek", locked.LockedBy);
+        Assert.True(locked.IsReadOnly);
+        Assert.Contains("gemeinsam", editor.SyncInfo);
+        vm.SelectedTab = 1;
+        Dispatcher.UIThread.RunJobs();
+        window.CaptureRenderedFrame()?.Save(Path.Combine(TestSetup.ScreenshotDir, "16-editor-gemeinsam.png"));
+        editor.Close();
     }
 }

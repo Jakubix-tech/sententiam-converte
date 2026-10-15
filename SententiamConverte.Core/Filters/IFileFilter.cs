@@ -25,13 +25,15 @@ public interface IFileFilter
 
 public static class FileFilters
 {
-    public static readonly IReadOnlyList<IFileFilter> All =
+    private static readonly List<IFileFilter> Filters =
     [
         new DocxFilter(),
         new XlsxFilter(),
         new PptxFilter(),
         new XliffFilter(),
         new PdfFilter(),
+        new OdfFilter(),
+        new IdmlFilter(),
         new HtmlFilter(),
         new MarkdownFilter(),
         new ResxFilter(),
@@ -40,6 +42,18 @@ public static class FileFilters
         new SubtitleFilter(),
         new TextFilter(),
     ];
+
+    public static IReadOnlyList<IFileFilter> All => Filters;
+
+    /// <summary>Weiteres Dateiformat anmelden (Erweiterungen). Gleiche Kennung ersetzt das vorhandene Format.</summary>
+    public static void Register(IFileFilter filter)
+    {
+        lock (Filters)
+        {
+            Filters.RemoveAll(f => f.Id == filter.Id);
+            Filters.Insert(0, filter);
+        }
+    }
 
     public static IFileFilter? ForFile(string fileName)
     {

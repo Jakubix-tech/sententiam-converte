@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\SententiamConverte.Core\SententiamConverte.Core.csproj" />
+    <ProjectReference Include="..\SententiamConverte.Api\SententiamConverte.Api.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="SententiamConverte.Core.Tests" />

@@ -83,6 +83,7 @@ public partial class EditorViewModel : ViewModelBase
     public EditorViewModel(MainViewModel main) => _main = main;
 
     public ProjectFile? CurrentFile { get; private set; }
+    public BilingualDocument? CurrentDocument => _doc;
     private TranslationProject? Project => _main.Project;
 
     public ObservableCollection<SegmentViewModel> Segments { get; } = new();
@@ -96,7 +97,7 @@ public partial class EditorViewModel : ViewModelBase
     public ObservableCollection<KnowledgeRow> Knowledge { get; } = new();
     private List<string> _suggestions = new();
 
-    public IReadOnlyList<string> FilterNames { get; } = ["Alle Segmente", "Nicht übersetzt", "Nicht bestätigt", "Mit QA-Meldungen"];
+    public IReadOnlyList<string> FilterNames { get; } = new[] { "Alle Segmente", "Nicht übersetzt", "Nicht bestätigt", "Mit QA-Meldungen" }.Select(L.T).ToList();
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasDocument))]
@@ -144,7 +145,8 @@ public partial class EditorViewModel : ViewModelBase
         _doc = doc;
         CurrentFile = file;
         DocumentTitle = $"{file.OriginalName} · {doc.SourceLanguage} → {doc.TargetLanguage}";
-        CanResegment = Workflow.CanResegment(doc);
+        CanResegment = Workflow.CanResegment(doc) && !project.IsShared;
+        StartSync(project, file, doc);
         _all = doc.Paragraphs.SelectMany(p => p.Segments.Select(s => new SegmentViewModel(s, p.Context))).ToList();
         ApplyFilter();
         UpdateProgress();
@@ -164,6 +166,7 @@ public partial class EditorViewModel : ViewModelBase
 
     public void Close()
     {
+        StopSync();
         SaveIfOpen();
         _doc = null;
         CurrentFile = null;
@@ -221,6 +224,77 @@ public partial class EditorViewModel : ViewModelBase
         }
     }
 
+    // ---------- Gemeinsames Projekt: Abgleich und Sperren ----------
+
+    private Avalonia.Threading.DispatcherTimer? _syncTimer;
+    private bool _syncing;
+    private int? _myLock;
+
+    [ObservableProperty] public partial string SyncInfo { get; set; } = "";
+
+    private void StartSync(TranslationProject project, ProjectFile file, BilingualDocument doc)
+    {
+        StopSync();
+        if (!project.IsShared) { SyncInfo = ""; return; }
+        SyncInfo = "gemeinsames Projekt – wird abgeglichen";
+        _syncTimer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+        _syncTimer.Tick += async (_, _) => await SyncNowAsync(project, file, doc);
+        _syncTimer.Start();
+    }
+
+    private void StopSync()
+    {
+        _syncTimer?.Stop();
+        _syncTimer = null;
+        if (_myLock is { } id && Project is { IsShared: true } p && CurrentFile is { } f && _doc is { } d)
+            _ = Task.Run(() => p.UnlockSegment(f, d.TargetLanguage, id));
+        _myLock = null;
+    }
+
+    /// <summary>Eigene Änderungen senden, die der anderen übernehmen, Sperren anzeigen.</summary>
+    public async Task SyncNowAsync(TranslationProject project, ProjectFile file, BilingualDocument doc)
+    {
+        if (_syncing || !ReferenceEquals(doc, _doc)) return;
+        _syncing = true;
+        try
+        {
+            var result = await Task.Run(() => project.Sync(file, doc));
+            if (!ReferenceEquals(doc, _doc)) return;
+            if (result.Reloaded)
+            {
+                await OpenAsync(file, doc.TargetLanguage);
+                _main.Status = "Gemeinsames Dokument neu geladen (Server wurde neu gestartet).";
+                return;
+            }
+            foreach (var id in result.ChangedSegments)
+                _all.FirstOrDefault(s => s.Id == id)?.Refresh();
+            var locks = result.Locks.ToDictionary(l => l.SegmentId, l => l.User);
+            foreach (var s in _all)
+                s.LockedBy = locks.TryGetValue(s.Id, out var who) && s.Id != _myLock ? who : null;
+            if (result.ChangedSegments.Count > 0) UpdateProgress();
+            if (result.Conflicts.Count > 0) _main.Status = string.Join(" ", result.Conflicts);
+            SyncInfo = $"gemeinsam · abgeglichen {DateTime.Now:T}" + (locks.Keys.Count(k => k != _myLock) is var others && others > 0 ? $" · {others} in Bearbeitung" : "");
+        }
+        catch (Exception ex) { SyncInfo = "Abgleich fehlgeschlagen: " + ex.Message; }
+        finally { _syncing = false; }
+    }
+
+    private void LockForEditing(SegmentViewModel seg)
+    {
+        if (Project is not { IsShared: true } p || CurrentFile is not { } f || _doc is not { } d) return;
+        var previous = _myLock;
+        _myLock = seg.Id;
+        _ = Task.Run(() =>
+        {
+            if (previous is { } old && old != seg.Id) p.UnlockSegment(f, d.TargetLanguage, old);
+            return p.LockSegment(f, d.TargetLanguage, seg.Id);
+        }).ContinueWith(t =>
+        {
+            if (t.Result) return;
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => _main.Status = $"Segment {seg.Id} wird gerade von jemand anderem bearbeitet.");
+        });
+    }
+
     // ---------- Auswahl: TM, Terminologie ----------
 
     partial void OnSelectedChanged(SegmentViewModel? value)
@@ -236,6 +310,7 @@ public partial class EditorViewModel : ViewModelBase
         OnPropertyChanged(nameof(Comment));
         FillHistory(value);
         if (value == null || _doc == null || Project == null) return;
+        LockForEditing(value);
         var cts = _lookupCts = new CancellationTokenSource();
         var project = Project;
         var doc = _doc;
