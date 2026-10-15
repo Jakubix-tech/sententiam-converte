@@ -193,7 +193,7 @@ public sealed class ApiTests : IAsyncLifetime
     [InlineData("...", "Projekt")]
     public void PackageNamesStayInsideTheProjectFolder(string name, string expected)
     {
-        var safe = Api.SententiamApi.ProjectCache.SafeName(name);
+        var safe = Core.Sdk.ProjectCache.SafeName(name);
         Assert.Equal(expected, safe);
         Assert.DoesNotContain('/', safe);
         Assert.DoesNotContain('\\', safe);

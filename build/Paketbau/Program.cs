@@ -3,7 +3,7 @@
 //   dotnet run --project build/Paketbau                        alle Pakete
 //   dotnet run --project build/Paketbau -- win-x64 android     nur bestimmte
 //
-// Ziele: win-x64, linux-x64, osx-arm64, osx-x64, android, server, erweiterung
+// Ziele: win-x64, linux-x64, osx-arm64, osx-x64, android, server, erweiterung, sdk
 // Ergebnis: artifacts/<Version>/ mit den Paketen und SHA256SUMS.txt.
 // Linux- und macOS-Pakete sind .tar.gz, damit die Ausführungsrechte erhalten bleiben (auch wenn unter Windows gebaut).
 
@@ -18,7 +18,7 @@ var root = FindRoot();
 var version = Regex.Match(File.ReadAllText(Path.Combine(root, "Directory.Build.props")), "<Version>([^<]+)</Version>").Groups[1].Value;
 var output = Path.Combine(root, "artifacts", version);
 var work = Path.Combine(root, "artifacts", "arbeit");
-string[] all = ["win-x64", "linux-x64", "osx-arm64", "osx-x64", "android", "server", "erweiterung"];
+string[] all = ["win-x64", "linux-x64", "osx-arm64", "osx-x64", "android", "server", "erweiterung", "sdk"];
 var targets = args.Length == 0 ? all : args;
 foreach (var t in targets.Where(t => !all.Contains(t))) { Console.Error.WriteLine($"Unbekanntes Ziel: {t}. Möglich: {string.Join(", ", all)}"); return 1; }
 
@@ -36,6 +36,7 @@ foreach (var target in targets)
         "osx-arm64" or "osx-x64" => Mac(target),
         "android" => Android(),
         "server" => Server(),
+        "sdk" => Sdk(),
         _ => ExampleExtension(),
     };
     made.Add(file);
@@ -125,6 +126,14 @@ string Server()
         "Ressource:  dotnet SententiamConverte.Server.dll --daten ./teamdaten ressource neu tm Maschinenbau\n" +
         "Port 5280; REST-API unter /api/v2, Beschreibung unter /openapi/v2.json. Im Internet nur hinter HTTPS betreiben."));
     return Zip(stage, $"SententiamConverte-Server-{version}.zip", "sententiam-server");
+}
+
+/// <summary>NuGet-Pakete für Entwickler: SententiamConverte.Core (Erweiterungen, ISententiam) und SententiamConverte.Sdk (REST-Client).</summary>
+string Sdk()
+{
+    foreach (var project in new[] { "SententiamConverte.Core", "SententiamConverte.Sdk" })
+        Run("dotnet", ["pack", Path.Combine(root, project, project + ".csproj"), "-c", "Release", "-o", output, "-p:IncludeSymbols=false"]);
+    return Path.Combine(output, $"SententiamConverte.Sdk.{version}.nupkg");
 }
 
 string ExampleExtension()

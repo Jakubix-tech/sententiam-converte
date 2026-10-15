@@ -42,17 +42,27 @@ The `id` may contain only letters, digits, periods, underscores and hyphens; it 
     <EnableDynamicLoading>true</EnableDynamicLoading>
   </PropertyGroup>
   <ItemGroup>
-    <!-- The program supplies the interfaces: do not copy them into the output (pfad/zum/Programm = path to the program) -->
-    <Reference Include="SententiamConverte.Core">
-      <HintPath>pfad/zum/Programm/SententiamConverte.Core.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
+    <!-- The SDK: interfaces and data types. The program ships the library itself – do not copy it into the output -->
+    <PackageReference Include="SententiamConverte.Core" Version="1.0.0" ExcludeAssets="runtime;native" />
   </ItemGroup>
 </Project>
 ```
 
-Within the source tree, a `ProjectReference` with `Private="false"` is sufficient. The template also contains an
-MSBuild target that automatically creates the `.scext` package after the build.
+The NuGet package `SententiamConverte.Core` is created with `dotnet run --project build/Paketbau -- sdk` in the
+folder `artifacts/<version>/`. Add this folder as a package source (`nuget.config`):
+
+```xml
+<configuration>
+  <packageSources>
+    <add key="sententiam" value="path/to/artifacts/1.0.0" />
+  </packageSources>
+</configuration>
+```
+
+Without the package, a direct reference to `SententiamConverte.Core.dll` from the program folder also works
+(`<Reference>` with `<Private>false</Private>`); within the source tree, a `ProjectReference` with
+`Private="false"` is sufficient. The template also contains an MSBuild target that automatically creates the
+`.scext` package after the build.
 
 Your own dependencies (NuGet packages) belong in the package. Libraries that the program itself already
 ships with (e.g. `SententiamConverte.Core`, `Microsoft.Data.Sqlite`) are always loaded from the program
@@ -170,10 +180,49 @@ the program checks whether the required item is open or selected.
 | `Arguments` | Arguments from the tab (one `name=value` per line) or from the API |
 | `ChatModel` | The configured language model (`AskAsync(system, user)`), otherwise `null` |
 | `Search` | The configured web search, otherwise `null` |
+| `Api` | The internal programming interface with **all** functions (see below) |
 | `Log` | Progress messages, shown in the tab |
 
 With `DocumentChanged: true`, the program saves the document and reloads the editor.
 Commands can also be called through the API: `POST /api/v2/extensions/commands/{id}`.
+
+## The internal programming interface (context.Api)
+
+`context.Api` is of type `ISententiam` (namespace `SententiamConverte.Core.Sdk`) and offers everything the
+program can do – typed and directly inside the program, without going through the network:
+
+| Area | Examples |
+|---|---|
+| Projects and files | `ProjectsAsync`, `CreateProjectAsync`, `AddFileAsync`, `SegmentsAsync`, `TargetFileAsync`, `XliffAsync` |
+| Segments | `UpdateSegmentAsync`, `ConfirmSegmentAsync`, `MatchesAsync`, `SegmentTermsAsync`, `ApplyMatchAsync`, `SplitSegmentAsync` |
+| Batch tasks and quality | `PretranslateAsync`, `AnalysisAsync`, `QaAsync`, `SetQaSettingsAsync` |
+| TM | `SearchTmAsync`, `ConcordanceAsync`, `AddToTmAsync`, `ImportTmAsync`, `ExportTmAsync` |
+| Terminology and knowledge | `SearchTermsAsync`, `AddConceptAsync`, `SearchKnowledgeAsync`, `AddKnowledgeAsync` |
+| Packages | `ImportPackageAsync`, `ReturnPackageAsync`, `AlignAsync`, `RecognizePdfAsync` |
+| Agents | `TranslateAsync`, `EvaluateAsync`, `CheckUsageAsync`, `ResearchAsync`, `FillKnowledgeAsync`, `CompareTermAsync` |
+| Extensions | `ExtensionsAsync`, `RunCommandAsync` (commands of other extensions) |
+
+```csharp
+public async Task<ExtensionResult> RunAsync(ExtensionContext context, CancellationToken ct)
+{
+    var api = context.Api!;
+    var name = context.Project!.Name;
+    await api.PretranslateAsync(name, new PretranslateDto(ConfirmExact: true), ct);
+    var open = 0;
+    foreach (var file in (await api.GetProjectAsync(name, ct)).Files)
+        foreach (var lang in file.Languages)
+            open += (await api.SegmentsAsync(name, file.Id, lang, ct)).Count(s => s.Status == SegmentStatus.NotTranslated);
+    return new ExtensionResult($"Pre-translated; {open} segments still open.");
+}
+```
+
+The same interface exists outside the program as a .NET client for the REST API (`SententiamClient` in the
+package `SententiamConverte.Sdk`, see API Reference). Code written against `ISententiam` therefore runs unchanged
+as an extension, as a separate program or as a script.
+
+Edit a document either through `context.Document` (directly in memory) or through `context.Api`, not both at once:
+the interface saves the open document first and reloads the editor afterwards. The “Project report” command of
+the example extension shows how to use it.
 
 ## Security and good practice
 

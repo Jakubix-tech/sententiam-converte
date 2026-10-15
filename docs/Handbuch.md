@@ -280,6 +280,7 @@ Programme. Es gibt sie an zwei Stellen:
 
 Anmeldung mit der Kopfzeile `Authorization: Bearer <Schlüssel>`. Die maschinenlesbare Beschreibung (OpenAPI)
 steht unter `/openapi/v2.json`. Alle Endpunkte und Beispiele: Kapitel „API-Referenz“.
+Für C# gibt es dieselbe Schnittstelle als .NET-SDK (`SententiamClient`), siehe ebenda.
 
 ## Erweiterungen
 
@@ -294,6 +295,7 @@ Befehle.
 
 **Ausschalten** und **Entfernen** wirken vollständig nach einem Neustart. Wie man eigene Erweiterungen
 schreibt, steht im Kapitel „Erweiterungen entwickeln“.
+Erweiterungen werden z. B. in C# geschrieben und haben über `context.Api` Zugriff auf alle Funktionen des Programms.
 
 ## Datenschutz und Rechtliches
 

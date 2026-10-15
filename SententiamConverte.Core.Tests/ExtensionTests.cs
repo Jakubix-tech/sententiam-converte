@@ -36,7 +36,7 @@ public class ExtensionTests
 
         manager.SetEnabled(ext.Manifest.Id, true);
         Assert.True(ext.Loaded, ext.Error);
-        Assert.Equal(3, manager.Commands.Count());
+        Assert.Equal(4, manager.Commands.Count());
         Assert.Contains(ext.Contributions, c => c.StartsWith("Dateiformat: CSV"));
         Assert.Contains("QA-Prüfung: Ausrufezeichen", ext.Contributions);
 
@@ -141,6 +141,14 @@ public class ExtensionTests
         Assert.True((bool)result["documentChanged"]!);
         Assert.Equal("Press “Start”.", (string?)JsonNode.Parse(await http.GetStringAsync(seg, ct))!["target"]);
         Assert.Equal(HttpStatusCode.NotFound, (await http.PostAsJsonAsync("extensions/commands/gibtsnicht", new { }, ct)).StatusCode);
+
+        // Ein Befehl, der selbst die interne Programmierschnittstelle (context.Api) benutzt – hier auf dem Server
+        var report = JsonNode.Parse(await (await http.PostAsJsonAsync("extensions/commands/beispiel.projektbericht", new { project = "Erw" }, ct))
+            .Content.ReadAsStringAsync(ct))!;
+        var message = (string)report["message"]!;
+        Assert.Contains("Projekt „Erw“: de-DE → en-GB, 1 Datei(en)", message);
+        Assert.Contains("a.txt (en-GB): 0/1 Segmente fertig", message);
+        Assert.Contains("QA:", message);
     }
 }
 

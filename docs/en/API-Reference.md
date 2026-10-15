@@ -143,6 +143,35 @@ If a command changes the document (`documentChanged: true`), the document is sav
 On the team server, the administrator installs extensions on the command line:
 `SententiamConverte.Server erweiterung installieren <file.scext>` and `erweiterung ein <id>`.
 
+## .NET SDK
+
+For C# and other .NET languages the same interface is available in typed form: `ISententiam` (package
+`SententiamConverte.Core`) with the client `SententiamClient` (package `SententiamConverte.Sdk`). Every REST API
+function is a method; errors are raised as `KeyNotFoundException`, `ArgumentException`,
+`UnauthorizedAccessException` or `InvalidOperationException`.
+
+```csharp
+using SententiamConverte.Core.Sdk;
+using SententiamConverte.Sdk;
+
+using var sc = new SententiamClient("http://127.0.0.1:5290", Environment.GetEnvironmentVariable("SC_KEY")!);
+await sc.CreateProjectAsync(new ProjectCreateDto("Manual", "de-DE", ["en-GB"], "Technology"));
+var file = await sc.AddFileAsync("Manual", FileContent.FromFile("instructions.docx"));
+await sc.PretranslateAsync("Manual", new PretranslateDto(ConfirmExact: true));
+foreach (var s in await sc.SegmentsAsync("Manual", file.Id, "en-GB"))
+    if (s.Status == SegmentStatus.NotTranslated)
+    {
+        var ai = await sc.TranslateAsync(new TranslateRequest("Manual", file.Id, "en-GB", s.Id));
+        await sc.UpdateSegmentAsync("Manual", file.Id, "en-GB", s.Id, new SegmentUpdateDto(ai.Translation));
+    }
+var target = await sc.TargetFileAsync("Manual", file.Id, "en-GB");
+File.WriteAllBytes(target.Name, target.Content);
+```
+
+The packages are created with `dotnet run --project build/Paketbau -- sdk` in the folder `artifacts/<version>/`.
+Inside the program – in extensions – the same interface is available as `context.Api`, without going through
+the network (see “Developing Extensions”).
+
 ## Examples
 
 **curl** – create a project, upload a file, pre-translate, download the target file:

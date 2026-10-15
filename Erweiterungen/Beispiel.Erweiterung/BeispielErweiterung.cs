@@ -12,7 +12,7 @@ public sealed class BeispielErweiterung : IExtension
     public string Name => "Beispiel-Erweiterung";
     public string Version => "1.0.0";
     public string? Author => "Sententiam converte";
-    public string? Description => "Dateiformat CSV, QA-Prüfung „Ausrufezeichen“, Befehle für Dokument und Segment.";
+    public string? Description => "Dateiformat CSV, QA-Prüfung „Ausrufezeichen“, Befehle für Dokument, Segment und Projekt (mit der internen Programmierschnittstelle).";
 
     public void Register(IExtensionRegistry registry)
     {
@@ -21,5 +21,6 @@ public sealed class BeispielErweiterung : IExtension
         registry.AddCommand(new TypographicQuotesCommand());
         registry.AddCommand(new SegmentStatisticsCommand());
         registry.AddCommand(new AlternativeCommand());
+        registry.AddCommand(new ProjectReportCommand());
     }
 }

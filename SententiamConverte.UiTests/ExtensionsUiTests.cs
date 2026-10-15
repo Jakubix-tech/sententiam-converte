@@ -59,7 +59,7 @@ public class ExtensionsUiTests
         await Run(ext.EnableCommand);
         Assert.False(ext.ConfirmEnable);
         Assert.Equal("Eingeschaltet", ext.Selected!.State);
-        Assert.Equal(3, ext.Commands.Count(c => c.Command.Id.StartsWith("beispiel.")));
+        Assert.Equal(4, ext.Commands.Count(c => c.Command.Id.StartsWith("beispiel.")));
         Assert.Contains("anleitung.docx (en-GB)", ext.ContextInfo);
 
         // Befehl für das offene Dokument – der Editor zeigt das Ergebnis, das Getippte wird mitgenommen

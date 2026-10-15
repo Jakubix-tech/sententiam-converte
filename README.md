@@ -16,6 +16,7 @@ Läuft auf **Windows, Linux, macOS** (Desktop) und **Android** aus einer gemeins
 | `SententiamConverte.Android` | Start für Android |
 | `SententiamConverte.Server` | Teamserver: gemeinsame TMs, Terminologien, Wissensdatenbanken und gemeinsame Projekte |
 | `SententiamConverte.Api` | REST-Schnittstelle (v2) mit allen Funktionen – im Teamserver und lokal in der Desktop-App |
+| `SententiamConverte.Sdk` | .NET-Client der REST-API (`SententiamClient`) – dieselbe Schnittstelle `ISententiam` wie intern |
 | `Erweiterungen/Beispiel.Erweiterung` | Vorlage für eigene Erweiterungen (Dateiformat, QA-Prüfung, Befehle) |
 | `SententiamConverte.Core.Tests` | Tests des Kerns (xUnit v3) |
 | `SententiamConverte.UiTests` | Oberflächentests ohne Bildschirm (Avalonia.Headless), erzeugen Bildschirmfotos |
@@ -89,15 +90,22 @@ Läuft auf **Windows, Linux, macOS** (Desktop) und **Android** aus einer gemeins
 - Im Teamserver mit dessen Benutzern und Rollen; Änderungen erreichen alle, die das Projekt offen haben
 - In der Desktop-App auf Wunsch lokal (nur 127.0.0.1) – Skripte arbeiten am geöffneten Projekt, der Editor
   zeigt Änderungen sofort
-- Referenz und Beispiele (curl, PowerShell, Python): [docs/API-Referenz.md](docs/API-Referenz.md)
+- **SDK für C#/.NET**: Die Programmierschnittstelle `ISententiam` (im Kern, `SententiamConverte.Core.Sdk`) enthält
+  jede Funktion als typisierte Methode – intern umgesetzt von `SententiamService` (darauf baut auch die REST-API
+  auf) und extern von `SententiamClient` (Paket `SententiamConverte.Sdk`). Code gegen `ISententiam` läuft
+  unverändert als Erweiterung, als eigenes Programm oder als Skript; beide Wege sind mit demselben Testablauf geprüft.
+- Referenz und Beispiele (curl, PowerShell, Python, C#): [docs/API-Referenz.md](docs/API-Referenz.md)
 
 **Erweiterungen**
 - Reiter „Erweiterungen“: Erweiterungen anderer Entwickler installieren (`.scext`), bewusst einschalten,
   ausschalten, entfernen; ihre Befehle wirken auf das im Editor Geöffnete
-- Erweiterungen liefern Dateiformate, QA-Prüfungen und Befehle (auch mit KI und Websuche);
-  sie laufen mit den Rechten des Benutzers und sind deshalb nach der Installation ausgeschaltet
+- Erweiterungen liefern Dateiformate, QA-Prüfungen und Befehle (auch mit KI und Websuche); geschrieben z. B. in C#,
+  mit Zugriff auf **alle Funktionen** des Programms über die interne Schnittstelle `context.Api`
+- Für Entwickler: NuGet-Paket `SententiamConverte.Core` (Schnittstellen und Datentypen) aus dem Paketbau
+- Erweiterungen laufen mit den Rechten des Benutzers und sind deshalb nach der Installation ausgeschaltet
 - Vorlage: `Erweiterungen/Beispiel.Erweiterung` (CSV-Format, Prüfung „Ausrufezeichen“, typografische
-  Anführungszeichen, Segment-Statistik, KI-Alternative); Anleitung: [docs/Erweiterungen-entwickeln.md](docs/Erweiterungen-entwickeln.md)
+  Anführungszeichen, Segment-Statistik, KI-Alternative, Projektbericht über `context.Api`);
+  Anleitung: [docs/Erweiterungen-entwickeln.md](docs/Erweiterungen-entwickeln.md)
 
 **Oberfläche und Hilfe**
 - Deutsch und Englisch (Einstellungen → Sprache der Oberfläche; Standard: Systemsprache)
@@ -139,6 +147,7 @@ dotnet run --project build/Paketbau
 | `SententiamConverte-<v>-android.apk` | Android 6 und neuer |
 | `SententiamConverte-Server-<v>.zip` | Teamserver (braucht die ASP.NET Core Runtime 10) |
 | `Beispiel.Erweiterung-<v>.scext` | Beispiel-Erweiterung |
+| `SententiamConverte.Core.<v>.nupkg`, `SententiamConverte.Sdk.<v>.nupkg` | SDK für Entwickler (Erweiterungen, .NET-Client) |
 
 Einzelne Ziele: `dotnet run --project build/Paketbau -- win-x64 android`. Die Pakete sind nicht signiert
 (Windows SmartScreen bzw. macOS Gatekeeper fragen beim ersten Start nach; Hinweise stehen in `LIESMICH.txt`).

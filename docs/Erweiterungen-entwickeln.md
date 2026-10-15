@@ -39,17 +39,27 @@ Die `id` darf nur Buchstaben, Ziffern, Punkt, Unterstrich und Bindestrich enthal
     <EnableDynamicLoading>true</EnableDynamicLoading>
   </PropertyGroup>
   <ItemGroup>
-    <!-- Die Schnittstellen liefert das Programm: nicht mitkopieren -->
-    <Reference Include="SententiamConverte.Core">
-      <HintPath>pfad/zum/Programm/SententiamConverte.Core.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
+    <!-- Das SDK: Schnittstellen und Datentypen. Das Programm bringt die Bibliothek selbst mit – nicht mitkopieren -->
+    <PackageReference Include="SententiamConverte.Core" Version="1.0.0" ExcludeAssets="runtime;native" />
   </ItemGroup>
 </Project>
 ```
 
-Im Quellcode-Baum genügt eine `ProjectReference` mit `Private="false"`. Die Vorlage enthält außerdem ein
-MSBuild-Ziel, das nach dem Bauen automatisch das `.scext`-Paket erzeugt.
+Das NuGet-Paket `SententiamConverte.Core` entsteht mit `dotnet run --project build/Paketbau -- sdk` im Ordner
+`artifacts/<Version>/`. Diesen Ordner als Paketquelle eintragen (`nuget.config`):
+
+```xml
+<configuration>
+  <packageSources>
+    <add key="sententiam" value="pfad/zu/artifacts/1.0.0" />
+  </packageSources>
+</configuration>
+```
+
+Ohne Paket geht es auch mit einem direkten Verweis auf `SententiamConverte.Core.dll` aus dem Programmordner
+(`<Reference>` mit `<Private>false</Private>`); im Quellcode-Baum genügt eine `ProjectReference` mit
+`Private="false"`. Die Vorlage enthält außerdem ein MSBuild-Ziel, das nach dem Bauen automatisch das
+`.scext`-Paket erzeugt.
 
 Eigene Abhängigkeiten (NuGet-Pakete) gehören mit ins Paket. Bibliotheken, die das Programm selbst schon
 mitbringt (z. B. `SententiamConverte.Core`, `Microsoft.Data.Sqlite`), werden immer aus dem Programm geladen,
@@ -167,10 +177,49 @@ vor dem Ausführen, ob das Nötige offen bzw. gewählt ist.
 | `Arguments` | Argumente aus dem Reiter (`name=wert` je Zeile) oder aus der API |
 | `ChatModel` | das eingestellte Sprachmodell (`AskAsync(system, user)`), sonst `null` |
 | `Search` | die eingestellte Websuche, sonst `null` |
+| `Api` | die interne Programmierschnittstelle mit **allen** Funktionen (siehe unten) |
 | `Log` | Fortschrittsmeldungen, erscheinen im Reiter |
 
 Mit `DocumentChanged: true` speichert das Programm das Dokument und lädt den Editor neu.
 Befehle sind auch über die API aufrufbar: `POST /api/v2/extensions/commands/{id}`.
+
+## Die interne Programmierschnittstelle (context.Api)
+
+`context.Api` ist vom Typ `ISententiam` (Namensraum `SententiamConverte.Core.Sdk`) und bietet alles, was das
+Programm kann – typisiert und direkt im Programm, ohne Umweg über das Netz:
+
+| Bereich | Beispiele |
+|---|---|
+| Projekte und Dateien | `ProjectsAsync`, `CreateProjectAsync`, `AddFileAsync`, `SegmentsAsync`, `TargetFileAsync`, `XliffAsync` |
+| Segmente | `UpdateSegmentAsync`, `ConfirmSegmentAsync`, `MatchesAsync`, `SegmentTermsAsync`, `ApplyMatchAsync`, `SplitSegmentAsync` |
+| Stapel und Qualität | `PretranslateAsync`, `AnalysisAsync`, `QaAsync`, `SetQaSettingsAsync` |
+| TM | `SearchTmAsync`, `ConcordanceAsync`, `AddToTmAsync`, `ImportTmAsync`, `ExportTmAsync` |
+| Terminologie und Wissen | `SearchTermsAsync`, `AddConceptAsync`, `SearchKnowledgeAsync`, `AddKnowledgeAsync` |
+| Pakete | `ImportPackageAsync`, `ReturnPackageAsync`, `AlignAsync`, `RecognizePdfAsync` |
+| Agenten | `TranslateAsync`, `EvaluateAsync`, `CheckUsageAsync`, `ResearchAsync`, `FillKnowledgeAsync`, `CompareTermAsync` |
+| Erweiterungen | `ExtensionsAsync`, `RunCommandAsync` (Befehle anderer Erweiterungen) |
+
+```csharp
+public async Task<ExtensionResult> RunAsync(ExtensionContext context, CancellationToken ct)
+{
+    var api = context.Api!;
+    var name = context.Project!.Name;
+    await api.PretranslateAsync(name, new PretranslateDto(ConfirmExact: true), ct);
+    var offen = 0;
+    foreach (var file in (await api.GetProjectAsync(name, ct)).Files)
+        foreach (var lang in file.Languages)
+            offen += (await api.SegmentsAsync(name, file.Id, lang, ct)).Count(s => s.Status == SegmentStatus.NotTranslated);
+    return new ExtensionResult($"Vorübersetzt; noch {offen} Segmente offen.");
+}
+```
+
+Dieselbe Schnittstelle gibt es außerhalb des Programms als .NET-Client der REST-API (`SententiamClient` im
+Paket `SententiamConverte.Sdk`, siehe API-Referenz). Code gegen `ISententiam` läuft deshalb unverändert als
+Erweiterung, als eigenes Programm oder als Skript.
+
+Ein Dokument entweder über `context.Document` (direkt im Speicher) oder über `context.Api` bearbeiten, nicht
+beides zugleich: die Schnittstelle speichert das offene Dokument vorher und lädt den Editor danach neu.
+Der Befehl „Projektbericht“ der Beispiel-Erweiterung zeigt die Nutzung.
 
 ## Sicherheit und gute Sitten
 

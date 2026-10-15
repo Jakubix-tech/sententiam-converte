@@ -9,6 +9,7 @@
   <Project Path="SententiamConverte.Core.Tests/SententiamConverte.Core.Tests.csproj" />
   <Project Path="SententiamConverte.Core/SententiamConverte.Core.csproj" />
   <Project Path="SententiamConverte.Desktop/SententiamConverte.Desktop.csproj" />
+  <Project Path="SententiamConverte.Sdk/SententiamConverte.Sdk.csproj" />
   <Project Path="SententiamConverte.Server/SententiamConverte.Server.csproj" />
   <Project Path="SententiamConverte.UiTests/SententiamConverte.UiTests.csproj" />
   <Project Path="SententiamConverte/SententiamConverte.csproj" />

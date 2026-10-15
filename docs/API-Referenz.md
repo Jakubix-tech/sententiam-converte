@@ -143,6 +143,35 @@ Minuten laufen; Clients sollten eine entsprechende Wartezeit einstellen.
 Auf dem Teamserver installiert der Administrator Erweiterungen auf der Kommandozeile:
 `SententiamConverte.Server erweiterung installieren <datei.scext>` und `erweiterung ein <kennung>`.
 
+## .NET-SDK
+
+Für C# und andere .NET-Sprachen gibt es dieselbe Schnittstelle typisiert: `ISententiam` (Paket
+`SententiamConverte.Core`) mit dem Client `SententiamClient` (Paket `SententiamConverte.Sdk`). Jede Funktion der
+REST-API ist eine Methode; Fehler kommen als `KeyNotFoundException`, `ArgumentException`,
+`UnauthorizedAccessException` bzw. `InvalidOperationException`.
+
+```csharp
+using SententiamConverte.Core.Sdk;
+using SententiamConverte.Sdk;
+
+using var sc = new SententiamClient("http://127.0.0.1:5290", Environment.GetEnvironmentVariable("SC_KEY")!);
+await sc.CreateProjectAsync(new ProjectCreateDto("Handbuch", "de-DE", ["en-GB"], "Technik"));
+var datei = await sc.AddFileAsync("Handbuch", FileContent.FromFile("anleitung.docx"));
+await sc.PretranslateAsync("Handbuch", new PretranslateDto(ConfirmExact: true));
+foreach (var s in await sc.SegmentsAsync("Handbuch", datei.Id, "en-GB"))
+    if (s.Status == SegmentStatus.NotTranslated)
+    {
+        var ki = await sc.TranslateAsync(new TranslateRequest("Handbuch", datei.Id, "en-GB", s.Id));
+        await sc.UpdateSegmentAsync("Handbuch", datei.Id, "en-GB", s.Id, new SegmentUpdateDto(ki.Translation));
+    }
+var ziel = await sc.TargetFileAsync("Handbuch", datei.Id, "en-GB");
+File.WriteAllBytes(ziel.Name, ziel.Content);
+```
+
+Die Pakete entstehen mit `dotnet run --project build/Paketbau -- sdk` im Ordner `artifacts/<Version>/`.
+Innerhalb des Programms – in Erweiterungen – steht dieselbe Schnittstelle als `context.Api` bereit, ohne Umweg
+über das Netz (siehe „Erweiterungen entwickeln“).
+
 ## Beispiele
 
 **curl** – Projekt anlegen, Datei hochladen, vorübersetzen, Zieldatei holen:

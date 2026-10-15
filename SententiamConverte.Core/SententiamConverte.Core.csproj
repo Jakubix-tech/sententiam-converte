@@ -5,6 +5,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <RootNamespace>SententiamConverte.Core</RootNamespace>
+    <!-- Als NuGet-Paket für Erweiterungen: enthält ISententiam, IExtension und alle Datentypen -->
+    <PackageId>SententiamConverte.Core</PackageId>
+    <Authors>Jakubix-tech</Authors>
+    <Description>Kern von Sententiam converte mit der Programmierschnittstelle ISententiam und dem Erweiterungs-SDK (IExtension, IFileFilter, IQaCheck, IExtensionCommand). Für Erweiterungen mit ExcludeAssets=runtime einbinden – das Programm bringt die Bibliothek selbst mit.</Description>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;CS1573;CS1572;CS1574</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Anthropic" />

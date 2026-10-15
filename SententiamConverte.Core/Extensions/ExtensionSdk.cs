@@ -65,6 +65,13 @@ public sealed class ExtensionContext
     public Segment? Segment { get; init; }
     public IReadOnlyDictionary<string, string> Arguments { get; init; } = new Dictionary<string, string>();
 
+    /// <summary>
+    /// Alle Funktionen des Programms (Projekte, Dateien, Segmente, TM, Terminologie, Wissen, QA, Agenten …) –
+    /// dieselbe Schnittstelle wie die REST-API, hier direkt im Programm. Beispiel:
+    /// <c>var rows = await context.Api!.AnalysisAsync(context.Project!.Name, ct);</c>
+    /// </summary>
+    public Sdk.ISententiam? Api { get; init; }
+
     /// <summary>Das eingestellte Sprachmodell (falls eingerichtet) – für Befehle, die KI nutzen.</summary>
     public IChatModel? ChatModel { get; init; }
     public ISearchProvider? Search { get; init; }

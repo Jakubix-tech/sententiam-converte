@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- .NET-Client der REST-API: dieselbe Schnittstelle ISententiam wie intern, über HTTP -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>SententiamConverte.Sdk</RootNamespace>
+    <PackageId>SententiamConverte.Sdk</PackageId>
+    <Authors>Jakubix-tech</Authors>
+    <Description>Programmierschnittstelle für Sententiam converte: SententiamClient spricht die REST-API eines Teamservers oder der Desktop-App an (alle Funktionen, typisiert). Dieselbe Schnittstelle ISententiam steht Erweiterungen intern zur Verfügung.</Description>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SententiamConverte.Core\SententiamConverte.Core.csproj" />
+  </ItemGroup>
+</Project>

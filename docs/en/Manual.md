@@ -280,6 +280,7 @@ programs. It is available in two places:
 
 Authenticate with the header `Authorization: Bearer <key>`. The machine-readable description (OpenAPI)
 is available at `/openapi/v2.json`. All endpoints and examples: see the chapter “API Reference”.
+For C# the same interface is available as a .NET SDK (`SententiamClient`), see there.
 
 ## Extensions
 
@@ -294,6 +295,7 @@ commands.
 
 **Disable** and **Remove** take full effect after a restart. How to write your own extensions
 is described in the chapter “Developing Extensions”.
+Extensions are written in C#, for example, and have access to all functions of the program through `context.Api`.
 
 ## Privacy and legal notes
 

@@ -228,6 +228,7 @@ public partial class ExtensionsViewModel : ViewModelBase
                 Arguments = args,
                 ChatModel = model,
                 Search = search,
+                Api = AppSdk.Service,
                 Log = new Progress<string>(m => Output += m + "\n"),
             };
             var result = await cmd.RunAsync(context, _cts.Token);
