@@ -1,0 +1,66 @@
+Sententiam converte
+Copyright © 2026 Jakubix-tech. Alle Rechte vorbehalten.
+
+1. Quellcode
+   Der Quellcode in diesem Repository ist urheberrechtlich geschützt. Er darf angesehen werden. Jede
+   Vervielfältigung, Bearbeitung, Weitergabe oder Veröffentlichung – auch in Teilen – bedarf der vorherigen
+   schriftlichen Zustimmung des Rechteinhabers. Die Rechte, die GitHub nach seinen Nutzungsbedingungen einräumt
+   (Ansehen und Forken auf GitHub), bleiben unberührt.
+
+2. Programm
+   Die auf der Release-Seite dieses Repositorys veröffentlichten Programmpakete dürfen kostenlos heruntergeladen,
+   installiert und für private und berufliche Übersetzungsarbeit genutzt werden. Weitergabe, Verkauf, Vermietung
+   und Veränderung der Programmpakete sind nicht gestattet.
+
+3. Erweiterungen und SDK
+   Die veröffentlichten Entwicklerpakete (SententiamConverte.Core, SententiamConverte.Sdk) und die
+   Beispiel-Erweiterung dürfen genutzt werden, um Erweiterungen und Programme zu schreiben, die mit
+   Sententiam converte zusammenarbeiten. Eigene Erweiterungen dürfen unter eigenen Bedingungen verbreitet werden;
+   die Entwicklerpakete selbst werden dabei nicht mitgeliefert.
+
+4. Bibliotheken Dritter
+   Mitgelieferte Bibliotheken Dritter stehen unter ihren eigenen Lizenzen, siehe THIRD-PARTY-NOTICES.md.
+
+5. Haftung
+   Das Programm wird unentgeltlich überlassen. Die Haftung ist auf Vorsatz und grobe Fahrlässigkeit beschränkt;
+   zwingende gesetzliche Haftung bleibt unberührt. Ergebnisse der KI-Agenten sind Vorschläge – die fachliche
+   Verantwortung für Übersetzungen liegt bei den Nutzenden.
+
+6. Kontakt
+   Anfragen zu weitergehenden Rechten über https://github.com/Jakubix-tech
+
+Maßgeblich ist die deutsche Fassung.
+
+-------------------------------------------------------------------------------------------------------------
+
+Sententiam converte
+Copyright © 2026 Jakubix-tech. All rights reserved.
+
+1. Source code
+   The source code in this repository is protected by copyright. It may be viewed. Any reproduction,
+   modification, distribution or publication – in whole or in part – requires the prior written consent of the
+   rights holder. The rights granted by GitHub under its terms of service (viewing and forking on GitHub) remain
+   unaffected.
+
+2. Program
+   The program packages published on the release page of this repository may be downloaded, installed and used
+   free of charge for private and professional translation work. Redistribution, sale, rental and modification of
+   the program packages are not permitted.
+
+3. Extensions and SDK
+   The published developer packages (SententiamConverte.Core, SententiamConverte.Sdk) and the example extension
+   may be used to write extensions and programs that work with Sententiam converte. Your own extensions may be
+   distributed under your own terms; the developer packages themselves are not to be included.
+
+4. Third-party libraries
+   Third-party libraries included with the program are subject to their own licenses, see THIRD-PARTY-NOTICES.md.
+
+5. Liability
+   The program is provided free of charge. Liability is limited to intent and gross negligence; mandatory
+   statutory liability remains unaffected. Results of the AI agents are suggestions – professional
+   responsibility for translations lies with the users.
+
+6. Contact
+   Requests for further rights via https://github.com/Jakubix-tech
+
+The German version is authoritative.

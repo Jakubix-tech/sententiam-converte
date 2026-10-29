@@ -159,6 +159,7 @@ string Publish(string project, string rid)
 void AddDocs(string folder)
 {
     File.Copy(Path.Combine(root, "THIRD-PARTY-NOTICES.md"), Path.Combine(folder, "THIRD-PARTY-NOTICES.md"), true);
+    File.Copy(Path.Combine(root, "LICENSE"), Path.Combine(folder, "LIZENZ.txt"), true);
     var docs = Path.Combine(folder, "Dokumentation");
     Directory.CreateDirectory(docs);
     foreach (var f in Directory.GetFiles(Path.Combine(root, "docs"), "*.md", SearchOption.AllDirectories))
@@ -172,7 +173,7 @@ void AddDocs(string folder)
 string ReadMe(string platform, string howTo) =>
     $"Sententiam converte {version} – {platform}\n\n{howTo}\n\n" +
     "Handbuch: im Programm unter „Hilfe“ (F1) und im Ordner „Dokumentation“.\n" +
-    "Lizenzen der verwendeten Bibliotheken: THIRD-PARTY-NOTICES.md\n";
+    "Lizenz: LIZENZ.txt · Lizenzen der verwendeten Bibliotheken: THIRD-PARTY-NOTICES.md\n";
 
 string Zip(string folder, string name, string top)
 {

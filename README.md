@@ -5,6 +5,15 @@ Qualitätsprüfung und Projektverwaltung – erweitert um KI-Agenten, die im Net
 ob Ausdrücke wirklich üblich sind, und Übersetzungsvarianten bewerten.
 
 Läuft auf **Windows, Linux, macOS** (Desktop) und **Android** aus einer gemeinsamen Codebasis (.NET 10, Avalonia 12).
+Oberfläche und Handbuch auf Deutsch und Englisch.
+
+**Download:** fertige Pakete für alle Plattformen auf der
+[Release-Seite](https://github.com/Jakubix-tech/sententiam-converte/releases/latest) – entpacken bzw. installieren
+und starten, keine weitere Software nötig. Hinweise zur Installation stehen in `LIESMICH.txt` im jeweiligen Paket.
+
+*CAT tool (computer-assisted translation) with translation memory, terminology, QA and AI agents for research,
+usage checks and term comparison. Downloads for Windows, Linux, macOS and Android on the release page; English user
+interface and manual included (Settings → User interface language).*
 
 ## Aufbau
 
@@ -221,6 +230,13 @@ Für kleine lokale Modelle „Zeichen pro Webseite“ auf etwa 2000–3000 senke
   wissen/projekt.sckb     Projekt-Wissen
   paket/                  Originalpaket, falls das Projekt aus einem Paket stammt
 ```
+
+## Lizenz
+
+Proprietär, alle Rechte vorbehalten – siehe [LICENSE](LICENSE). Die veröffentlichten Programmpakete dürfen
+kostenlos für private und berufliche Übersetzungsarbeit genutzt werden; die Entwicklerpakete und die
+Beispiel-Erweiterung dürfen zum Schreiben eigener Erweiterungen verwendet werden. Der Quellcode darf angesehen,
+aber ohne Zustimmung nicht weiterverwendet werden. Bibliotheken Dritter: [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 ## Rechtliches
 
