@@ -6,8 +6,8 @@
              x:DataType="vm:ExtensionsViewModel">
     <ScrollViewer>
         <StackPanel Margin="16" Spacing="10" MaxWidth="1100" HorizontalAlignment="Left">
-            <TextBlock Text="{l:T 'Erweiterungen'}" FontSize="18" FontWeight="SemiBold" />
-            <TextBlock TextWrapping="Wrap" Opacity="0.8"
+            <TextBlock Text="{l:T 'Erweiterungen'}" Classes="h2" />
+            <TextBlock TextWrapping="Wrap" Classes="muted"
                        Text="{l:T 'Erweiterungen von anderen Entwicklern fügen Dateiformate, QA-Prüfungen und Befehle hinzu. Eine Erweiterung ist Programmcode und läuft mit Ihren Rechten – installieren und einschalten Sie nur Erweiterungen aus vertrauenswürdiger Quelle. Neu installierte Erweiterungen sind zunächst ausgeschaltet.'}" />
             <WrapPanel>
                 <Button Content="{l:T 'Erweiterung installieren …'}" Command="{Binding InstallCommand}" Classes="accent" Margin="0,0,8,4" />
@@ -24,19 +24,19 @@
                                 <DataTemplate x:DataType="vm:ExtensionRow">
                                     <StackPanel Spacing="2" Margin="0,2">
                                         <TextBlock Text="{Binding Header, Converter={x:Static l:L.Text}}" FontWeight="SemiBold" />
-                                        <TextBlock Text="{Binding State, Converter={x:Static l:L.Text}}" FontSize="11" Opacity="0.7" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding State, Converter={x:Static l:L.Text}}" FontSize="11" Classes="muted" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
-                        <TextBlock Text="{l:T 'Noch keine Erweiterungen installiert.'}" Opacity="0.6" Margin="10" TextWrapping="Wrap"
+                        <TextBlock Text="{l:T 'Noch keine Erweiterungen installiert.'}" Classes="muted" Margin="10" TextWrapping="Wrap"
                                    IsVisible="{Binding !Items.Count}" />
                     </Panel>
                 </Border>
 
                 <StackPanel Grid.Column="2" Spacing="6" IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}">
-                    <TextBlock Text="{Binding Selected.Header}" FontSize="16" FontWeight="SemiBold" />
-                    <TextBlock Text="{Binding Selected.Author, Converter={x:Static l:L.Text}}" Opacity="0.75" />
+                    <TextBlock Text="{Binding Selected.Header}" Classes="h2" />
+                    <TextBlock Text="{Binding Selected.Author, Converter={x:Static l:L.Text}}" Classes="muted" />
                     <TextBlock Text="{Binding Selected.State, Converter={x:Static l:L.Text}}" />
                     <TextBlock Text="{Binding Selected.Description}" TextWrapping="Wrap" />
                     <TextBlock Text="{l:T 'Stellt bereit:'}" FontWeight="SemiBold" Margin="0,6,0,0" />
@@ -62,8 +62,8 @@
                 </StackPanel>
             </Grid>
 
-            <TextBlock Text="{l:T 'Befehle'}" FontSize="16" FontWeight="SemiBold" Margin="0,12,0,0" />
-            <TextBlock Text="{Binding ContextInfo, Converter={x:Static l:L.Text}}" Opacity="0.75" TextWrapping="Wrap" />
+            <TextBlock Text="{l:T 'Befehle'}" Classes="h2" Margin="0,12,0,0" />
+            <TextBlock Text="{Binding ContextInfo, Converter={x:Static l:L.Text}}" Classes="muted" TextWrapping="Wrap" />
             <Grid ColumnDefinitions="360,16,*">
                 <Border BorderThickness="1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" MinHeight="160">
                     <Panel>
@@ -72,12 +72,12 @@
                                 <DataTemplate x:DataType="vm:CommandRow">
                                     <StackPanel Spacing="2" Margin="0,2">
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                                        <TextBlock Text="{Binding Info, Converter={x:Static l:L.Text}}" FontSize="11" Opacity="0.7" />
+                                        <TextBlock Text="{Binding Info, Converter={x:Static l:L.Text}}" FontSize="11" Classes="muted" />
                                     </StackPanel>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
-                        <TextBlock Text="{l:T 'Eingeschaltete Erweiterungen zeigen hier ihre Befehle.'}" Opacity="0.6" Margin="10" TextWrapping="Wrap"
+                        <TextBlock Text="{l:T 'Eingeschaltete Erweiterungen zeigen hier ihre Befehle.'}" Classes="muted" Margin="10" TextWrapping="Wrap"
                                    IsVisible="{Binding !Commands.Count}" />
                     </Panel>
                 </Border>

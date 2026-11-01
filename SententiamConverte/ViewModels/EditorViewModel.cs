@@ -75,6 +75,8 @@ public enum SegmentFilter { All, Open, Unconfirmed, WithIssues }
 public partial class EditorViewModel : ViewModelBase
 {
     private readonly MainViewModel _main;
+
+    public MainViewModel Main => _main;
     private BilingualDocument? _doc;
     private List<SegmentViewModel> _all = new();
     private CancellationTokenSource? _lookupCts;
@@ -119,6 +121,57 @@ public partial class EditorViewModel : ViewModelBase
     [ObservableProperty] public partial int SidePanelTab { get; set; }
     [ObservableProperty] public partial bool CanResegment { get; set; }
 
+    // ---------- Darstellung wie in einer Textverarbeitung ----------
+
+    /// <summary>Schriftgröße der Segmenttexte (Zoom).</summary>
+    [ObservableProperty] public partial double EditorFontSize { get; set; } = 15;
+
+    /// <summary>Rechtschreibfehler beim Tippen unterstreichen.</summary>
+    [ObservableProperty] public partial bool SpellCheckEnabled { get; set; } = true;
+
+    [ObservableProperty] public partial string? SourceLanguage { get; set; }
+    [ObservableProperty] public partial string? TargetLanguage { get; set; }
+
+    /// <summary>Für die Zielsprache ist kein Wörterbuch geladen – der Editor bietet es an.</summary>
+    [ObservableProperty] public partial bool DictionaryMissing { get; set; }
+    [ObservableProperty] public partial string DictionaryInfo { get; set; } = "";
+
+    [RelayCommand]
+    private void ZoomIn() => EditorFontSize = Math.Min(EditorFontSize + 1, 28);
+
+    [RelayCommand]
+    private void ZoomOut() => EditorFontSize = Math.Max(EditorFontSize - 1, 10);
+
+    private void CheckDictionary(string language)
+    {
+        var spell = AppServices.Spell;
+        DictionaryMissing = !spell.IsAvailable(language) && SententiamConverte.Core.Qa.SpellChecker.DownloadableLanguages.Any(l => Core.Model.Languages.Matches(l, language));
+        DictionaryInfo = DictionaryMissing ? $"Für {language} ist noch kein Wörterbuch geladen – ohne Wörterbuch werden keine Rechtschreibfehler angezeigt." : "";
+        if (!DictionaryMissing) _ = spell.PreloadAsync(language);
+    }
+
+    /// <summary>Freies Wörterbuch der Zielsprache laden (LibreOffice-Projekt) und sofort prüfen.</summary>
+    [RelayCommand]
+    private async Task DownloadDictionary()
+    {
+        if (TargetLanguage is not { } lang) return;
+        DictionaryInfo = "Lade Wörterbuch …";
+        try
+        {
+            await AppServices.Spell.DownloadAsync(lang);
+            await AppServices.Spell.PreloadAsync(lang);
+            CheckDictionary(lang);
+            var current = TargetLanguage;
+            TargetLanguage = null;                        // Editoren prüfen neu
+            TargetLanguage = current;
+            _main.Status = $"Wörterbuch {lang} geladen.";
+        }
+        catch (Exception ex) when (ex is System.Net.Http.HttpRequestException or System.IO.IOException or NotSupportedException or TaskCanceledException)
+        {
+            DictionaryInfo = "Fehler: " + ex.Message;
+        }
+    }
+
     /// <summary>Kommentar zum gewählten Segment.</summary>
     public string Comment
     {
@@ -145,9 +198,12 @@ public partial class EditorViewModel : ViewModelBase
         _doc = doc;
         CurrentFile = file;
         DocumentTitle = $"{file.OriginalName} · {doc.SourceLanguage} → {doc.TargetLanguage}";
+        SourceLanguage = doc.SourceLanguage;
+        TargetLanguage = doc.TargetLanguage;
+        CheckDictionary(doc.TargetLanguage);
         CanResegment = Workflow.CanResegment(doc) && !project.IsShared;
         StartSync(project, file, doc);
-        _all = doc.Paragraphs.SelectMany(p => p.Segments.Select(s => new SegmentViewModel(s, p.Context))).ToList();
+        _all = doc.Paragraphs.SelectMany(p => p.Segments.Select(s => new SegmentViewModel(s, p.Context, p.TagData))).ToList();
         ApplyFilter();
         UpdateProgress();
         Selected = Segments.FirstOrDefault(s => !s.Model.IsConfirmed && !s.IsLocked) ?? Segments.FirstOrDefault();
@@ -403,7 +459,7 @@ public partial class EditorViewModel : ViewModelBase
     private void RebuildRows(Segment keep)
     {
         if (_doc == null) return;
-        _all = _doc.Paragraphs.SelectMany(p => p.Segments.Select(s => new SegmentViewModel(s, p.Context))).ToList();
+        _all = _doc.Paragraphs.SelectMany(p => p.Segments.Select(s => new SegmentViewModel(s, p.Context, p.TagData))).ToList();
         ApplyFilter();
         UpdateProgress();
         SaveIfOpen();

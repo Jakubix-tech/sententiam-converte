@@ -74,8 +74,19 @@ TMX, TBX and .sdltm are imported under **TM & Terminology**. Extensions can add 
 
 ## The editor
 
-Double-click a file (or click **Open**) to load it into the editor. The source is on the left, the target on the right.
+Double-click a file (or click **Open**) to load it into the editor. The source is on the left, the target on the right –
+as a table with a status colour at the edge.
 
+The editor works like a word processor:
+
+- **Formatting is visible**: text that is bold, italic, underlined, superscript or subscript in the original
+  appears that way – in source and target. The tags (⟨1⟩ … ⟨/1⟩) remain visible as small coloured markers.
+- **Ctrl+B / Ctrl+I / Ctrl+U** (or the **B**, **I**, **U** buttons) apply the matching formatting from the
+  source around the selection or around what you type next.
+- **Spell checking as you type**: unknown words get a red wavy underline; right-click shows suggestions and
+  “Add to dictionary”. If the target-language dictionary is missing, the editor offers it at the top with one click
+  (free dictionaries from the LibreOffice project). The button with the check mark switches checking off.
+- **Undo/Redo** (Ctrl+Z / Ctrl+Y), **Larger/Smaller** (magnifier) for the font size.
 - **Tags** (⟨1⟩ … ⟨/1⟩) represent formatting. They must appear in the target; the program shows missing tags
   below the segment, and **Ctrl+Shift+G** inserts the next missing tag at the cursor position.
 - **Status**: not translated, draft, translated, translation rejected, reviewed, review rejected, signed off. Locked segments (e.g. numbers only) cannot be edited.
@@ -109,6 +120,9 @@ While you type, **AutoSuggest** offers words and phrases from the TM and the ter
 | Ctrl+Ins / Ctrl+Del | Copy source to target / clear target |
 | Alt+T / Alt+Z | Split segment at the cursor position in the source text / merge with the next segment |
 | Tab or Enter | Accept AutoSuggest suggestion (↑/↓ to select, Esc to close) |
+| Ctrl+B / Ctrl+I / Ctrl+U | Apply the source's formatting (bold, italic, underline) |
+| Ctrl+Z / Ctrl+Y | Undo / redo |
+| Right-click a word with a red underline | Spelling suggestions |
 | Ctrl+Shift+G | Insert next missing tag |
 | F3 | Search for the selected text in the concordance |
 | Ctrl+F2 | Add the selected source and target text as a term |
@@ -182,6 +196,21 @@ attached per project and per language – locally or on the team server.
 - **Team activity**: who in the team has recently contributed what.
 
 ## Setting up AI
+
+The easiest way is **Settings → Set up AI**: choose one of three ways and click **Use** – the program creates
+the connection, tests it and (optionally) uses it for translation, research and evaluation.
+
+- **Free via OpenCode**: if OpenCode is installed, the program starts it in the background and offers its free
+  models (free ones first, with a note on data use). The requests go through OpenCode itself, as OpenCode requires
+  for its free models. The free models have a daily quota; when it is used up, the program says when it is
+  available again.
+- **Local on this computer**: **Search** finds Ollama, LM Studio, llama.cpp and similar servers automatically,
+  including their models. Free and confidential – the texts never leave the computer.
+- **Free with your own key**: OpenRouter (models ending in “:free”), Google Gemini or Groq. **Get key** opens the
+  provider's page; paste the key and **Connect** shows the free models. Free cloud tiers have volume limits and
+  partly store inputs – not for confidential texts.
+
+Manual setup is under **Advanced: edit AI connections manually**.
 
 **Settings → AI connections**: choose a template (Claude, local with llama.cpp/Ollama/LM Studio, OpenAI,
 Mistral, OpenRouter, custom server …), adjust the address and model, click **Test selected connection**, and save.

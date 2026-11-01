@@ -75,11 +75,15 @@ public partial class SettingsViewModel : ViewModelBase
     {
         _main = main;
         Load();
+        Setup = new AiSetupViewModel(this);
     }
+
+    /// <summary>„KI einrichten“ in wenigen Klicks.</summary>
+    public AiSetupViewModel Setup { get; }
 
     public ObservableCollection<ProviderViewModel> Providers { get; } = new();
     public IReadOnlyList<AiProviderConfig> Presets { get; } = AiSettings.Presets();
-    public IReadOnlyList<string> KindNames { get; } = new[] { "OpenAI-kompatibel (lokal oder Cloud)", "Anthropic Claude" }.Select(L.T).ToList();
+    public IReadOnlyList<string> KindNames { get; } = new[] { "OpenAI-kompatibel (lokal oder Cloud)", "Anthropic Claude", "OpenCode (eigene Installation)" }.Select(L.T).ToList();
     public IReadOnlyList<string> SearchNames { get; } = new[] { "Keine", "SearXNG (eigener Server)", "Brave Search (API-Schlüssel)", "Tavily (API-Schlüssel)", "Claude-Websuche" }.Select(L.T).ToList();
 
     [ObservableProperty] public partial ProviderViewModel? Selected { get; set; }

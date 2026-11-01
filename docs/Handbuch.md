@@ -74,10 +74,21 @@ hinzufügen (die Beispiel-Erweiterung bringt z. B. CSV mit).
 
 ## Der Editor
 
-Doppelklick auf eine Datei (oder **Öffnen**) lädt sie in den Editor. Links steht die Quelle, rechts das Ziel.
+Doppelklick auf eine Datei (oder **Öffnen**) lädt sie in den Editor. Links steht die Quelle, rechts das Ziel –
+als Tabelle mit Statusfarbe am Rand.
 
-- **Tags** (⟨1⟩ … ⟨/1⟩) stehen für Formatierungen. Sie müssen im Ziel vorkommen; fehlende Tags zeigt das
-  Programm unter dem Segment an, **Strg+Umschalt+G** setzt den nächsten fehlenden an der Cursorposition ein.
+Der Editor arbeitet wie eine Textverarbeitung:
+
+- **Formatierung sichtbar**: Text, der im Original fett, kursiv, unterstrichen, hoch- oder tiefgestellt ist,
+  erscheint auch so – in Quelle und Ziel. Die Tags (⟨1⟩ … ⟨/1⟩) bleiben als kleine farbige Marken sichtbar.
+- **Strg+B / Strg+I / Strg+U** (oder die Knöpfe **B**, **I**, **U**) setzen die passende Formatierung aus der
+  Quelle um die Markierung bzw. um das, was man danach tippt.
+- **Rechtschreibung beim Tippen**: Unbekannte Wörter werden rot gewellt unterstrichen; Rechtsklick zeigt
+  Vorschläge und „Ins Wörterbuch aufnehmen“. Fehlt das Wörterbuch der Zielsprache, bietet der Editor es oben mit
+  einem Klick an (freie Wörterbücher des LibreOffice-Projekts). Das Symbol mit dem Häkchen schaltet die Prüfung ab.
+- **Rückgängig/Wiederholen** (Strg+Z / Strg+Y), **Größer/Kleiner** (Lupe) für die Schrift.
+- Fehlende Tags zeigt das Programm unter dem Segment an; **Strg+Umschalt+G** setzt den nächsten fehlenden an
+  der Cursorposition ein.
 - **Status**: nicht übersetzt, Entwurf, übersetzt, abgelehnt, lektoriert, Lektorat abgelehnt, abgezeichnet. Gesperrte Segmente (z. B. reine Zahlen) sind nicht bearbeitbar.
 - **✔ Bestätigen** (Strg+Eingabe) speichert das Segment ins TM und springt zum nächsten offenen Segment.
   Gleiche Segmente weiter unten werden automatisch übernommen.
@@ -109,6 +120,9 @@ Beim Tippen schlägt **AutoSuggest** Wörter und Wendungen aus TM und Terminolog
 | Strg+Einfg / Strg+Entf | Quelle ins Ziel kopieren / Ziel leeren |
 | Alt+T / Alt+Z | Segment an der Cursorposition im Quelltext teilen / mit dem nächsten zusammenführen |
 | Tab oder Eingabe | AutoSuggest-Vorschlag übernehmen (↑/↓ wählen, Esc schließen) |
+| Strg+B / Strg+I / Strg+U | Formatierung der Quelle setzen (fett, kursiv, unterstrichen) |
+| Strg+Z / Strg+Y | rückgängig / wiederholen |
+| Rechtsklick auf ein rot unterstrichenes Wort | Rechtschreibvorschläge |
 | Strg+Umschalt+G | nächsten fehlenden Tag einsetzen |
 | F3 | markierten Text in der Konkordanz suchen |
 | Strg+F2 | markierten Quell- und Zieltext als Begriff aufnehmen |
@@ -183,8 +197,21 @@ pro Projekt und pro Sprache anbinden – lokal oder auf dem Teamserver.
 
 ## KI einrichten
 
-**Einstellungen → KI-Zugänge**: Vorlage wählen (Claude, lokal mit llama.cpp/Ollama/LM Studio, OpenAI,
-Mistral, OpenRouter, eigener Server …), Adresse und Modell anpassen, **Gewählten Zugang testen**, speichern.
+Am einfachsten über **Einstellungen → KI einrichten**: einen von drei Wegen wählen, **Verwenden** klicken –
+das Programm legt den Zugang an, testet ihn und nutzt ihn (auf Wunsch) für Übersetzen, Recherche und Bewertung.
+
+- **Kostenlos über OpenCode**: Ist OpenCode installiert, startet das Programm es im Hintergrund und bietet
+  dessen kostenlose Modelle an (kostenlose zuerst, mit Hinweis zur Datennutzung). Die Anfragen laufen über
+  OpenCode selbst, wie es OpenCode für seine kostenlosen Modelle vorschreibt. Die kostenlosen Modelle haben ein
+  Tageskontingent; ist es aufgebraucht, sagt das Programm, ab wann es wieder geht.
+- **Lokal auf diesem Rechner**: **Suchen** findet Ollama, LM Studio, llama.cpp und ähnliche Server automatisch,
+  samt ihrer Modelle. Kostenlos und vertraulich – die Texte verlassen den Rechner nicht.
+- **Kostenlos mit eigenem Schlüssel**: OpenRouter (Modelle mit „:free“), Google Gemini oder Groq. **Schlüssel
+  holen** öffnet die Seite des Anbieters, Schlüssel einfügen, **Verbinden** zeigt die kostenlosen Modelle.
+  Kostenlose Cloud-Stufen haben Mengenbegrenzungen und speichern Eingaben teilweise – nicht für vertrauliche Texte.
+
+Von Hand geht es unter **Erweitert: KI-Zugänge von Hand bearbeiten**: Vorlage wählen (Claude, lokal,
+OpenAI, Mistral, OpenRouter, OpenCode, eigener Server …), Adresse und Modell anpassen, testen, speichern.
 
 - API-Schlüssel können als `env:NAME` eingetragen werden (z. B. `env:ANTHROPIC_API_KEY`); dann steht der
   Schlüssel nicht in der Einstellungsdatei.

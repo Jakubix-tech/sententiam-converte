@@ -11,11 +11,15 @@ public partial class SegmentViewModel : ObservableObject
     public Segment Model { get; }
     public string? Context { get; }
 
-    public SegmentViewModel(Segment model, string? context)
+    public SegmentViewModel(Segment model, string? context, System.Collections.Generic.IReadOnlyDictionary<int, string>? tagData = null)
     {
         Model = model;
         Context = context;
+        TagData = tagData;
     }
+
+    /// <summary>Tag-Daten des Absatzes: welche Formatierung ein Tag-Paar trägt (für die Anzeige im Editor).</summary>
+    public System.Collections.Generic.IReadOnlyDictionary<int, string>? TagData { get; }
 
     public int Id => Model.Id;
     public string Source => Model.Source;

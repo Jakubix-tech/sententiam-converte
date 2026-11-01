@@ -7,6 +7,8 @@ Sententiam converte nutzt folgende Bibliotheken. Ihre Lizenzen gelten für den j
 | Avalonia (inkl. Themes.Fluent, Fonts.Inter, Desktop, Android) | Oberfläche | MIT |
 | SkiaSharp, HarfBuzzSharp | Darstellung (über Avalonia) | MIT |
 | CommunityToolkit.Mvvm | MVVM-Hilfen | MIT |
+| AvaloniaEdit | Texteditor im Editor (Formatierung, Rechtschreib-Unterstreichung, Rückgängig) | MIT |
+| Fluent UI System Icons (Microsoft) | Symbole der Oberfläche | MIT |
 | DocumentFormat.OpenXml | DOCX, XLSX, PPTX lesen und schreiben | MIT |
 | PdfPig | Text aus PDF lesen | Apache-2.0 |
 | AngleSharp | HTML lesen und schreiben | MIT |

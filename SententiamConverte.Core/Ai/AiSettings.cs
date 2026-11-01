@@ -9,6 +9,8 @@ public enum AiProviderKind
     OpenAiCompatible,
     /// <summary>Claude über die Anthropic-API (mit eingebauter Websuche).</summary>
     Anthropic,
+    /// <summary>Über die eigene OpenCode-Installation (auch deren kostenlose Modelle). Modell als „Anbieter/Modell“.</summary>
+    OpenCode,
 }
 
 /// <summary>Ein frei definierbarer KI-Zugang.</summary>

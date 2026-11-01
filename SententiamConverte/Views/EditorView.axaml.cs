@@ -48,7 +48,7 @@ public partial class EditorView : UserControl
             Split.RowDefinitions.Add(new RowDefinition(GridLength.Star));
             Split.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             Split.RowDefinitions.Add(new RowDefinition(new GridLength(320)));
-            Grid.SetColumn(SegmentList, 0); Grid.SetRow(SegmentList, 0);
+            Grid.SetColumn(SegmentArea, 0); Grid.SetRow(SegmentArea, 0);
             Grid.SetColumn(Splitter, 0); Grid.SetRow(Splitter, 1);
             Grid.SetColumn(SidePanel, 0); Grid.SetRow(SidePanel, 2);
             Splitter.ResizeDirection = GridResizeDirection.Rows;
@@ -60,7 +60,7 @@ public partial class EditorView : UserControl
             Split.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
             Split.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
             Split.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(400)));
-            Grid.SetRow(SegmentList, 0); Grid.SetColumn(SegmentList, 0);
+            Grid.SetRow(SegmentArea, 0); Grid.SetColumn(SegmentArea, 0);
             Grid.SetRow(Splitter, 0); Grid.SetColumn(Splitter, 1);
             Grid.SetRow(SidePanel, 0); Grid.SetColumn(SidePanel, 2);
             Splitter.ResizeDirection = GridResizeDirection.Columns;
@@ -84,23 +84,18 @@ public partial class EditorView : UserControl
         if (_vm?.Selected == null) return;
         var (src, _) = RowControls(_vm.Selected);
         if (src == null) return;
-        var display = Math.Min(src.SelectionStart, src.SelectionEnd);
-        if (display <= 0)
-        {
-            _vm.SplitAt(-1);   // meldet „hier nicht möglich“
-            return;
-        }
-        _vm.SplitAt(TagHighlight.DisplayToSourceIndex(_vm.Selected.Source, display));
+        var position = src.TextArea.Selection.IsEmpty ? src.CaretOffset : src.SelectionStart;
+        _vm.SplitAt(position <= 0 ? -1 : position);       // -1 meldet „hier nicht möglich“
     }
 
     // ---------- AutoSuggest ----------
 
-    private TextBox? _suggestTarget;
+    private SegmentTextBox? _suggestTarget;
     private bool _inserting;
 
-    private void OnTargetTextChanged(object? sender, TextChangedEventArgs e)
+    private void OnTargetTextChanged(object? sender, EventArgs e)
     {
-        if (_inserting || _vm == null || sender is not TextBox { IsFocused: true } box) return;
+        if (_inserting || _vm == null || sender is not SegmentTextBox { IsKeyboardFocusWithin: true } box) return;
         var text = box.Text ?? "";
         var caret = Math.Min(box.CaretIndex, text.Length);
         var start = caret;
@@ -129,11 +124,11 @@ public partial class EditorView : UserControl
         var start = caret;
         while (start > 0 && !char.IsWhiteSpace(text[start - 1]) && text[start - 1] != TagText.Close) start--;
         _inserting = true;
-        box.Text = text[..start] + suggestion + text[caret..];
+        box.Document.Replace(start, caret - start, suggestion);
         box.CaretIndex = start + suggestion.Length;
         _inserting = false;
         SuggestPopup.IsOpen = false;
-        box.Focus();
+        box.TextArea.Focus();
     }
 
     // ---------- Tags ----------
@@ -147,10 +142,36 @@ public partial class EditorView : UserControl
         var target = box.Text ?? "";
         var next = TagText.Tags(seg.Source).Select(t => seg.Source.Substring(t.Index, t.Length)).FirstOrDefault(t => !target.Contains(t));
         if (next == null) return;
-        var caret = Math.Min(box.CaretIndex, target.Length);
-        box.Text = target[..caret] + next + target[caret..];
-        box.CaretIndex = caret + next.Length;
-        box.Focus();
+        box.InsertAtCaret(next);
+        box.TextArea.Focus();
+    }
+
+    // ---------- Bearbeiten wie in einer Textverarbeitung ----------
+
+    private SegmentTextBox? ActiveTarget() => _vm?.Selected is { } seg ? RowControls(seg).Target : null;
+
+    private void OnUndoClick(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveTarget() is { } box && box.CanUndo) box.Undo();
+    }
+
+    private void OnRedoClick(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveTarget() is { } box && box.CanRedo) box.Redo();
+    }
+
+    private void OnBoldClick(object? sender, RoutedEventArgs e) => Format(TextFormat.Bold);
+    private void OnItalicClick(object? sender, RoutedEventArgs e) => Format(TextFormat.Italic);
+    private void OnUnderlineClick(object? sender, RoutedEventArgs e) => Format(TextFormat.Underline);
+    private void OnInsertTagClick(object? sender, RoutedEventArgs e) => InsertNextMissingTag();
+
+    /// <summary>Formatierung aus der Quelle übernehmen; ohne passendes Tag-Paar ein kurzer Hinweis.</summary>
+    private void Format(TextFormat format)
+    {
+        if (ActiveTarget() is not { } box || _vm == null) return;
+        if (!box.ApplyFormat(format))
+            _vm.Main.Status = $"Die Quelle enthält keine Formatierung „{TagFormat.Describe(format)}“, die im Ziel noch fehlt.";
+        box.TextArea.Focus();
     }
 
     // ---------- Begriff klären ----------
@@ -175,11 +196,11 @@ public partial class EditorView : UserControl
         if (QaList.SelectedItem is QaRow row) _vm?.GoToSegmentCommand.Execute(row);
     }
 
-    private (SelectableTextBlock? Source, TextBox? Target) RowControls(SegmentViewModel seg)
+    private (SegmentTextBox? Source, SegmentTextBox? Target) RowControls(SegmentViewModel seg)
     {
         if (SegmentList.ContainerFromItem(seg) is not Control container) return (null, null);
-        var descendants = container.GetVisualDescendants().ToList();
-        return (descendants.OfType<SelectableTextBlock>().FirstOrDefault(), descendants.OfType<TextBox>().FirstOrDefault());
+        var boxes = container.GetVisualDescendants().OfType<SegmentTextBox>().ToList();
+        return (boxes.FirstOrDefault(b => b.SourceText == null), boxes.FirstOrDefault(b => b.SourceText != null));
     }
 
     private void FocusSegment(SegmentViewModel seg)
@@ -189,8 +210,8 @@ public partial class EditorView : UserControl
         {
             var (_, box) = RowControls(seg);
             if (box == null) return;
-            box.Focus();
-            box.CaretIndex = box.Text?.Length ?? 0;
+            box.TextArea.Focus();
+            box.CaretIndex = box.Document.TextLength;
         }, DispatcherPriority.Background);
     }
 
@@ -296,7 +317,7 @@ public partial class EditorView : UserControl
     {
         if (_vm?.Selected == null) return null;
         var (src, _) = RowControls(_vm.Selected);
-        var t = src?.SelectedText is { } shown ? TagHighlight.DisplayToPlain(shown) : null;
+        var t = src?.SelectedText is { Length: > 0 } shown ? TagText.StripTags(shown) : null;
         return string.IsNullOrWhiteSpace(t) ? null : t;
     }
 
@@ -304,7 +325,7 @@ public partial class EditorView : UserControl
     {
         if (_vm?.Selected == null) return null;
         var (_, box) = RowControls(_vm.Selected);
-        var t = box?.SelectedText;
+        var t = box?.SelectedText is { Length: > 0 } shown ? TagText.StripTags(shown) : null;
         return string.IsNullOrWhiteSpace(t) ? null : t;
     }
 }

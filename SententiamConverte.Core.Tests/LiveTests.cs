@@ -5,6 +5,46 @@ namespace SententiamConverte.Core.Tests;
 /// <summary>Tests gegen echte Dienste im Netz. Laufen nur auf Anforderung: dotnet test -- --explicit only</summary>
 public class LiveTests
 {
+    /// <summary>Eigene OpenCode-Installation: Server starten, Modelle (kostenlose zuerst) auflisten, wieder beenden.</summary>
+    [Fact(Explicit = true)]
+    public async Task OpenCodeInstallationListsFreeModels()
+    {
+        Assert.True(OpenCodeServer.IsInstalled, "OpenCode ist nicht installiert");
+        var config = new AiProviderConfig { Name = "OpenCode", Kind = AiProviderKind.OpenCode };
+        try
+        {
+            var models = await OpenCodeServer.ModelsAsync(config, TestContext.Current.CancellationToken);
+            foreach (var m in models.Take(12)) TestContext.Current.TestOutputHelper?.WriteLine($"{m.Id}  {(m.Free ? "kostenlos" : "")}  {m.DataNote}");
+            Assert.True(models.First().Free);
+            Assert.Contains(models, m => m.ProviderId == "opencode" && m.Free);
+        }
+        finally { OpenCodeServer.Stop(); }
+    }
+
+    /// <summary>Eine echte Übersetzung über ein kostenloses OpenCode-Modell (verbraucht einen Teil des Tageskontingents).</summary>
+    [Fact(Explicit = true)]
+    public async Task OpenCodeFreeModelTranslates()
+    {
+        var config = new AiProviderConfig { Name = "OpenCode", Kind = AiProviderKind.OpenCode, Model = "opencode/glm-5.3-flash-free", TimeoutSeconds = 180 };
+        try
+        {
+            var answer = await ChatModelFactory.Create(config).AskAsync("You are a professional translator. Answer only with the translation.",
+                "Translate from German into English: Das Gerät vor der Reinigung ausschalten.", TestContext.Current.CancellationToken);
+            TestContext.Current.TestOutputHelper?.WriteLine(answer);
+            File.WriteAllText(Path.Combine(Path.GetTempPath(), "sc-opencode-antwort.txt"), answer);
+            Assert.Contains("device", answer, StringComparison.OrdinalIgnoreCase);
+        }
+        finally { OpenCodeServer.Stop(); }
+    }
+
+    /// <summary>Lokale KI-Server auf den üblichen Ports.</summary>
+    [Fact(Explicit = true)]
+    public async Task DetectsLocalServers()
+    {
+        foreach (var s in await AiDiscovery.DetectLocalAsync(TestContext.Current.CancellationToken))
+            TestContext.Current.TestOutputHelper?.WriteLine($"{s.Name} {s.BaseUrl}: {string.Join(", ", s.Models)}");
+    }
+
     [Fact(Explicit = true)]
     public async Task FetcherReadsPage()
     {

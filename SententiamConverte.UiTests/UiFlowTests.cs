@@ -67,6 +67,7 @@ public sealed class FakePlatform : IPlatformServices
     public Task<string?> PickFolderAsync(string title) => Task.FromResult<string?>(null);
     public List<string> Opened { get; } = new();
     public Task<bool> OpenFileAsync(string path) { Opened.Add(path); return Task.FromResult(true); }
+    public Task<bool> OpenUrlAsync(string url) { Opened.Add(url); return Task.FromResult(true); }
 }
 
 public class UiFlowTests

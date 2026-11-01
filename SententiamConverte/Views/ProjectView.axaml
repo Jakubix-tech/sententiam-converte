@@ -17,11 +17,10 @@
                         ToolTip.Tip="{l:T 'Projekt auf dem Teamserver öffnen – mehrere Personen bearbeiten gleichzeitig dieselben Dateien'}" />
             </WrapPanel>
 
-            <Border IsVisible="{Binding ShowShared}" Padding="14" CornerRadius="6"
-                    BorderThickness="1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+            <Border IsVisible="{Binding ShowShared}" Classes="card">
                 <StackPanel Spacing="8">
-                    <TextBlock Text="{l:T 'Gemeinsame Projekte auf dem Teamserver'}" FontSize="18" FontWeight="SemiBold" />
-                    <TextBlock TextWrapping="Wrap" Opacity="0.8" FontSize="12"
+                    <TextBlock Text="{l:T 'Gemeinsame Projekte auf dem Teamserver'}" Classes="h2" />
+                    <TextBlock TextWrapping="Wrap" Classes="muted" FontSize="12"
                                Text="{l:T 'Mehrere Personen arbeiten gleichzeitig an denselben Dateien. Änderungen werden alle paar Sekunden abgeglichen; ein Segment, an dem jemand arbeitet, ist für die anderen gesperrt.'}" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <ComboBox ItemsSource="{Binding ServerNames}" SelectedItem="{Binding SharedServer}" MinWidth="180" />
@@ -32,7 +31,7 @@
                             <DataTemplate x:DataType="remote:SharedProjectInfo">
                                 <StackPanel>
                                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                                    <TextBlock FontSize="12" Opacity="0.7">
+                                    <TextBlock FontSize="12" Classes="muted">
                                         <Run Text="{Binding SourceLanguage}" /><Run Text=" → " /><Run Text="{Binding TargetLanguages.Count}" />
                                         <Run Text="{l:T ' Zielsprache(n) · '}" /><Run Text="{Binding Files.Count}" /><Run Text="{l:T ' Datei(en) · '}" /><Run Text="{Binding Topic}" />
                                     </TextBlock>
@@ -45,10 +44,9 @@
             </Border>
 
             <!-- Neues Projekt -->
-            <Border IsVisible="{Binding ShowNewProject}" Padding="14" CornerRadius="6"
-                    BorderThickness="1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+            <Border IsVisible="{Binding ShowNewProject}" Classes="card">
                 <StackPanel Spacing="8">
-                    <TextBlock Text="{l:T 'Neues Projekt'}" FontSize="18" FontWeight="SemiBold" />
+                    <TextBlock Text="{l:T 'Neues Projekt'}" Classes="h2" />
                     <TextBlock Text="{l:T 'Name'}" />
                     <TextBox Text="{Binding NewName}" PlaceholderText="{l:T 'z. B. Betriebsanleitung Pumpe P-200'}" />
                     <Grid ColumnDefinitions="*,12,*">
@@ -73,14 +71,15 @@
                         <Button Content="{l:T 'Anlegen'}" Command="{Binding CreateProjectCommand}" Classes="accent" />
                         <Button Content="{l:T 'Abbrechen'}" Command="{Binding CancelNewProjectCommand}" />
                     </StackPanel>
-                    <TextBlock Opacity="0.7" TextWrapping="Wrap" FontSize="12"
+                    <TextBlock Classes="muted" TextWrapping="Wrap" FontSize="12"
                                Text="{l:T 'Gängige Sprachcodes: de-DE, de-AT, de-CH, en-GB, en-US, pl-PL, fr-FR, it-IT, es-ES, nl-NL, cs-CZ, uk-UA …'}" />
                 </StackPanel>
             </Border>
 
             <!-- Zuletzt geöffnet -->
-            <StackPanel Spacing="4" IsVisible="{Binding !HasProject}">
-                <TextBlock Text="{l:T 'Zuletzt geöffnet'}" FontSize="16" FontWeight="SemiBold" />
+            <Border Classes="card" IsVisible="{Binding !HasProject}">
+                <StackPanel Spacing="6">
+                <TextBlock Text="{l:T 'Zuletzt geöffnet'}" Classes="h2" />
                 <ItemsControl ItemsSource="{Binding RecentProjects}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="x:String">
@@ -90,17 +89,20 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
-            </StackPanel>
+                </StackPanel>
+            </Border>
 
             <!-- Offenes Projekt -->
-            <StackPanel Spacing="10" IsVisible="{Binding HasProject}">
+            <StackPanel Spacing="14" IsVisible="{Binding HasProject}">
+                <Border Classes="card">
+                    <StackPanel Spacing="10">
                 <StackPanel Orientation="Horizontal" Spacing="10">
-                    <TextBlock Text="{Binding Project.Name}" FontSize="22" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Project.Name}" Classes="h1" />
                     <Border IsVisible="{Binding IsSharedProject}" Background="#2B6CB0" CornerRadius="4" Padding="6,2" VerticalAlignment="Center">
                         <TextBlock Text="{l:T 'Team'}" Foreground="White" FontSize="12" />
                     </Border>
                 </StackPanel>
-                <TextBlock Opacity="0.75">
+                <TextBlock Classes="muted">
                     <Run Text="{Binding Project.SourceLanguage}" />
                     <Run Text=" → " />
                     <Run Text="{Binding Project.TargetLanguages.Count}" />
@@ -155,7 +157,7 @@
                         <TextBlock Text="{l:T 'Unerwünschte Wörter (mit Komma getrennt)'}" />
                         <TextBox Text="{Binding ForbiddenWords}" />
                         <TextBlock Text="{l:T 'Eigene Regeln mit regulären Ausdrücken'}" FontWeight="SemiBold" Margin="0,6,0,0" />
-                        <TextBlock FontSize="12" Opacity="0.7" TextWrapping="Wrap"
+                        <TextBlock FontSize="12" Classes="muted" TextWrapping="Wrap"
                                    Text="{l:T 'Nur Ziel-Muster: Meldung, wenn es im Ziel vorkommt (z. B. „\s{2,}“). Mit Quell-Muster: Meldung, wenn die Quelle passt, das Ziel aber nicht (z. B. Quelle „©“, Ziel „©“).'}" />
                         <ItemsControl ItemsSource="{Binding RegexRules}">
                             <ItemsControl.ItemTemplate>
@@ -180,9 +182,13 @@
                     </StackPanel>
                 </Expander>
 
-                <TextBlock Text="{l:T 'Dateien'}" FontSize="16" FontWeight="SemiBold" />
+                    </StackPanel>
+                </Border>
+                <Border Classes="card">
+                    <StackPanel Spacing="10">
+                <TextBlock Text="{l:T 'Dateien'}" Classes="h2" />
                 <TextBlock Text="{l:T 'Unterstützt: DOCX, XLSX, PPTX, ODT/ODS/ODP, IDML, XLIFF (auch .sdlxliff), PDF (Ausgabe als DOCX), HTML, Markdown, RESX, JSON, PO, SRT/VTT, Text – und Formate aus Erweiterungen. TMX, TBX und .sdltm unter „TM &amp; Terminologie“.'}"
-                           Opacity="0.7" FontSize="12" TextWrapping="Wrap" />
+                           Classes="muted" FontSize="12" TextWrapping="Wrap" />
                 <ListBox ItemsSource="{Binding Files}" SelectedItem="{Binding SelectedFile}" MinHeight="80">
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:FileRowViewModel">
@@ -190,10 +196,10 @@
                                 <StackPanel Spacing="2">
                                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                                     <StackPanel Orientation="Horizontal" Spacing="10">
-                                        <TextBlock Text="{Binding Language}" Opacity="0.75" />
-                                        <TextBlock Opacity="0.75"><Run Text="{Binding Words}" /><Run Text="{l:T ' Wörter'}" /></TextBlock>
+                                        <TextBlock Text="{Binding Language}" Classes="muted" />
+                                        <TextBlock Classes="muted"><Run Text="{Binding Words}" /><Run Text="{l:T ' Wörter'}" /></TextBlock>
                                         <ProgressBar Value="{Binding Percent}" Maximum="100" Width="120" VerticalAlignment="Center" />
-                                        <TextBlock Opacity="0.75"><Run Text="{Binding Percent}" /><Run Text=" %" /></TextBlock>
+                                        <TextBlock Classes="muted"><Run Text="{Binding Percent}" /><Run Text=" %" /></TextBlock>
                                     </StackPanel>
                                 </StackPanel>
                                 <WrapPanel Grid.Column="1" VerticalAlignment="Center">
@@ -211,7 +217,11 @@
                     </ListBox.ItemTemplate>
                 </ListBox>
 
-                <TextBlock Text="{l:T 'Analyse'}" FontSize="16" FontWeight="SemiBold" />
+                    </StackPanel>
+                </Border>
+                <Border Classes="card">
+                    <StackPanel Spacing="10">
+                <TextBlock Text="{l:T 'Analyse'}" Classes="h2" />
                 <ItemsControl ItemsSource="{Binding AnalysisRows}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:AnalysisRow">
@@ -224,6 +234,8 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
+                    </StackPanel>
+                </Border>
             </StackPanel>
         </StackPanel>
     </ScrollViewer>

@@ -92,6 +92,45 @@ public sealed partial class SpellChecker
     [GeneratedRegex(@"\p{L}[\p{L}\p{M}'’\-]*")]
     private static partial Regex WordRegex();
 
+    /// <summary>Wörterbuch im Hintergrund laden, damit die erste Prüfung im Editor nicht stockt.</summary>
+    public Task PreloadAsync(string language) => Task.Run(() => { lock (_loaded) Load(language); });
+
+    /// <summary>
+    /// Fehler direkt im Segmenttext mit Tags: Positionen beziehen sich auf den Text samt Tags (für die Unterstreichung
+    /// im Editor). Vorschläge erst auf Anfrage über <see cref="Suggest"/>.
+    /// </summary>
+    public List<SpellingError> CheckTagged(string text, string language, ISet<string>? ignore = null)
+    {
+        WordList? list;
+        lock (_loaded) list = Load(language);
+        if (list == null || text.Length == 0) return [];
+        var user = UserWords(language);
+        // Tags durch Leerzeichen gleicher Länge ersetzen: die Positionen bleiben gültig
+        var masked = text.ToCharArray();
+        foreach (var t in TagText.Tags(text))
+            for (var i = t.Index; i < t.Index + t.Length; i++) masked[i] = ' ';
+        var errors = new List<SpellingError>();
+        foreach (Match m in WordRegex().Matches(new string(masked)))
+        {
+            var lead = m.Value.Length - m.Value.TrimStart('\'', '’', '-').Length;
+            var w = m.Value.Trim('\'', '’', '-');
+            if (w.Length < 2 || w.All(char.IsUpper) || w.Any(char.IsDigit) || user.Contains(w) || ignore?.Contains(w) == true) continue;
+            bool ok;
+            lock (list) ok = list.Check(w) || (w.Contains('-') && w.Split('-').All(p => p.Length == 0 || list.Check(p) || user.Contains(p)));
+            if (!ok) errors.Add(new SpellingError(w, m.Index + lead, []));
+        }
+        return errors;
+    }
+
+    /// <summary>Vorschläge für ein Wort.</summary>
+    public List<string> Suggest(string word, string language, int max = 6)
+    {
+        WordList? list;
+        lock (_loaded) list = Load(language);
+        if (list == null) return [];
+        lock (list) return list.Suggest(word).Take(max).ToList();
+    }
+
     /// <summary>Unbekannte Wörter im Text. Wörter in <paramref name="ignore"/> (z. B. Terminologie) gelten als richtig.</summary>
     public List<SpellingError> Check(string text, string language, ISet<string>? ignore = null, bool withSuggestions = true)
     {

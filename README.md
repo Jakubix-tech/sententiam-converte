@@ -46,7 +46,12 @@ interface and manual included (Settings → User interface language).*
 - Zieldatei im Originalformat erzeugen, Vorschau, zweisprachiges XLIFF exportieren
 
 **Editor**
-- Quelle/Ziel nebeneinander, Tags farbig hervorgehoben, Status je Segment, Filter, Suchen/Ersetzen
+- **Wie eine Textverarbeitung**: Formatierungen des Originals (fett, kursiv, unterstrichen, hoch-/tiefgestellt)
+  sind in Quelle und Ziel sichtbar, Tags erscheinen als dezente Marken; Strg+B/I/U setzen die passende Formatierung
+  der Quelle; Rückgängig/Wiederholen; Schriftgröße per Zoom
+- **Rechtschreibung beim Tippen**: rote Wellenlinie unter unbekannten Wörtern, Vorschläge per Rechtsklick,
+  eigenes Wörterbuch; fehlt das Wörterbuch der Zielsprache, bietet der Editor es mit einem Klick an
+- Quelle/Ziel als Tabelle mit Statusfarbe, Filter, Suchen/Ersetzen
 - TM-Treffer mit Prozentwert; Zahlen in unscharfen Treffern werden automatisch angepasst
 - **Kontext im TM**: Jede Übersetzung wird mit vorherigem/nächstem Satz und Stelle im Dokument gespeichert.
   Gleicher Satz im gleichen Zusammenhang = **Kontexttreffer (101 %)**; bei Software-Texten zählt die gleiche ID.
@@ -117,10 +122,16 @@ interface and manual included (Settings → User interface language).*
   Anleitung: [docs/Erweiterungen-entwickeln.md](docs/Erweiterungen-entwickeln.md)
 
 **Oberfläche und Hilfe**
+- Aufgeräumtes Erscheinungsbild: Navigationsleiste mit Symbolen, Karten, Werkzeugleiste mit Symbolen,
+  helles und dunkles Design (folgt dem System)
 - Deutsch und Englisch (Einstellungen → Sprache der Oberfläche; Standard: Systemsprache)
 - Handbuch, API-Referenz und Entwickleranleitung im Programm unter „Hilfe“ (F1), mit Suche
 
 **KI**
+- **KI einrichten in einem Klick** (Einstellungen): kostenlos über die eigene **OpenCode**-Installation (deren
+  kostenlose Modelle, Anfragen laufen über OpenCode selbst), **lokale Server** (Ollama, LM Studio, llama.cpp …)
+  werden automatisch gefunden, oder **kostenlose Cloud-Stufen** mit eigenem Schlüssel (OpenRouter, Gemini, Groq);
+  jeder Weg wird sofort getestet und auf Wunsch für alle Aufgaben genutzt
 - KI-Zugänge frei definierbar: Claude (Anthropic-API) oder jeder Server mit OpenAI-kompatibler Schnittstelle,
   lokal (llama.cpp/Strata, Ollama, LM Studio, vLLM) oder in der Cloud. Je Aufgabe ein anderer Zugang möglich.
 - **Themenrecherche**: Suchanfragen in jeder Sprache, Fachtexte lesen, mehrsprachige Begriffsliste mit Belegen

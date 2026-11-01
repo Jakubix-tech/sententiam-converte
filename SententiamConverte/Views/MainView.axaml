@@ -14,36 +14,37 @@
 
     <DockPanel>
         <!-- Statusleiste -->
-        <Border DockPanel.Dock="Bottom" Padding="10,4" Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+        <Border DockPanel.Dock="Bottom" Padding="12,5" Background="{DynamicResource ToolbarBackground}"
+                BorderBrush="{DynamicResource CardBorder}" BorderThickness="0,1,0,0">
             <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Text="{Binding Status, Converter={x:Static l:L.Text}}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                 <ProgressBar Grid.Column="1" IsIndeterminate="True" Width="120" IsVisible="{Binding IsBusy}" />
             </Grid>
         </Border>
 
-        <TabControl SelectedIndex="{Binding SelectedTab}" Padding="0">
-            <TabItem Header="{l:T 'Projekt'}">
+        <TabControl Classes="nav" SelectedIndex="{Binding SelectedTab}">
+            <TabItem Header="{l:T 'Projekt'}" Tag="{StaticResource Nav.Project}">
                 <views:ProjectView />
             </TabItem>
-            <TabItem Header="{l:T 'Editor'}">
+            <TabItem Header="{l:T 'Editor'}" Tag="{StaticResource Nav.Editor}">
                 <views:EditorView DataContext="{Binding Editor}" />
             </TabItem>
-            <TabItem Header="{l:T 'TM &amp; Terminologie'}">
+            <TabItem Header="{l:T 'TM &amp; Terminologie'}" Tag="{StaticResource Nav.Resources}">
                 <views:ResourcesView DataContext="{Binding Resources}" />
             </TabItem>
-            <TabItem Header="{l:T 'Wissen'}">
+            <TabItem Header="{l:T 'Wissen'}" Tag="{StaticResource Nav.Knowledge}">
                 <views:KnowledgeView DataContext="{Binding Knowledge}" />
             </TabItem>
-            <TabItem Header="{l:T 'Agenten'}">
+            <TabItem Header="{l:T 'Agenten'}" Tag="{StaticResource Nav.Agents}">
                 <views:AgentsView DataContext="{Binding Agents}" />
             </TabItem>
-            <TabItem Header="{l:T 'Einstellungen'}">
+            <TabItem Header="{l:T 'Einstellungen'}" Tag="{StaticResource Nav.Settings}">
                 <views:SettingsView DataContext="{Binding Settings}" />
             </TabItem>
-            <TabItem Header="{l:T 'Erweiterungen'}">
+            <TabItem Header="{l:T 'Erweiterungen'}" Tag="{StaticResource Nav.Extensions}">
                 <views:ExtensionsView DataContext="{Binding Extensions}" />
             </TabItem>
-            <TabItem Header="{l:T 'Hilfe'}">
+            <TabItem Header="{l:T 'Hilfe'}" Tag="{StaticResource Nav.Help}">
                 <views:HelpView DataContext="{Binding Help}" />
             </TabItem>
         </TabControl>

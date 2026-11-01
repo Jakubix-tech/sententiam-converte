@@ -5,12 +5,14 @@
              <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
 
     <Application.Styles>
-        <FluentTheme />
-        <!-- Hauptreiter etwas kleiner als der Fluent-Standard, damit sie auch auf Telefonen in eine Zeile passen -->
-        <Style Selector="TabItem">
-            <Setter Property="FontSize" Value="17" />
-            <Setter Property="MinHeight" Value="38" />
-            <Setter Property="Padding" Value="10,4" />
-        </Style>
+        <FluentTheme>
+            <FluentTheme.Palettes>
+                <!-- Markenfarbe: das Blau des Programmsymbols -->
+                <ColorPaletteResources x:Key="Light" Accent="#1F5C99" RegionColor="#FFFFFF" />
+                <ColorPaletteResources x:Key="Dark" Accent="#4C8FD6" RegionColor="#1F2328" />
+            </FluentTheme.Palettes>
+        </FluentTheme>
+        <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
+        <StyleInclude Source="avares://SententiamConverte/Themes/Theme.axaml" />
     </Application.Styles>
 </Application>

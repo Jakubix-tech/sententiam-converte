@@ -1,0 +1,182 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Erscheinungsbild von Sententiam converte: Farben, Karten, Überschriften, Navigationsleiste, Werkzeugleisten -->
+    <Styles.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://SententiamConverte/Themes/Icons.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="AppBackground" Color="#F2F4F7" />
+                    <SolidColorBrush x:Key="NavBackground" Color="#163A61" />
+                    <SolidColorBrush x:Key="NavForeground" Color="#C9D6E6" />
+                    <SolidColorBrush x:Key="NavHover" Color="#1F4A78" />
+                    <SolidColorBrush x:Key="NavSelected" Color="#2A5C92" />
+                    <SolidColorBrush x:Key="NavAccent" Color="#FFC14D" />
+                    <SolidColorBrush x:Key="CardBackground" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="CardBorder" Color="#DDE2E8" />
+                    <SolidColorBrush x:Key="SubtleText" Color="#5B6675" />
+                    <SolidColorBrush x:Key="ToolbarBackground" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="ToolbarSeparator" Color="#DDE2E8" />
+                    <SolidColorBrush x:Key="HeaderRowBackground" Color="#E9EDF2" />
+                    <SolidColorBrush x:Key="RowBorder" Color="#E6E9EE" />
+                    <SolidColorBrush x:Key="SegmentSelected" Color="#E6F0FA" />
+                    <SolidColorBrush x:Key="EditorBackground" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="SourceBackground" Color="#F8F9FB" />
+                    <SolidColorBrush x:Key="TagForeground" Color="#7B3FA0" />
+                    <SolidColorBrush x:Key="TagBackground" Color="#F2E8F8" />
+                    <SolidColorBrush x:Key="SpellingError" Color="#D1242F" />
+                    <SolidColorBrush x:Key="InfoBarBackground" Color="#FFF6DD" />
+                    <SolidColorBrush x:Key="InfoBarBorder" Color="#F0D58C" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="AppBackground" Color="#1B1E23" />
+                    <SolidColorBrush x:Key="NavBackground" Color="#0F2238" />
+                    <SolidColorBrush x:Key="NavForeground" Color="#AFC2D8" />
+                    <SolidColorBrush x:Key="NavHover" Color="#18324F" />
+                    <SolidColorBrush x:Key="NavSelected" Color="#22446B" />
+                    <SolidColorBrush x:Key="NavAccent" Color="#FFC14D" />
+                    <SolidColorBrush x:Key="CardBackground" Color="#24282E" />
+                    <SolidColorBrush x:Key="CardBorder" Color="#363B43" />
+                    <SolidColorBrush x:Key="SubtleText" Color="#A3ADBA" />
+                    <SolidColorBrush x:Key="ToolbarBackground" Color="#24282E" />
+                    <SolidColorBrush x:Key="ToolbarSeparator" Color="#3A4048" />
+                    <SolidColorBrush x:Key="HeaderRowBackground" Color="#2B3037" />
+                    <SolidColorBrush x:Key="RowBorder" Color="#30353C" />
+                    <SolidColorBrush x:Key="SegmentSelected" Color="#1E3550" />
+                    <SolidColorBrush x:Key="EditorBackground" Color="#1F2328" />
+                    <SolidColorBrush x:Key="SourceBackground" Color="#22262B" />
+                    <SolidColorBrush x:Key="TagForeground" Color="#D3A6F0" />
+                    <SolidColorBrush x:Key="TagBackground" Color="#3A2A47" />
+                    <SolidColorBrush x:Key="SpellingError" Color="#FF6B6B" />
+                    <SolidColorBrush x:Key="InfoBarBackground" Color="#3A3320" />
+                    <SolidColorBrush x:Key="InfoBarBorder" Color="#6B5A2A" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Styles.Resources>
+
+    <!-- Überschriften und Texte -->
+    <Style Selector="TextBlock.h1">
+        <Setter Property="FontSize" Value="22" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.h2">
+        <Setter Property="FontSize" Value="16" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.muted, SelectableTextBlock.muted">
+        <Setter Property="Foreground" Value="{DynamicResource SubtleText}" />
+    </Style>
+
+    <!-- Karten -->
+    <Style Selector="Border.card">
+        <Setter Property="Background" Value="{DynamicResource CardBackground}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="16" />
+        <Setter Property="BoxShadow" Value="0 1 3 0 #14000000" />
+    </Style>
+    <Style Selector="Border.infobar">
+        <Setter Property="Background" Value="{DynamicResource InfoBarBackground}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource InfoBarBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Padding" Value="12,8" />
+    </Style>
+
+    <!-- Werkzeugleisten: Symbol über bzw. neben kurzer Beschriftung -->
+    <Style Selector="Border.toolbar">
+        <Setter Property="Background" Value="{DynamicResource ToolbarBackground}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="Padding" Value="8,6" />
+    </Style>
+    <Style Selector="Button.tool, ToggleButton.tool">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="8,5" />
+        <Setter Property="CornerRadius" Value="5" />
+        <Setter Property="VerticalAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="Button.tool PathIcon, ToggleButton.tool PathIcon">
+        <Setter Property="Width" Value="18" />
+        <Setter Property="Height" Value="18" />
+    </Style>
+    <Style Selector="Button.tool.accent">
+        <Setter Property="Background" Value="{DynamicResource AccentButtonBackground}" />
+    </Style>
+    <Style Selector="Rectangle.sep">
+        <Setter Property="Width" Value="1" />
+        <Setter Property="Margin" Value="6,4" />
+        <Setter Property="Fill" Value="{DynamicResource ToolbarSeparator}" />
+    </Style>
+
+    <!-- Innere Reiter (Seitenleiste, Wissen, Agenten): kompakter als der Fluent-Standard -->
+    <Style Selector="TabItem">
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="MinHeight" Value="36" />
+        <Setter Property="Padding" Value="10,4" />
+    </Style>
+
+    <!-- Navigationsleiste links (Hauptreiter) -->
+    <Style Selector="TabControl.nav">
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="ItemsPanel">
+            <ItemsPanelTemplate>
+                <StackPanel Orientation="Vertical" Spacing="2" />
+            </ItemsPanelTemplate>
+        </Setter>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <DockPanel>
+                    <Border DockPanel.Dock="Left" Background="{DynamicResource NavBackground}" Width="92">
+                        <DockPanel>
+                            <Image DockPanel.Dock="Top" Source="/Assets/Icon.png" Width="42" Height="42" Margin="0,14,0,14" />
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Border>
+                    <ContentPresenter Name="PART_SelectedContentHost"
+                                      Background="{DynamicResource AppBackground}"
+                                      Content="{TemplateBinding SelectedContent}"
+                                      ContentTemplate="{TemplateBinding SelectedContentTemplate}" />
+                </DockPanel>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="TabControl.nav > TabItem">
+        <Setter Property="Foreground" Value="{DynamicResource NavForeground}" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="bg" Background="Transparent" CornerRadius="8" Margin="8,1" Padding="2,8">
+                    <Grid>
+                        <Border Name="pipe" Width="3" HorizontalAlignment="Left" Margin="-8,8,0,8" CornerRadius="2"
+                                Background="{DynamicResource NavAccent}" IsVisible="False" />
+                        <StackPanel Spacing="5" HorizontalAlignment="Center">
+                            <PathIcon Data="{TemplateBinding Tag}" Width="22" Height="22" Foreground="{TemplateBinding Foreground}" />
+                            <ContentPresenter Content="{TemplateBinding Header}" FontSize="11.5" HorizontalAlignment="Center" MaxWidth="78"
+                                              HorizontalContentAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"
+                                              Foreground="{TemplateBinding Foreground}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="TabControl.nav > TabItem:pointerover /template/ Border#bg">
+        <Setter Property="Background" Value="{DynamicResource NavHover}" />
+    </Style>
+    <Style Selector="TabControl.nav > TabItem:selected">
+        <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="TabControl.nav > TabItem:selected /template/ Border#bg">
+        <Setter Property="Background" Value="{DynamicResource NavSelected}" />
+    </Style>
+    <Style Selector="TabControl.nav > TabItem:selected /template/ Border#pipe">
+        <Setter Property="IsVisible" Value="True" />
+    </Style>
+</Styles>

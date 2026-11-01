@@ -28,6 +28,7 @@ public static class ChatModelFactory
     public static IChatModel Create(AiProviderConfig config) => config.Kind switch
     {
         AiProviderKind.Anthropic => new ClaudeChatModel(config),
+        AiProviderKind.OpenCode => new OpenCodeChatModel(config),
         _ => new OpenAiCompatibleChatModel(config),
     };
 }

@@ -25,10 +25,10 @@
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:KnowledgeRow">
                             <StackPanel Spacing="2" Margin="0,2">
-                                <TextBlock Text="{Binding Header, Converter={x:Static l:L.Text}}" FontSize="11" Opacity="0.6" />
+                                <TextBlock Text="{Binding Header, Converter={x:Static l:L.Text}}" FontSize="11" Classes="muted" />
                                 <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 <TextBlock Text="{Binding Content}" TextWrapping="Wrap" />
-                                <TextBlock Text="{Binding Quote}" TextWrapping="Wrap" FontStyle="Italic" Opacity="0.75" IsVisible="{Binding Quote, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                <TextBlock Text="{Binding Quote}" TextWrapping="Wrap" FontStyle="Italic" Classes="muted" IsVisible="{Binding Quote, Converter={x:Static ObjectConverters.IsNotNull}}" />
                                 <TextBlock Text="{Binding Source}" FontSize="11" Opacity="0.55" TextWrapping="Wrap" />
                             </StackPanel>
                         </DataTemplate>
@@ -57,7 +57,7 @@
         <TabItem Header="{l:T 'Wissens-Agent'}">
             <ScrollViewer>
                 <StackPanel Spacing="8" MaxWidth="1000" HorizontalAlignment="Left">
-                    <TextBlock TextWrapping="Wrap" Opacity="0.8"
+                    <TextBlock TextWrapping="Wrap" Classes="muted"
                                Text="{l:T 'Der Agent sucht zum Thema in jeder gewählten Sprache verlässliche Quellen, liest sie und legt Wissenseinträge mit wörtlichem Beleg in der oben gewählten Wissensdatenbank an. Einträge, deren Beleg nicht wirklich auf der Seite steht, werden verworfen. Seiten, die das Auslesen per robots.txt oder Nutzungsvorbehalt untersagen, werden übersprungen.'}" />
                     <TextBlock Text="{l:T 'Ziel-Datenbank'}" />
                     <ComboBox ItemsSource="{Binding Bases}" SelectedItem="{Binding SelectedBase}" MinWidth="300">
@@ -98,7 +98,7 @@
             <DockPanel>
                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
                     <Button Content="{l:T 'Aktualisieren'}" Command="{Binding LoadActivityCommand}" />
-                    <TextBlock Text="{l:T 'Was das Team zuletzt zu TMs, Terminologien und Wissensdatenbanken beigetragen hat.'}" VerticalAlignment="Center" Opacity="0.7" />
+                    <TextBlock Text="{l:T 'Was das Team zuletzt zu TMs, Terminologien und Wissensdatenbanken beigetragen hat.'}" VerticalAlignment="Center" Classes="muted" />
                 </StackPanel>
                 <ListBox ItemsSource="{Binding Activity}">
                     <ListBox.ItemTemplate>

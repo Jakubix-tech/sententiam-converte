@@ -19,6 +19,9 @@ public interface IPlatformServices
 
     /// <summary>Öffnet eine Datei mit dem passenden Programm des Systems (Vorschau).</summary>
     Task<bool> OpenFileAsync(string path);
+
+    /// <summary>Öffnet eine Internetadresse im Browser.</summary>
+    Task<bool> OpenUrlAsync(string url);
 }
 
 /// <summary>Lokale REST-API – nur in der Desktop-App (auf Android gibt es sie nicht).</summary>

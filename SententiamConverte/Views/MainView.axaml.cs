@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -69,6 +70,12 @@ public partial class MainView : UserControl, IPlatformServices
             DefaultExtension = Path.GetExtension(suggestedName).TrimStart('.'),
         });
         return file == null ? null : await file.OpenWriteAsync();
+    }
+
+    public async Task<bool> OpenUrlAsync(string url)
+    {
+        var launcher = TopLevel.GetTopLevel(this)?.Launcher;
+        return launcher != null && Uri.TryCreate(url, UriKind.Absolute, out var uri) && await launcher.LaunchUriAsync(uri);
     }
 
     public async Task<bool> OpenFileAsync(string path)

@@ -11,7 +11,7 @@
             <TabItem Header="{l:T 'Begriffsvergleich'}">
                 <ScrollViewer>
                     <StackPanel Spacing="8" MaxWidth="1100" HorizontalAlignment="Left">
-                        <TextBlock TextWrapping="Wrap" Opacity="0.8"
+                        <TextBlock TextWrapping="Wrap" Classes="muted"
                                    Text="{l:T 'Für kontextabhängige Fachbegriffe, etwa im Recht: Der Assistent klärt die Bedeutung im angegebenen Zusammenhang, sucht auf den Fachseiten beider Sprachen (Fachquellen-Profil) nach Definitionen und vergleicht die Begriffe der beiden Systeme – z. B. Rechtsordnungen. Ergebnis: volle, teilweise oder keine Entsprechung, Unterschiede, empfohlene Lösung mit Begründung und überprüften Belegen.'}" />
                         <Grid ColumnDefinitions="*,12,Auto,12,Auto,12,Auto">
                             <StackPanel Spacing="4">
@@ -50,7 +50,7 @@
             <TabItem Header="{l:T 'Themenrecherche'}">
                 <ScrollViewer>
                     <StackPanel Spacing="8" MaxWidth="1100" HorizontalAlignment="Left">
-                        <TextBlock TextWrapping="Wrap" Opacity="0.8"
+                        <TextBlock TextWrapping="Wrap" Classes="muted"
                                    Text="{l:T 'Der Agent sucht zu einem Thema Fachtexte in jeder gewählten Sprache, liest sie und stellt eine mehrsprachige Begriffsliste mit Belegstellen zusammen. Gute Begriffe übernehmen Sie mit einem Klick in die Projekt-Terminologie.'}" />
                         <TextBlock Text="{l:T 'Thema / Fachgebiet'}" />
                         <TextBox Text="{Binding Topic}" PlaceholderText="{l:T 'z. B. Hydraulikpumpen – Wartung und Dichtungen'}" />
@@ -103,7 +103,7 @@
                                             <CheckBox IsChecked="{Binding Selected}" VerticalAlignment="Top" />
                                             <StackPanel Grid.Column="1" Spacing="2">
                                                 <SelectableTextBlock Text="{Binding Terms}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                                <TextBlock Text="{Binding Definition}" TextWrapping="Wrap" Opacity="0.8" />
+                                                <TextBlock Text="{Binding Definition}" TextWrapping="Wrap" Classes="muted" />
                                                 <Expander Header="{l:T 'Belege'}">
                                                     <SelectableTextBlock Text="{Binding Evidence}" TextWrapping="Wrap" FontSize="12" />
                                                 </Expander>
@@ -137,7 +137,7 @@
             <TabItem Header="{l:T 'Usus-Prüfung'}">
                 <ScrollViewer>
                     <StackPanel Spacing="8" MaxWidth="900" HorizontalAlignment="Left">
-                        <TextBlock TextWrapping="Wrap" Opacity="0.8"
+                        <TextBlock TextWrapping="Wrap" Classes="muted"
                                    Text="{l:T 'Ist ein Ausdruck üblich oder wird er nirgends verwendet? Der Agent sucht die genaue Wortfolge (und gleichbedeutende Alternativen) im Netz, zählt wörtliche Belege und urteilt anhand der Belege.'}" />
                         <TextBlock Text="{l:T 'Ausdruck'}" />
                         <TextBox Text="{Binding UsageExpression}" PlaceholderText="{l:T 'z. B. Anzugsdrehmoment prüfen'}" />
@@ -164,7 +164,7 @@
             <TabItem Header="{l:T 'Übersetzungen bewerten'}">
                 <ScrollViewer>
                     <StackPanel Spacing="8" MaxWidth="900" HorizontalAlignment="Left">
-                        <TextBlock TextWrapping="Wrap" Opacity="0.8"
+                        <TextBlock TextWrapping="Wrap" Classes="muted"
                                    Text="{l:T 'Mehrere Übersetzungen eines Satzes vergleichen: Richtigkeit, Sprachfluss, Terminologie und Stil, mit Begründung und Verbesserungsvorschlag.'}" />
                         <TextBlock Text="{l:T 'Quelltext'}" />
                         <TextBox Text="{Binding EvalSource}" AcceptsReturn="True" TextWrapping="Wrap" Height="70" />

@@ -7,7 +7,7 @@
     <Grid ColumnDefinitions="280,*" Margin="0">
         <DockPanel Margin="12,12,8,12">
             <TextBox DockPanel.Dock="Top" Text="{Binding Query}" PlaceholderText="{l:T 'In der Hilfe suchen …'}" Margin="0,0,0,6" />
-            <TextBlock DockPanel.Dock="Top" Text="{Binding ResultInfo, Converter={x:Static l:L.Text}}" Opacity="0.7" Margin="2,0,0,6"
+            <TextBlock DockPanel.Dock="Top" Text="{Binding ResultInfo, Converter={x:Static l:L.Text}}" Classes="muted" Margin="2,0,0,6"
                        IsVisible="{Binding ResultInfo, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
             <ListBox ItemsSource="{Binding Chapters}" SelectedItem="{Binding Selected}">
                 <ListBox.ItemTemplate>
@@ -40,8 +40,8 @@
                                     <SelectableTextBlock Grid.Column="1" Text="{Binding Text}" TextWrapping="Wrap" />
                                 </Grid>
                                 <Grid ColumnDefinitions="300,*" IsVisible="{Binding IsHeaderRow}">
-                                    <TextBlock Text="{Binding Key}" FontWeight="SemiBold" Opacity="0.7" Margin="0,4,12,0" />
-                                    <TextBlock Grid.Column="1" Text="{Binding Text}" FontWeight="SemiBold" Opacity="0.7" Margin="0,4,0,0" />
+                                    <TextBlock Text="{Binding Key}" FontWeight="SemiBold" Classes="muted" Margin="0,4,12,0" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Text}" FontWeight="SemiBold" Classes="muted" Margin="0,4,0,0" />
                                 </Grid>
                                 <Border IsVisible="{Binding IsCode}" Padding="10,8" CornerRadius="4"
                                         Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">

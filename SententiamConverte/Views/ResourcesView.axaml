@@ -6,8 +6,8 @@
              x:DataType="vm:ResourcesViewModel">
     <ScrollViewer>
         <StackPanel Margin="16" Spacing="12" MaxWidth="1100" HorizontalAlignment="Left">
-            <TextBlock Text="{l:T 'Angebundene Ressourcen'}" FontSize="18" FontWeight="SemiBold" />
-            <TextBlock TextWrapping="Wrap" Opacity="0.8" FontSize="12"
+            <TextBlock Text="{l:T 'Angebundene Ressourcen'}" Classes="h2" />
+            <TextBlock TextWrapping="Wrap" Classes="muted" FontSize="12"
                        Text="{l:T 'Zusätzlich zu Projekt-TM, Projekt-Terminologie und Projekt-Wissen lassen sich weitere Datenbanken anbinden – lokale Dateien oder gemeinsame Ressourcen auf einem Teamserver, wahlweise nur für bestimmte Sprachen. „Schreibt zurück“: bestätigte Übersetzungen und neue Begriffe landen auch dort, damit das ganze Team davon profitiert.'}" />
             <SelectableTextBlock Text="{Binding ResourceErrors, Converter={x:Static l:L.Text}}" Foreground="#C53030" TextWrapping="Wrap" />
             <ItemsControl ItemsSource="{Binding Attached}">
@@ -16,8 +16,8 @@
                         <Grid ColumnDefinitions="170,*,180,130,Auto" Margin="0,2">
                             <TextBlock Text="{Binding Kind, Converter={x:Static l:L.Text}}" VerticalAlignment="Center" />
                             <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Grid.Column="2" Text="{Binding Languages}" VerticalAlignment="Center" Opacity="0.75" />
-                            <TextBlock Grid.Column="3" Text="{Binding WriteBack}" VerticalAlignment="Center" Opacity="0.75" />
+                            <TextBlock Grid.Column="2" Text="{Binding Languages}" VerticalAlignment="Center" Classes="muted" />
+                            <TextBlock Grid.Column="3" Text="{Binding WriteBack}" VerticalAlignment="Center" Classes="muted" />
                             <Button Grid.Column="4" Content="{l:T 'Lösen'}" Padding="6,2"
                                     Command="{Binding $parent[UserControl].((vm:ResourcesViewModel)DataContext).DetachCommand}" CommandParameter="{Binding}" />
                         </Grid>
@@ -47,7 +47,7 @@
                 </StackPanel>
             </Border>
 
-            <TextBlock Text="{l:T 'Translation Memories'}" FontSize="18" FontWeight="SemiBold" Margin="0,10,0,0" />
+            <TextBlock Text="{l:T 'Translation Memories'}" Classes="h2" Margin="0,10,0,0" />
             <ItemsControl ItemsSource="{Binding TmInfo}" />
             <WrapPanel>
                 <Button Content="{l:T 'TMX importieren …'}" Command="{Binding ImportTmxCommand}" Margin="0,0,8,8" />
@@ -90,7 +90,7 @@
 
             <Expander Header="{l:T 'Alignment: alte Übersetzungen ins TM übernehmen'}" HorizontalAlignment="Stretch">
                 <StackPanel Spacing="6">
-                    <TextBlock TextWrapping="Wrap" Opacity="0.8" FontSize="12"
+                    <TextBlock TextWrapping="Wrap" Classes="muted" FontSize="12"
                                Text="{l:T 'Ausgangstext und vorhandene Übersetzung wählen. Die Sätze werden nach Länge und Zahlen einander zugeordnet; unsichere Paare sind nicht vorausgewählt.'}" />
                     <WrapPanel>
                         <Button Content="{l:T 'Ausgangstext …'}" Command="{Binding PickAlignSourceCommand}" Margin="0,0,6,4" />
@@ -108,7 +108,7 @@
                                     <CheckBox IsChecked="{Binding Accepted}" IsEnabled="{Binding IsComplete}" VerticalAlignment="Top" />
                                     <TextBlock Grid.Column="1" Text="{Binding SourceText}" TextWrapping="Wrap" />
                                     <TextBlock Grid.Column="3" Text="{Binding TargetText}" TextWrapping="Wrap" />
-                                    <TextBlock Grid.Column="4" Text="{Binding Confidence}" HorizontalAlignment="Right" Opacity="0.7" />
+                                    <TextBlock Grid.Column="4" Text="{Binding Confidence}" HorizontalAlignment="Right" Classes="muted" />
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -116,7 +116,7 @@
                 </StackPanel>
             </Expander>
 
-            <TextBlock Text="{l:T 'Terminologie'}" FontSize="18" FontWeight="SemiBold" Margin="0,10,0,0" />
+            <TextBlock Text="{l:T 'Terminologie'}" Classes="h2" Margin="0,10,0,0" />
             <ItemsControl ItemsSource="{Binding TermbaseInfo}" />
             <WrapPanel>
                 <Button Content="{l:T 'TBX / Terminologie-XML importieren …'}" Command="{Binding ImportTbxCommand}" Margin="0,0,8,8" />
@@ -147,7 +147,7 @@
                             <Grid ColumnDefinitions="*,Auto">
                                 <StackPanel>
                                     <SelectableTextBlock Text="{Binding Terms}" TextWrapping="Wrap" />
-                                    <TextBlock Text="{Binding Definition}" FontSize="12" Opacity="0.7" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding Definition}" FontSize="12" Classes="muted" TextWrapping="Wrap" />
                                 </StackPanel>
                                 <Button Grid.Column="1" Content="{l:T 'Löschen'}" VerticalAlignment="Top"
                                         Command="{Binding $parent[UserControl].((vm:ResourcesViewModel)DataContext).DeleteConceptCommand}"
