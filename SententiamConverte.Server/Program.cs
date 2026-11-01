@@ -22,8 +22,8 @@ using SententiamConverte.Server;
 var dataDir = ArgValue(args, "--daten") ?? Environment.GetEnvironmentVariable("SENTENTIAM_SERVER_DATA") ?? Path.Combine(AppContext.BaseDirectory, "daten");
 Directory.CreateDirectory(dataDir);
 
-if (args.Length > 0 && !args[0].StartsWith("--"))
-    return ServerCli.Run(args, dataDir);
+if (ServerCli.CommandArgs(args) is { } command)
+    return ServerCli.Run(command, dataDir);
 
 var app = ServerApp.Build(args, dataDir);
 app.Run();
@@ -39,6 +39,21 @@ namespace SententiamConverte.Server
 {
     public static class ServerCli
     {
+        /// <summary>
+        /// Der Verwaltungsbefehl ohne „--daten &lt;ordner&gt;“, das davor oder danach stehen darf
+        /// („--daten ./teamdaten benutzer neu Anna“); null, wenn der Server starten soll.
+        /// </summary>
+        public static string[]? CommandArgs(string[] args)
+        {
+            var rest = new List<string>();
+            for (var i = 0; i < args.Length; i++)
+            {
+                if (args[i] == "--daten") i++;
+                else rest.Add(args[i]);
+            }
+            return rest.Count > 0 && !rest[0].StartsWith("--") ? rest.ToArray() : null;
+        }
+
         public static int Run(string[] args, string dataDir)
         {
             var users = new UserStore(dataDir);
