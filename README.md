@@ -38,7 +38,7 @@ interface and manual included (Settings → User interface language).*
 - Projekte mit einer Ausgangs- und mehreren Zielsprachen, Fachgebiet, Projekt-TM und Projekt-Terminologie
 - Dateiformate: DOCX, XLSX, PPTX (Formatierungen als Tags, Bilder/Felder bleiben erhalten), ODT/ODS/ODP
   (OpenDocument), IDML (InDesign-Austauschformat), XLIFF 1.2/2.x (auch .sdlxliff mit Segmentstatus),
-  PDF (Ausgabe als DOCX), HTML, Markdown, RESX, JSON, gettext PO, Untertitel SRT/VTT, Text – weitere über
+  PDF (Ausgabe wieder als PDF im Layout des Originals), HTML, Markdown, RESX, JSON, gettext PO, Untertitel SRT/VTT, Text – weitere über
   Erweiterungen. Platzhalter wie `{0}`, `%s`, `${name}` werden in Software-Texten geschützt.
 - Projektpakete im Format .sdlppx öffnen und Rückgabepakete (.sdlrpx) erzeugen
 - Gescannte PDFs per KI-Texterkennung (Claude-Zugang) in bearbeitbare DOCX umwandeln

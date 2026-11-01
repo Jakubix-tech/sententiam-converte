@@ -63,7 +63,7 @@ Further options:
 | ODT, ODS, ODP (OpenDocument) | As above; space and tab elements are preserved |
 | IDML (InDesign) | Stories with character styles and hyperlinks |
 | XLIFF 1.2 / 2.x, .sdlxliff | Bilingual exchange files; segment status is retained |
-| PDF | Text is extracted, output as DOCX; scanned PDFs with **Recognize scanned PDF (AI) …** |
+| PDF | Output is a PDF again, in the layout of the original (see below); scanned PDFs with **Recognize scanned PDF (AI) …** |
 | HTML, Markdown | Markup becomes tags |
 | RESX, JSON, PO | Software strings; placeholders such as `{0}`, `%s`, `${name}` are protected |
 | SRT, VTT | Subtitles; timecodes remain unchanged |
@@ -71,6 +71,14 @@ Further options:
 
 TMX, TBX and .sdltm are imported under **TM & Terminology**. Extensions can add further formats
 (the sample extension, for example, adds CSV).
+
+**PDF files** are exported as PDF again, in the layout of the original: images, lines, coloured areas and the page
+format stay unchanged, and every paragraph stays in its place – with the size, colour and alignment of the original,
+including bullets and hanging indents. Bold and italic words appear as tags in the editor and are kept in the
+translation; wide gaps (e.g. “Berlin  |  Phone”) appear as several spaces in the text. Text is set in Noto Sans or
+Noto Serif, depending on whether the original uses a sans-serif or serif typeface. If the translation needs more
+lines, the text below moves down – up to the next line, graphic or footer; if there is not enough room, the
+paragraph's font becomes slightly smaller. Check the result before passing it on.
 
 ## The editor
 

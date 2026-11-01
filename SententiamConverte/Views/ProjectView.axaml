@@ -187,7 +187,7 @@
                 <Border Classes="card">
                     <StackPanel Spacing="10">
                 <TextBlock Text="{l:T 'Dateien'}" Classes="h2" />
-                <TextBlock Text="{l:T 'Unterstützt: DOCX, XLSX, PPTX, ODT/ODS/ODP, IDML, XLIFF (auch .sdlxliff), PDF (Ausgabe als DOCX), HTML, Markdown, RESX, JSON, PO, SRT/VTT, Text – und Formate aus Erweiterungen. TMX, TBX und .sdltm unter „TM &amp; Terminologie“.'}"
+                <TextBlock Text="{l:T 'Unterstützt: DOCX, XLSX, PPTX, ODT/ODS/ODP, IDML, XLIFF (auch .sdlxliff), PDF (mit dem Layout des Originals), HTML, Markdown, RESX, JSON, PO, SRT/VTT, Text – und Formate aus Erweiterungen. TMX, TBX und .sdltm unter „TM &amp; Terminologie“.'}"
                            Classes="muted" FontSize="12" TextWrapping="Wrap" />
                 <ListBox ItemsSource="{Binding Files}" SelectedItem="{Binding SelectedFile}" MinHeight="80">
                     <ListBox.ItemTemplate>

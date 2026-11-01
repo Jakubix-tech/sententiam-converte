@@ -137,7 +137,9 @@ public static partial class QaChecker
         if (st.Whitespace)
         {
             var plain = TagText.StripTags(tgt);
-            if (plain.Contains("  ")) yield return new(s.Id, QaSeverity.Warning, "Leerzeichen", "Doppeltes Leerzeichen im Ziel.");
+            // mehrfache Leerzeichen, die schon in der Quelle stehen (z. B. weite Abstände aus PDFs), sind gewollt
+            if (Regex.Matches(plain, " {2,}").Count > Regex.Matches(TagText.StripTags(src), " {2,}").Count)
+                yield return new(s.Id, QaSeverity.Warning, "Leerzeichen", "Doppeltes Leerzeichen im Ziel.");
             if (plain != plain.Trim()) yield return new(s.Id, QaSeverity.Warning, "Leerzeichen", "Leerzeichen am Anfang oder Ende des Ziels.");
             if (Regex.IsMatch(plain, @"\s[,.;:!?](?!\d)") && !Languages.Matches(tgtLang, "fr"))
                 yield return new(s.Id, QaSeverity.Info, "Leerzeichen", "Leerzeichen vor Satzzeichen.");

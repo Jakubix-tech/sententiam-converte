@@ -160,6 +160,7 @@ void AddDocs(string folder)
 {
     File.Copy(Path.Combine(root, "THIRD-PARTY-NOTICES.md"), Path.Combine(folder, "THIRD-PARTY-NOTICES.md"), true);
     File.Copy(Path.Combine(root, "LICENSE"), Path.Combine(folder, "LIZENZ.txt"), true);
+    File.Copy(Path.Combine(root, "SententiamConverte.Core", "Fonts", "OFL.txt"), Path.Combine(folder, "OFL-Noto.txt"), true);
     var docs = Path.Combine(folder, "Dokumentation");
     Directory.CreateDirectory(docs);
     foreach (var f in Directory.GetFiles(Path.Combine(root, "docs"), "*.md", SearchOption.AllDirectories))

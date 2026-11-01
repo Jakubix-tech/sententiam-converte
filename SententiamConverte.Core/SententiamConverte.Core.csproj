@@ -21,6 +21,10 @@
     <PackageReference Include="Microsoft.Data.Sqlite" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Noto Sans/Serif (SIL Open Font License) für übersetzte PDFs -->
+    <EmbeddedResource Include="Fonts\*.ttf" LogicalName="SententiamConverte.Core.Fonts.%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="SententiamConverte.Core.Tests" />
   </ItemGroup>
 </Project>

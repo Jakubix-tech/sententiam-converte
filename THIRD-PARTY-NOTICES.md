@@ -10,7 +10,8 @@ Sententiam converte nutzt folgende Bibliotheken. Ihre Lizenzen gelten für den j
 | AvaloniaEdit | Texteditor im Editor (Formatierung, Rechtschreib-Unterstreichung, Rückgängig) | MIT |
 | Fluent UI System Icons (Microsoft) | Symbole der Oberfläche | MIT |
 | DocumentFormat.OpenXml | DOCX, XLSX, PPTX lesen und schreiben | MIT |
-| PdfPig | Text aus PDF lesen | Apache-2.0 |
+| PdfPig | PDF lesen und übersetzte PDFs schreiben | Apache-2.0 |
+| Noto Sans, Noto Serif (The Noto Project Authors) | Schrift für übersetzte PDFs; eingebettet werden nur die benutzten Zeichen | SIL Open Font License 1.1 (Lizenztext: OFL-Noto.txt) |
 | AngleSharp | HTML lesen und schreiben | MIT |
 | Microsoft.Data.Sqlite | Datenbank für TM und Terminologie | MIT |
 | SQLitePCLRaw / SQLite | SQLite-Anbindung / Datenbank-Engine | Apache-2.0 / Public Domain |

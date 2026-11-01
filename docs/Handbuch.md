@@ -63,7 +63,7 @@ Weitere Möglichkeiten:
 | ODT, ODS, ODP (OpenDocument) | wie oben; Leerzeichen-/Tabulator-Elemente bleiben erhalten |
 | IDML (InDesign) | Textabschnitte (Stories) mit Zeichenformaten und Hyperlinks |
 | XLIFF 1.2 / 2.x, .sdlxliff | zweisprachige Austauschdateien, Segmentstatus wird übernommen |
-| PDF | Text wird gelesen, Ausgabe als DOCX; gescannte PDFs mit **Gescanntes PDF erkennen (KI) …** |
+| PDF | Ausgabe wieder als PDF im Layout des Originals (siehe unten); gescannte PDFs mit **Gescanntes PDF erkennen (KI) …** |
 | HTML, Markdown | Auszeichnungen werden zu Tags |
 | RESX, JSON, PO | Software-Texte; Platzhalter wie `{0}`, `%s`, `${name}` sind geschützt |
 | SRT, VTT | Untertitel, Zeitangaben bleiben unverändert |
@@ -71,6 +71,15 @@ Weitere Möglichkeiten:
 
 TMX, TBX und .sdltm werden unter **TM & Terminologie** importiert. Weitere Formate können Erweiterungen
 hinzufügen (die Beispiel-Erweiterung bringt z. B. CSV mit).
+
+**PDF-Dateien** werden wieder als PDF ausgegeben, im Layout des Originals: Bilder, Linien, Farbflächen und das
+Seitenformat bleiben unverändert, jeder Absatz steht an seiner Stelle – in Größe, Farbe und Ausrichtung des
+Originals, mit Aufzählungszeichen und hängendem Einzug. Fett und kursiv gesetzte Wörter erscheinen im Editor als
+Tags und bleiben so in der Übersetzung erhalten; weite Abstände (z. B. „Berlin  |  Telefon“) stehen als mehrere
+Leerzeichen im Text. Gesetzt wird mit Noto Sans bzw. Noto Serif, je nachdem, ob das Original eine Schrift mit oder
+ohne Serifen verwendet. Braucht die Übersetzung mehr Zeilen, rückt der Text darunter nach – bis zur nächsten Linie,
+Grafik oder Fußzeile; reicht der Platz nicht, wird die Schrift des Absatzes etwas kleiner. Das Ergebnis vor dem
+Weitergeben kurz durchsehen.
 
 ## Der Editor
 
