@@ -40,7 +40,7 @@ Die `id` darf nur Buchstaben, Ziffern, Punkt, Unterstrich und Bindestrich enthal
   </PropertyGroup>
   <ItemGroup>
     <!-- Das SDK: Schnittstellen und Datentypen. Das Programm bringt die Bibliothek selbst mit – nicht mitkopieren -->
-    <PackageReference Include="SententiamConverte.Core" Version="1.1.0" ExcludeAssets="runtime;native" />
+    <PackageReference Include="SententiamConverte.Core" Version="1.1.1" ExcludeAssets="runtime;native" />
   </ItemGroup>
 </Project>
 ```
