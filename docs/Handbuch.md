@@ -59,8 +59,8 @@ Weitere Möglichkeiten:
 
 | Format | Hinweise |
 |---|---|
-| DOCX, XLSX, PPTX | Formatierungen werden zu Tags, Bilder, Felder und Kommentare bleiben erhalten |
-| ODT, ODS, ODP (OpenDocument) | wie oben; Leerzeichen-/Tabulator-Elemente bleiben erhalten |
+| DOCX, XLSX, PPTX | Formatierungen werden zu Tags, Bilder, Felder und Kommentare bleiben erhalten; Textfelder und Inhaltssteuerelemente werden mit übersetzt, Seitenzahl- und Datumsfelder bleiben unverändert |
+| ODT, ODS, ODP (OpenDocument) | wie oben, auch Textrahmen, Kopf- und Fußzeilen; Leerzeichen-/Tabulator-Elemente bleiben erhalten |
 | IDML (InDesign) | Textabschnitte (Stories) mit Zeichenformaten und Hyperlinks |
 | XLIFF 1.2 / 2.x, .sdlxliff | zweisprachige Austauschdateien, Segmentstatus wird übernommen |
 | PDF | Ausgabe wieder als PDF im Layout des Originals (siehe unten); gescannte PDFs mit **Gescanntes PDF erkennen (KI) …** |
@@ -68,6 +68,10 @@ Weitere Möglichkeiten:
 | RESX, JSON, PO | Software-Texte; Platzhalter wie `{0}`, `%s`, `${name}` sind geschützt |
 | SRT, VTT | Untertitel, Zeitangaben bleiben unverändert |
 | TXT | jede Zeile ein Absatz |
+
+Word- und OpenDocument-Dateien werden beim Export in die Originaldatei zurückgeschrieben: Seitenlayout, Formatvorlagen,
+Bilder, Rahmen, Tabellen, Kopf- und Fußzeilen bleiben, wie sie sind – nur der Text wird ersetzt und fließt bei
+längerer Übersetzung wie in Word bzw. Writer weiter.
 
 TMX, TBX und .sdltm werden unter **TM & Terminologie** importiert. Weitere Formate können Erweiterungen
 hinzufügen (die Beispiel-Erweiterung bringt z. B. CSV mit).

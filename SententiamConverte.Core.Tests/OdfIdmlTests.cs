@@ -43,7 +43,7 @@ public class OdfIdmlTests
     {
         const string content = """
             <?xml version="1.0" encoding="UTF-8"?>
-            <office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" xmlns:xlink="http://www.w3.org/1999/xlink" office:version="1.3"><office:body><office:text><text:h text:outline-level="1">Einleitung</text:h><text:p>Das ist <text:span text:style-name="T1">wichtig</text:span>.<text:line-break/>Mehr  Text<text:tab/>hier mit <text:a xlink:href="https://x.y">Link</text:a>.</text:p><text:p>12345</text:p></office:text></office:body></office:document-content>
+            <office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" xmlns:xlink="http://www.w3.org/1999/xlink" office:version="1.3"><office:body><office:text><text:h text:outline-level="1">Einleitung</text:h><text:p>Das ist <text:span text:style-name="T1">wichtig</text:span>.<text:line-break/>Mehr <text:s/>Text<text:tab/>hier mit <text:a xlink:href="https://x.y">Link</text:a>.</text:p><text:p>12345</text:p></office:text></office:body></office:document-content>
             """;
         var odt = Zip(("mimetype", "application/vnd.oasis.opendocument.text"), ("content.xml", content), ("META-INF/manifest.xml", "<manifest/>"));
         var (doc, output) = RoundTrip(new OdfFilter(), odt, s => s

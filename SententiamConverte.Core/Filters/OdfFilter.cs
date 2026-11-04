@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using SententiamConverte.Core.Model;
 using SententiamConverte.Core.Segmentation;
@@ -26,7 +27,9 @@ public sealed class OdfFilter : IFileFilter
     // ---------- Zerlegen ----------
 
     private enum Kind { Text, Start, End, Placeholder }
-    private sealed record Tok(Kind Kind, string Text = "", int Element = -1);
+
+    /// <summary><paramref name="Raw"/>: Text direkt aus dem XML (nicht aus text:s/text:tab), für ihn gilt die ODF-Leerraumregel.</summary>
+    private sealed record Tok(Kind Kind, string Text = "", int Element = -1, bool Raw = false);
 
     private static List<Tok> Walk(XElement container, List<XElement> elements)
     {
@@ -36,7 +39,7 @@ public sealed class OdfFilter : IFileFilter
             switch (node)
             {
                 case XText t:
-                    toks.Add(new Tok(Kind.Text, t.Value));
+                    toks.Add(new Tok(Kind.Text, t.Value, Raw: true));
                     break;
                 case XElement e when e.Name == T + "s":
                     toks.Add(new Tok(Kind.Text, new string(' ', (int?)e.Attribute(T + "c") ?? 1)));
@@ -74,7 +77,7 @@ public sealed class OdfFilter : IFileFilter
             sb.Append(TagText.Placeholder(id));
             pending = null;
         }
-        foreach (var t in Walk(p, new List<XElement>()))
+        foreach (var t in CollapseWhitespace(Walk(p, new List<XElement>())))
         {
             switch (t.Kind)
             {
@@ -100,6 +103,33 @@ public sealed class OdfFilter : IFileFilter
         }
         Flush();
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// ODF-Regel für Leerraum im Text: Folgen aus Leerzeichen, Tabulator- und Zeilenumbruchzeichen gelten als ein
+    /// Leerzeichen, am Absatzanfang als keins (gewollte Abstände stehen als text:s und text:tab im XML).
+    /// </summary>
+    private static List<Tok> CollapseWhitespace(List<Tok> toks)
+    {
+        var result = new List<Tok>();
+        var lastWasSpace = true;                      // Absatzanfang
+        foreach (var t in toks)
+        {
+            if (t.Kind != Kind.Text || !t.Raw)
+            {
+                // text:s/text:tab und Felder, Bilder usw. sind Inhalt; Zeichenformate (Start/Ende) unterbrechen den Leerraum nicht
+                if (t.Kind == Kind.Text) lastWasSpace = t.Text.EndsWith(' ');
+                else if (t.Kind == Kind.Placeholder) lastWasSpace = false;
+                result.Add(t);
+                continue;
+            }
+            var text = Regex.Replace(t.Text, @"[ \t\r\n]+", " ");
+            if (lastWasSpace) text = text.TrimStart(' ');
+            if (text.Length == 0) continue;
+            lastWasSpace = text.EndsWith(' ');
+            result.Add(t with { Text = text });
+        }
+        return result;
     }
 
     // ---------- Lesen ----------

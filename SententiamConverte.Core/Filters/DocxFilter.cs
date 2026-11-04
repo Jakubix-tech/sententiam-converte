@@ -11,10 +11,12 @@ using Languages = DocumentFormat.OpenXml.Wordprocessing.Languages;
 namespace SententiamConverte.Core.Filters;
 
 /// <summary>
-/// Word (.docx): Haupttext, Tabellen, Kopf-/Fußzeilen, Fuß-/Endnoten und Textfelder.
+/// Word (.docx): Haupttext, Tabellen, Kopf-/Fußzeilen, Fuß-/Endnoten, Textfelder und Inhaltssteuerelemente.
 /// Abweichende Zeichenformate werden zu Tag-Paaren, Bilder/Felder/Umbrüche zu Platzhaltern.
 /// Beim Zurückschreiben werden die Original-Elemente (Bilder usw.) unverändert wieder eingesetzt.
 /// Änderungsverfolgung: Einfügungen werden übernommen, Löschungen verworfen.
+/// Textfelder speichert Word doppelt (moderne Form und Ersatzdarstellung für ältere Programme): übersetzt wird
+/// die moderne Form, die Ersatzdarstellung erhält beim Zurückschreiben denselben Inhalt.
 /// </summary>
 public sealed class DocxFilter : IFileFilter
 {
@@ -24,7 +26,7 @@ public sealed class DocxFilter : IFileFilter
 
     // ---------- Zerlegen eines Absatzes in eine Folge von Bausteinen ----------
 
-    private enum TokKind { Text, RunChild, Element, HyperlinkStart, HyperlinkEnd, Keep }
+    private enum TokKind { Text, RunChild, Element, HyperlinkStart, HyperlinkEnd, ControlStart, ControlEnd, Keep }
 
     private sealed record Tok(TokKind Kind, int Ord, int Child = -1, string RunProps = "", string Text = "");
 
@@ -35,7 +37,33 @@ public sealed class DocxFilter : IFileFilter
         public readonly List<List<OpenXmlElement>> RunChildren = new();
         public readonly List<OpenXmlElement> Elements = new();
         public readonly List<Hyperlink> Hyperlinks = new();
+        public readonly List<SdtRun> Controls = new();
         public readonly List<OpenXmlElement> Kept = new();
+
+        /// <summary>Offene Felder (fldChar begin … end) mit ihrer Feldanweisung.</summary>
+        public readonly List<FieldFrame> Fields = new();
+    }
+
+    private sealed class FieldFrame
+    {
+        public readonly StringBuilder Instruction = new();
+        public bool Generated;
+    }
+
+    /// <summary>
+    /// Felder, deren Ergebnis Word selbst erzeugt (Seitenzahl, Datum, Nummerierung): das zwischengespeicherte Ergebnis
+    /// ist kein Text zum Übersetzen und bleibt mit dem Feld unverändert zusammen.
+    /// </summary>
+    private static readonly HashSet<string> GeneratedFields =
+    [
+        "PAGE", "NUMPAGES", "SECTIONPAGES", "SECTION", "DATE", "TIME", "SAVEDATE", "PRINTDATE", "CREATEDATE", "EDITTIME",
+        "FILESIZE", "NUMWORDS", "NUMCHARS", "REVNUM", "SEQ", "PAGEREF", "NOTEREF", "AUTONUM", "AUTONUMLGL", "AUTONUMOUT", "LISTNUM",
+    ];
+
+    private static bool IsGenerated(string instruction)
+    {
+        var name = instruction.Trim().Split(' ', 2)[0].ToUpperInvariant();
+        return GeneratedFields.Contains(name);
     }
 
     private static Walk WalkParagraph(WParagraph p)
@@ -54,6 +82,7 @@ public sealed class DocxFilter : IFileFilter
                 case ParagraphProperties:
                 case ProofError:
                 case DeletedRun:
+                case MoveFromRun:
                     break;
                 case Run run:
                     WalkRun(run, w);
@@ -65,7 +94,16 @@ public sealed class DocxFilter : IFileFilter
                     WalkContainer(h, w);
                     w.Tokens.Add(new Tok(TokKind.HyperlinkEnd, hOrd));
                     break;
-                case InsertedRun or CustomXmlRun:
+                case SdtRun sdt:
+                    // Inhaltssteuerelement im Absatz: Inhalt übersetzbar, Hülle (Eigenschaften) bleibt
+                    var cOrd = w.Controls.Count;
+                    w.Controls.Add(sdt);
+                    w.Elements.Add(sdt);   // Platz in der Elementliste wie früher – ältere Projekte verweisen darauf
+                    w.Tokens.Add(new Tok(TokKind.ControlStart, cOrd));
+                    if (sdt.SdtContentRun is { } content) WalkContainer(content, w);
+                    w.Tokens.Add(new Tok(TokKind.ControlEnd, cOrd));
+                    break;
+                case InsertedRun or CustomXmlRun or MoveToRun:
                     WalkContainer(child, w);
                     break;
                 case BookmarkStart or BookmarkEnd:
@@ -89,8 +127,23 @@ public sealed class DocxFilter : IFileFilter
         var rPr = run.RunProperties?.OuterXml ?? "";
         for (var i = 0; i < children.Count; i++)
         {
+            var inGeneratedField = w.Fields.Any(f => f.Generated);
             switch (children[i])
             {
+                case FieldChar fc:
+                    if (fc.FieldCharType?.Value == FieldCharValues.Begin) w.Fields.Add(new FieldFrame());
+                    else if (fc.FieldCharType?.Value == FieldCharValues.Separate && w.Fields.Count > 0)
+                        w.Fields[^1].Generated = IsGenerated(w.Fields[^1].Instruction.ToString());
+                    else if (fc.FieldCharType?.Value == FieldCharValues.End && w.Fields.Count > 0) w.Fields.RemoveAt(w.Fields.Count - 1);
+                    w.Tokens.Add(new Tok(TokKind.RunChild, ord, i, rPr));
+                    break;
+                case FieldCode code:
+                    if (w.Fields.Count > 0) w.Fields[^1].Instruction.Append(code.Text);
+                    w.Tokens.Add(new Tok(TokKind.RunChild, ord, i, rPr));
+                    break;
+                case Text or TabChar or NoBreakHyphen when inGeneratedField:
+                    w.Tokens.Add(new Tok(TokKind.RunChild, ord, i, rPr));
+                    break;
                 case Text t:
                     w.Tokens.Add(new Tok(TokKind.Text, ord, i, rPr, t.Text));
                     break;
@@ -122,6 +175,7 @@ public sealed class DocxFilter : IFileFilter
             var paragraphs = root.Descendants<WParagraph>().ToList();
             for (var i = 0; i < paragraphs.Count; i++)
             {
+                if (IsFallbackCopy(paragraphs[i])) continue;
                 var para = new Paragraph { Locator = $"{key}#{i}", Context = context };
                 var text = ToTagged(WalkParagraph(paragraphs[i]), para.TagData);
                 if (!Segmenter.HasTranslatableText(text)) continue;
@@ -133,6 +187,25 @@ public sealed class DocxFilter : IFileFilter
         }
         doc.Renumber();
         return doc;
+    }
+
+    /// <summary>Absatz in der Ersatzdarstellung eines Textfelds (wird aus der modernen Form befüllt).</summary>
+    private static bool IsFallbackCopy(WParagraph p) => p.Ancestors<AlternateContentFallback>().Any();
+
+    /// <summary>Ersatzdarstellungen von Textfeldern mit dem übersetzten Inhalt der modernen Form füllen.</summary>
+    private static void SyncFallbacks(OpenXmlPartRootElement root)
+    {
+        foreach (var ac in root.Descendants<AlternateContent>().ToList())
+        {
+            var choice = ac.GetFirstChild<AlternateContentChoice>()?.Descendants<TextBoxContent>().ToList();
+            var fallback = ac.GetFirstChild<AlternateContentFallback>()?.Descendants<TextBoxContent>().ToList();
+            if (choice == null || fallback == null || choice.Count == 0 || choice.Count != fallback.Count) continue;
+            for (var i = 0; i < choice.Count; i++)
+            {
+                fallback[i].RemoveAllChildren();
+                foreach (var child in choice[i].ChildElements) fallback[i].AppendChild(child.CloneNode(true));
+            }
+        }
     }
 
     private static IEnumerable<(string Key, OpenXmlPartRootElement Root, string? Context)> TextParts(WordprocessingDocument word)
@@ -219,6 +292,18 @@ public sealed class DocxFilter : IFileFilter
                     var startId = tagData.Last(kv => kv.Value == "h:" + t.Ord).Key;
                     sb.Append(TagText.End(startId));
                     break;
+                case TokKind.ControlStart:
+                    FlushPlaceholder();
+                    CloseFormat();
+                    var cid = nextId++;
+                    tagData[cid] = "c:" + t.Ord;
+                    sb.Append(TagText.Start(cid));
+                    break;
+                case TokKind.ControlEnd:
+                    FlushPlaceholder();
+                    CloseFormat();
+                    sb.Append(TagText.End(tagData.Last(kv => kv.Value == "c:" + t.Ord).Key));
+                    break;
                 case TokKind.Keep:
                     break;
             }
@@ -244,6 +329,7 @@ public sealed class DocxFilter : IFileFilter
                 for (var i = 0; i < paragraphs.Count; i++)
                     if (byLocator.TryGetValue($"{key}#{i}", out var para))
                         Rebuild(paragraphs[i], para, document.TargetLanguage);
+                SyncFallbacks(root);
                 root.Save();
             }
             SetDocumentLanguage(word, document.TargetLanguage);
@@ -283,6 +369,9 @@ public sealed class DocxFilter : IFileFilter
         {
             if (!para.TagData.TryGetValue(id, out var data) || !data.StartsWith("p:")) return;
             if (!usedPlaceholders.Add(id)) return;
+            // Teile, die im Original im selben Lauf standen (z. B. ein ganzes Seitenzahl-Feld), bleiben in einem Lauf
+            Run? run = null;
+            var runOrdOfRun = -1;
             foreach (var reference in data[2..].Split(','))
             {
                 if (reference.StartsWith('e'))
@@ -290,6 +379,7 @@ public sealed class DocxFilter : IFileFilter
                     var el = w.Elements[int.Parse(reference[1..])];
                     el.Remove();
                     containers.Peek().El.AppendChild(el);
+                    run = null;
                 }
                 else
                 {
@@ -297,10 +387,14 @@ public sealed class DocxFilter : IFileFilter
                     var runOrd = int.Parse(reference[1..dot]);
                     var child = w.RunChildren[runOrd][int.Parse(reference[(dot + 1)..])];
                     child.Remove();
-                    var run = new Run();
-                    if (w.Runs[runOrd].RunProperties is { } rp) run.RunProperties = (RunProperties)rp.CloneNode(true);
+                    if (run == null || runOrdOfRun != runOrd)
+                    {
+                        run = new Run();
+                        if (w.Runs[runOrd].RunProperties is { } rp) run.RunProperties = (RunProperties)rp.CloneNode(true);
+                        containers.Peek().El.AppendChild(run);
+                        runOrdOfRun = runOrd;
+                    }
                     run.AppendChild(child);
-                    containers.Peek().El.AppendChild(run);
                 }
             }
         }
@@ -318,6 +412,15 @@ public sealed class DocxFilter : IFileFilter
             {
                 case TagText.TagKind.Start when data?.StartsWith("f:") == true:
                     formats.Push((tag.Id, data[2..]));
+                    break;
+                case TagText.TagKind.Start when data?.StartsWith("c:") == true:
+                    var control = w.Controls[int.Parse(data[2..])];
+                    var shell = new SdtRun();
+                    if (control.SdtProperties is { } sdtPr) shell.AppendChild(sdtPr.CloneNode(true));
+                    if (control.SdtEndCharProperties is { } endPr) shell.AppendChild(endPr.CloneNode(true));
+                    var inner = shell.AppendChild(new SdtContentRun());
+                    containers.Peek().El.AppendChild(shell);
+                    containers.Push((tag.Id, inner));
                     break;
                 case TagText.TagKind.Start when data?.StartsWith("h:") == true:
                     var link = (Hyperlink)w.Hyperlinks[int.Parse(data[2..])].CloneNode(false);

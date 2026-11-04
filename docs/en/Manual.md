@@ -59,8 +59,8 @@ Further options:
 
 | Format | Notes |
 |---|---|
-| DOCX, XLSX, PPTX | Formatting becomes tags; images, fields and comments are preserved |
-| ODT, ODS, ODP (OpenDocument) | As above; space and tab elements are preserved |
+| DOCX, XLSX, PPTX | Formatting becomes tags; images, fields and comments are preserved; text boxes and content controls are translated too, page number and date fields stay unchanged |
+| ODT, ODS, ODP (OpenDocument) | As above, including text frames, headers and footers; space and tab elements are preserved |
 | IDML (InDesign) | Stories with character styles and hyperlinks |
 | XLIFF 1.2 / 2.x, .sdlxliff | Bilingual exchange files; segment status is retained |
 | PDF | Output is a PDF again, in the layout of the original (see below); scanned PDFs with **Recognize scanned PDF (AI) …** |
@@ -68,6 +68,10 @@ Further options:
 | RESX, JSON, PO | Software strings; placeholders such as `{0}`, `%s`, `${name}` are protected |
 | SRT, VTT | Subtitles; timecodes remain unchanged |
 | TXT | Each line is a paragraph |
+
+Word and OpenDocument files are exported by writing back into the original file: page layout, styles, images,
+frames, tables, headers and footers stay as they are – only the text is replaced, and a longer translation flows on
+just as it would in Word or Writer.
 
 TMX, TBX and .sdltm are imported under **TM & Terminology**. Extensions can add further formats
 (the sample extension, for example, adds CSV).
