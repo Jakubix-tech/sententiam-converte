@@ -43,7 +43,7 @@ The `id` may contain only letters, digits, periods, underscores and hyphens; it 
   </PropertyGroup>
   <ItemGroup>
     <!-- The SDK: interfaces and data types. The program ships the library itself – do not copy it into the output -->
-    <PackageReference Include="SententiamConverte.Core" Version="1.1.1" ExcludeAssets="runtime;native" />
+    <PackageReference Include="SententiamConverte.Core" Version="1.2.0" ExcludeAssets="runtime;native" />
   </ItemGroup>
 </Project>
 ```
