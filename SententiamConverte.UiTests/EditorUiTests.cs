@@ -177,4 +177,59 @@ public class EditorUiTests
             server.Stop();
         }
     }
+
+    [AvaloniaFact]
+    public async Task FreeBuiltInAiIsOfferedInTheEditorAndInTheSettings()
+    {
+        var before = AppServices.Ai;
+        try
+        {
+            // wie bei einer neuen Installation: die eingebaute KI ist gewählt, aber noch nicht heruntergeladen
+            var builtIn = AiSettings.BuiltInPreset();
+            AppServices.Ai = new AiSettings { Providers = [builtIn], TranslateProviderId = builtIn.Id };
+            BuiltInAi.Folder = Path.Combine(Path.GetTempPath(), "sc-ki-" + Guid.NewGuid().ToString("N")[..8]);
+
+            var platform = new FakePlatform();
+            platform.FilesToPick.Add(("anleitung.docx", UiFlowTests.SampleDocx()));
+            var vm = new MainViewModel();
+            var window = new MainWindow { DataContext = vm, Width = 1400, Height = 900 };
+            window.Show();
+            AppServices.Platform = platform;
+            await Run(vm.BeginNewProjectCommand);
+            vm.NewName = "Kostenlose KI";
+            vm.NewTargets = "en-GB";
+            await Run(vm.CreateProjectCommand);
+            await Run(vm.AddFilesCommand);
+            await Run(vm.OpenInEditorCommand, vm.Files[0]);
+            await Pump();
+
+            // Editor: Hinweis mit „Jetzt herunterladen“
+            Assert.True(vm.Editor.AiMissing);
+            Assert.Contains("Gemma 4 E2B", vm.Editor.AiInfo);
+            var download = window.GetVisualDescendants().OfType<Button>().First(b => b.Content as string == "Jetzt herunterladen");
+            Assert.True(download.IsEffectivelyVisible);
+            window.CaptureRenderedFrame()?.Save(Path.Combine(TestSetup.ScreenshotDir, "28-editor-kostenlose-ki.png"));
+
+            // „Andere KI oder Ordner …“ führt zu „KI einrichten“ mit der Karte für die eingebaute KI
+            await Run(vm.Editor.OpenAiSettingsCommand);
+            await Pump(200);
+            Assert.Equal(5, vm.SelectedTab);
+            var setup = vm.Settings.Setup;
+            Assert.True(setup.IsBuiltInSupported);
+            Assert.Equal("gemma-4-e2b", setup.SelectedBuiltInModel!.Id);
+            Assert.StartsWith("Einmaliger Download: 2.9 GB".Replace(".", System.Globalization.CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator), setup.BuiltInStatus);
+            Assert.Equal("Herunterladen und verwenden", setup.BuiltInButton);
+            var card = window.GetVisualDescendants().OfType<TextBlock>().First(t => t.Text == "Kostenlos auf diesem Rechner");
+            Assert.True(card.IsEffectivelyVisible);
+            card.FindAncestorOfType<Border>()!.BringIntoView();
+            await Pump(100);
+            window.CaptureRenderedFrame()?.Save(Path.Combine(TestSetup.ScreenshotDir, "29-ki-einrichten-kostenlos.png"));
+            vm.Editor.Close();
+        }
+        finally
+        {
+            BuiltInAi.Folder = "";
+            AppServices.Ai = before;
+        }
+    }
 }

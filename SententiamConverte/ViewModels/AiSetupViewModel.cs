@@ -10,9 +10,10 @@ using SententiamConverte.Services;
 namespace SententiamConverte.ViewModels;
 
 /// <summary>
-/// „KI einrichten“ in wenigen Klicks: kostenlos über die eigene OpenCode-Installation, ein lokaler Server
-/// (wird automatisch gefunden) oder die kostenlose Stufe eines Cloud-Anbieters. Jeder Weg legt einen Zugang an,
-/// nutzt ihn auf Wunsch für alle Aufgaben und testet ihn sofort.
+/// „KI einrichten“ in wenigen Klicks: die eingebaute KI (offenes Modell auf diesem Rechner, wird heruntergeladen),
+/// kostenlos über OpenCode (wird bei Bedarf ebenfalls heruntergeladen), ein lokaler Server (wird automatisch gefunden)
+/// oder die kostenlose Stufe eines Cloud-Anbieters. Jeder Weg legt einen Zugang an, nutzt ihn auf Wunsch für alle
+/// Aufgaben und testet ihn sofort.
 /// </summary>
 public partial class AiSetupViewModel : ViewModelBase
 {
@@ -23,15 +24,98 @@ public partial class AiSetupViewModel : ViewModelBase
         _settings = settings;
         IsOpenCodeInstalled = OpenCodeServer.IsInstalled;
         SelectedService = Services.FirstOrDefault();
+        SelectedBuiltInModel = BuiltInModels.FirstOrDefault();
+        Download.Completed += RefreshBuiltIn;
     }
 
     [ObservableProperty] public partial bool UseForAll { get; set; } = true;
     [ObservableProperty] public partial string Result { get; set; } = "";
     [ObservableProperty] public partial bool IsBusy { get; set; }
 
+    // ---------- Eingebaute KI ----------
+
+    public AiDownloadService Download => AppServices.AiDownload;
+    public bool IsBuiltInSupported => BuiltInAi.IsSupported;
+    public System.Collections.Generic.IReadOnlyList<BuiltInModel> BuiltInModels => BuiltInAi.Models;
+    [ObservableProperty] public partial BuiltInModel? SelectedBuiltInModel { get; set; }
+    public string BuiltInFolder => BuiltInAi.Folder;
+    public bool IsSelectedInstalled => SelectedBuiltInModel is { } m && BuiltInAi.IsInstalled(m);
+    public string BuiltInButton => IsSelectedInstalled ? "Verwenden" : "Herunterladen und verwenden";
+
+    public string BuiltInStatus
+    {
+        get
+        {
+            if (SelectedBuiltInModel is not { } m) return "";
+            if (BuiltInAi.IsInstalled(m)) return "Heruntergeladen – bereit.";
+            var free = BuiltInAi.FreeSpace() is { } f ? BuiltInAi.FormatSize(f) : "?";
+            return $"Einmaliger Download: {BuiltInAi.FormatSize(BuiltInAi.MissingBytes(m))} – frei auf dem Laufwerk: {free}";
+        }
+    }
+
+    partial void OnSelectedBuiltInModelChanged(BuiltInModel? value) => RefreshBuiltIn();
+
+    private void RefreshBuiltIn()
+    {
+        OnPropertyChanged(nameof(BuiltInFolder));
+        OnPropertyChanged(nameof(BuiltInStatus));
+        OnPropertyChanged(nameof(IsSelectedInstalled));
+        OnPropertyChanged(nameof(BuiltInButton));
+        IsOpenCodeInstalled = OpenCodeServer.IsInstalled;
+    }
+
+    [RelayCommand]
+    private async Task ChooseBuiltInFolder()
+    {
+        if (AppServices.Platform == null || Download.IsRunning) return;
+        var folder = await AppServices.Platform.PickFolderAsync("Ordner für die eingebaute KI (Modelle sind mehrere GB groß)");
+        if (folder == null) return;
+        BuiltInAi.Stop();
+        AppServices.Ai.BuiltInFolder = folder;
+        BuiltInAi.Folder = folder;
+        _settings.SaveCommand.Execute(null);
+        RefreshBuiltIn();
+    }
+
+    [RelayCommand]
+    private async Task UseBuiltIn()
+    {
+        if (SelectedBuiltInModel is not { } m) return;
+        if (!BuiltInAi.IsInstalled(m))
+        {
+            Result = "";
+            if (!await Download.InstallAsync(m)) return;
+        }
+        RefreshBuiltIn();
+        await Use(AiSettings.BuiltInPreset(m));
+    }
+
+    [RelayCommand]
+    private void CancelDownload() => Download.Cancel();
+
+    [RelayCommand]
+    private void RemoveBuiltIn()
+    {
+        if (SelectedBuiltInModel is not { } m || Download.IsRunning) return;
+        BuiltInAi.Remove(m);
+        Result = $"{m.Name} wurde gelöscht.";
+        RefreshBuiltIn();
+    }
+
     // ---------- OpenCode ----------
 
-    public bool IsOpenCodeInstalled { get; }
+    [ObservableProperty] public partial bool IsOpenCodeInstalled { get; set; }
+    public bool CanDownloadOpenCode => !IsOpenCodeInstalled && OpenCodeInstaller.IsSupported;
+
+    partial void OnIsOpenCodeInstalledChanged(bool value) => OnPropertyChanged(nameof(CanDownloadOpenCode));
+
+    [RelayCommand]
+    private async Task DownloadOpenCode()
+    {
+        if (!await Download.InstallOpenCodeAsync()) return;
+        IsOpenCodeInstalled = OpenCodeServer.IsInstalled;
+        await LoadOpenCodeModels();
+    }
     public ObservableCollection<OpenCodeModel> OpenCodeModels { get; } = new();
     [ObservableProperty] public partial OpenCodeModel? SelectedOpenCodeModel { get; set; }
     public string OpenCodeNote => SelectedOpenCodeModel?.DataNote is { } note ? "Datennutzung: " + note : "";
@@ -95,10 +179,13 @@ public partial class AiSetupViewModel : ViewModelBase
     [ObservableProperty] public partial string? SelectedServiceModel { get; set; }
     public ObservableCollection<string> ServiceModels { get; } = new();
 
+    public string ServiceKeyHint => SelectedService is { NeedsKey: false } ? "Schlüssel (freiwillig, hebt die Grenzen an)" : "Schlüssel einfügen";
+
     partial void OnSelectedServiceChanged(FreeAiService? value)
     {
         ServiceModels.Clear();
         SelectedServiceModel = null;
+        OnPropertyChanged(nameof(ServiceKeyHint));
     }
 
     [RelayCommand]
@@ -110,12 +197,12 @@ public partial class AiSetupViewModel : ViewModelBase
     [RelayCommand]
     private Task ConnectService() => SelectedService is not { } svc ? Task.CompletedTask : Busy($"Verbinde mit {svc.Name} …", async () =>
     {
-        if (ServiceKey.Trim().Length == 0) throw new AiException("Bitte zuerst den Schlüssel einfügen („Schlüssel holen“ öffnet die Seite des Anbieters).");
+        if (svc.NeedsKey && ServiceKey.Trim().Length == 0) throw new AiException("Bitte zuerst den Schlüssel einfügen („Schlüssel holen“ öffnet die Seite des Anbieters).");
         var all = await AiDiscovery.ModelsAsync(svc.BaseUrl, ServiceKey.Trim());
         var free = all.Where(svc.IsFreeModel).ToList();
         ServiceModels.Clear();
         foreach (var m in free.Count > 0 ? free : all) ServiceModels.Add(m);
-        SelectedServiceModel = AiDiscovery.SuggestModel(ServiceModels);
+        SelectedServiceModel = AiDiscovery.SuggestModel(ServiceModels, svc.Preferred);
         Result = $"Verbunden: {ServiceModels.Count} Modell(e) verfügbar.";
     });
 

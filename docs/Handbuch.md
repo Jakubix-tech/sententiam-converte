@@ -33,7 +33,8 @@ Einstellungen, Wörterbücher und Erweiterungen liegen unter `%LOCALAPPDATA%\Sen
 `~/.local/share/SententiamConverte` (Linux/macOS). Mit der Umgebungsvariablen `SENTENTIAM_HOME` lässt sich ein
 anderer Ort wählen, etwa für eine portable Installation auf einem USB-Stick.
 
-Vor der ersten KI-Nutzung unter **Einstellungen** einen KI-Zugang einrichten (siehe „KI einrichten“).
+Vor der ersten KI-Nutzung unter **Einstellungen** einen KI-Zugang einrichten (siehe „KI einrichten“) – oder im
+Editor bei **Jetzt herunterladen** die kostenlose eingebaute KI laden.
 Alles andere – TM, Terminologie, QA, Dateiformate – funktioniert ohne KI.
 
 ## Projekt anlegen
@@ -164,6 +165,20 @@ Unter **TM & Terminologie**:
 - **Alignment** – Ausgangstext und vorhandene Übersetzung wählen; die Sätze werden nach Länge und Zahlen
   einander zugeordnet. Sichere Paare sind vorausgewählt, **Markierte ins TM** übernimmt sie.
 
+### Freie Sprachdaten herunterladen
+
+Unter **TM & Terminologie → Freie Sprachdaten herunterladen** findet das Programm frei verfügbare Daten für das
+Sprachpaar des Projekts: Translation Memories aus dem OPUS-Archiv (u. a. der EU-Übersetzungsspeicher **DGT**,
+**Europarl**, EU-Recht, Arzneimittelinformationen der EMA, Veröffentlichungen der EZB, Verwaltungstexte aus der
+ELRC-Initiative, Oberflächentexte freier Software, Alltagssätze aus Tatoeba) und die EU-Terminologie **IATE**
+(frei verfügbare Gesamtausgabe, Stand 2019). Zielsprache wählen, **Suchen**, Datensatz wählen, **Herunterladen und
+anbinden** – das Programm lädt aus der offiziellen Quelle, übernimmt nur das Sprachpaar des Projekts (auch wenn die
+Daten in der Gegenrichtung vorliegen) und bindet die neue Datenbank an; sie schreibt nicht zurück. Angezeigt werden
+zuerst empfohlene, frei nutzbare Datensätze; **Alle anzeigen** zeigt auch sehr große, aus dem Netz gesammelte oder
+nur eingeschränkt nutzbare. Zu jedem Datensatz stehen Lizenz und Platzbedarf da – ein TM braucht mit Suchindex etwa
+2,5 KB je Satzpaar (DGT Deutsch–Englisch also rund 9 GB); mit **Ordner …** lässt sich ein Laufwerk mit mehr Platz
+wählen. Bei den meisten Lizenzen ist die Quelle anzugeben.
+
 ## Terminologie
 
 Begriffe bestehen aus Benennungen in mehreren Sprachen mit Status (bevorzugt, zugelassen, verboten),
@@ -210,18 +225,35 @@ pro Projekt und pro Sprache anbinden – lokal oder auf dem Teamserver.
 
 ## KI einrichten
 
-Am einfachsten über **Einstellungen → KI einrichten**: einen von drei Wegen wählen, **Verwenden** klicken –
+Am einfachsten über **Einstellungen → KI einrichten**: einen Weg wählen, **Verwenden** klicken –
 das Programm legt den Zugang an, testet ihn und nutzt ihn (auf Wunsch) für Übersetzen, Recherche und Bewertung.
 
-- **Kostenlos über OpenCode**: Ist OpenCode installiert, startet das Programm es im Hintergrund und bietet
-  dessen kostenlose Modelle an (kostenlose zuerst, mit Hinweis zur Datennutzung). Die Anfragen laufen über
-  OpenCode selbst, wie es OpenCode für seine kostenlosen Modelle vorschreibt. Die kostenlosen Modelle haben ein
-  Tageskontingent; ist es aufgebraucht, sagt das Programm, ab wann es wieder geht.
+- **Kostenlos auf diesem Rechner** (eingebaute KI, Windows, macOS, Linux): Ein offenes Sprachmodell (Gemma 4 von
+  Google, Apache-2.0) läuft mit der Laufzeit llama.cpp direkt auf dem Rechner – ohne Konto, ohne Schlüssel, ohne
+  Tageslimit, und die Texte verlassen den Rechner nicht. Zur Wahl stehen **Gemma 4 E2B** (2,8 GB, schnell, auch
+  ohne Grafikkarte) und **Gemma 4 E4B** (4,6 GB, bessere Übersetzungen). **Herunterladen und verwenden** lädt
+  Laufzeit und Modell einmalig aus den offiziellen Quellen (GitHub, Hugging Face) und prüft ihre Prüfsummen; ein
+  abgebrochener Download geht beim nächsten Mal an derselben Stelle weiter. Mit **Ordner …** lässt sich ein
+  Laufwerk mit mehr Platz wählen; **Modell löschen** gibt den Platz wieder frei. Eine Grafikkarte wird genutzt,
+  wenn vorhanden. Bei neuen Installationen ist die eingebaute KI voreingestellt: Der Editor zeigt dann einen
+  Hinweis mit **Jetzt herunterladen**, bis sie bereitsteht. Kleine lokale Modelle übersetzen solide, erreichen
+  aber nicht die Qualität großer Cloud-Modelle – für anspruchsvolle Texte das größere Modell oder einen anderen
+  Zugang wählen.
+- **Kostenlos über OpenCode**: Das Programm startet OpenCode im Hintergrund und bietet dessen kostenlose Modelle
+  an (kostenlose zuerst, mit Hinweis zur Datennutzung). Ist OpenCode nicht installiert, lädt **OpenCode
+  herunterladen** es aus dem offiziellen Release (MIT-Lizenz, etwa 80 MB). Die Anfragen laufen über OpenCode
+  selbst, wie es OpenCode für seine kostenlosen Modelle vorschreibt; ein Konto ist nicht nötig. Die kostenlosen
+  Modelle haben ein Tageskontingent je Internetanschluss; ist es aufgebraucht, sagt das Programm, ab wann es
+  wieder geht.
 - **Lokal auf diesem Rechner**: **Suchen** findet Ollama, LM Studio, llama.cpp und ähnliche Server automatisch,
   samt ihrer Modelle. Kostenlos und vertraulich – die Texte verlassen den Rechner nicht.
-- **Kostenlos mit eigenem Schlüssel**: OpenRouter (Modelle mit „:free“), Google Gemini oder Groq. **Schlüssel
-  holen** öffnet die Seite des Anbieters, Schlüssel einfügen, **Verbinden** zeigt die kostenlosen Modelle.
-  Kostenlose Cloud-Stufen haben Mengenbegrenzungen und speichern Eingaben teilweise – nicht für vertrauliche Texte.
+- **Kostenlos online**: Ohne Anmeldung gehen **OVHcloud AI Endpoints** (Rechenzentren in der EU, ohne Schlüssel
+  2 Anfragen pro Minute und Modell; bewährt: gpt-oss-120b) und das **Kilo Gateway** (kostenlose Modelle, etwa 200
+  Anfragen pro Stunde; die Anbieter dahinter dürfen protokollieren): Dienst wählen, **Verbinden**, **Verwenden**.
+  Mit kostenlosem Schlüssel außerdem OpenRouter (Modelle mit „:free“), Google Gemini, Groq, Mistral, NVIDIA NIM und
+  Cerebras – **Schlüssel holen** öffnet die Seite des Anbieters. Stößt ein Dienst an seine Mengenbegrenzung, wartet
+  das Programm kurz und versucht es erneut. Kostenlose Cloud-Stufen speichern Eingaben teilweise – nicht für
+  vertrauliche Texte.
 
 Von Hand geht es unter **Erweitert: KI-Zugänge von Hand bearbeiten**: Vorlage wählen (Claude, lokal,
 OpenAI, Mistral, OpenRouter, OpenCode, eigener Server …), Adresse und Modell anpassen, testen, speichern.

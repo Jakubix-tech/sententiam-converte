@@ -107,6 +107,8 @@ public partial class ResourcesViewModel : ViewModelBase
         OnPropertyChanged(nameof(ServerNames));
         if (NewTargetLanguage.Length == 0) NewTargetLanguage = p.TargetLanguages.FirstOrDefault() ?? "";
         if (AlignTargetLanguage.Length == 0) AlignTargetLanguage = p.TargetLanguages.FirstOrDefault() ?? "";
+        OnPropertyChanged(nameof(DataTargetLanguages));
+        if (DataTargetLanguage == null || !p.TargetLanguages.Contains(DataTargetLanguage)) DataTargetLanguage = p.TargetLanguages.FirstOrDefault();
         SearchTerms();
         LoadTmPage();
     }
@@ -311,6 +313,91 @@ public partial class ResourcesViewModel : ViewModelBase
         Refresh();
         _main.Knowledge.OnProjectChanged();
         _main.Status = p.ResourceErrors.Count > 0 ? "Nicht erreichbar: " + string.Join("; ", p.ResourceErrors) : "Ressourcen aktualisiert.";
+    }
+
+    // ---------- Freie Sprachdaten ----------
+
+    private List<Core.Resources.LanguageDataSet> _allDataSets = new();
+    public ObservableCollection<Core.Resources.LanguageDataSet> DataSets { get; } = new();
+    [ObservableProperty] public partial Core.Resources.LanguageDataSet? SelectedDataSet { get; set; }
+    [ObservableProperty] public partial bool ShowAllDataSets { get; set; }
+    [ObservableProperty] public partial string? DataTargetLanguage { get; set; }
+    [ObservableProperty] public partial string DataStatus { get; set; } = "";
+    public IReadOnlyList<string> DataTargetLanguages => _main.Project?.TargetLanguages ?? [];
+    public AiDownloadService Download => AppServices.AiDownload;
+
+    public string DataFolder => AppServices.Ui.LanguageDataFolder is { Length: > 0 } f ? f : Core.Resources.LanguageData.DefaultFolder;
+
+    public string DataInfo
+    {
+        get
+        {
+            if (SelectedDataSet is not { } d) return "";
+            var free = Core.Ai.BuiltInAi.FreeSpace(DataFolder) is { } f ? Core.Ai.BuiltInAi.FormatSize(f) : "?";
+            return $"{d.Name}: {d.Description}. Lizenz: {d.License}. Platzbedarf etwa {d.DiskNeedText} (frei: {free}).";
+        }
+    }
+
+    partial void OnSelectedDataSetChanged(Core.Resources.LanguageDataSet? value) => OnPropertyChanged(nameof(DataInfo));
+    partial void OnShowAllDataSetsChanged(bool value) => FilterDataSets();
+
+    private void FilterDataSets()
+    {
+        DataSets.Clear();
+        foreach (var d in _allDataSets.Where(d => ShowAllDataSets || d.Recommended)) DataSets.Add(d);
+        SelectedDataSet = DataSets.FirstOrDefault();
+    }
+
+    [RelayCommand]
+    private async Task SearchDataSets()
+    {
+        var p = _main.Project;
+        if (p == null) { DataStatus = "Zuerst ein Projekt öffnen – gesucht wird für dessen Sprachpaar."; return; }
+        var target = DataTargetLanguage ?? p.TargetLanguages.FirstOrDefault();
+        if (target == null) return;
+        DataTargetLanguage = target;
+        DataStatus = $"Suche freie Sprachdaten für {p.SourceLanguage} → {target} …";
+        try
+        {
+            _allDataSets = await Core.Resources.LanguageData.SearchAsync(p.SourceLanguage, target);
+            FilterDataSets();
+            DataStatus = $"{_allDataSets.Count(d => d.Recommended)} empfohlene von {_allDataSets.Count} Datensätzen für {p.SourceLanguage} → {target}.";
+        }
+        catch (Exception ex) when (ex is System.Net.Http.HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        {
+            DataStatus = "Fehler: " + ex.Message;
+        }
+    }
+
+    [RelayCommand]
+    private async Task ChooseDataFolder()
+    {
+        if (AppServices.Platform == null) return;
+        var folder = await AppServices.Platform.PickFolderAsync("Ordner für freie Sprachdaten (große Datenbanken)");
+        if (folder == null) return;
+        AppServices.Ui.LanguageDataFolder = folder;
+        AppServices.Ui.Save();
+        OnPropertyChanged(nameof(DataFolder));
+        OnPropertyChanged(nameof(DataInfo));
+    }
+
+    [RelayCommand]
+    private async Task InstallDataSet()
+    {
+        var p = _main.Project;
+        if (p == null || SelectedDataSet is not { } set || DataTargetLanguage is not { } target) return;
+        Core.Resources.LanguageDataResult? result = null;
+        var ok = await AppServices.AiDownload.Run(set.Name, async (progress, ct) =>
+            result = await Core.Resources.LanguageData.InstallAsync(set, p.SourceLanguage, target, DataFolder, progress, ct));
+        if (!ok || result == null)
+        {
+            DataStatus = AppServices.AiDownload.Text;
+            return;
+        }
+        p.Attach(new ResourceRef { Kind = set.Kind, Location = result.Path, WriteBack = false });
+        AfterAttach(p);
+        DataStatus = $"{set.Name}: {result.Count:N0} Einträge übernommen und an das Projekt angebunden.";
+        _main.Status = DataStatus;
     }
 
     // ---------- TM-Pflege ----------

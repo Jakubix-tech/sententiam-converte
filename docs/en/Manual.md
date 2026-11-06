@@ -163,6 +163,19 @@ Under **TM & Terminology**:
 - **Alignment** – select a source text and its existing translation; the sentences are paired by length and
   numbers. Reliable pairs are preselected; **Selected to TM** adds them to the TM.
 
+### Downloading free language data
+
+Under **TM & Terminology → Download free language data** the program finds freely available data for the project's
+language pair: translation memories from the OPUS archive (including the EU translation memory **DGT**, **Europarl**,
+EU law, EMA medicine information, ECB publications, administrative texts from the ELRC initiative, user interface
+texts of free software, everyday sentences from Tatoeba) and the EU terminology **IATE** (freely available complete
+edition, as of 2019). Choose the target language, **Search**, pick a dataset, **Download and attach** – the program
+downloads from the official source, takes only the project's language pair (even if the data is in the opposite
+direction) and attaches the new database; it does not write back. Recommended, freely usable datasets are shown
+first; **Show all** also lists very large, web-crawled or restricted ones. Each dataset shows its license and the
+space needed – a TM with its search index needs about 2.5 KB per sentence pair (DGT German–English about 9 GB);
+**Folder …** chooses a drive with more space. Most licenses require attribution.
+
 ## Terminology
 
 Each entry (concept) consists of terms in several languages, each with a status (preferred, admitted, forbidden),
@@ -209,17 +222,30 @@ attached per project and per language – locally or on the team server.
 
 ## Setting up AI
 
-The easiest way is **Settings → Set up AI**: choose one of three ways and click **Use** – the program creates
+The easiest way is **Settings → Set up AI**: choose a way and click **Use** – the program creates
 the connection, tests it and (optionally) uses it for translation, research and evaluation.
 
-- **Free via OpenCode**: if OpenCode is installed, the program starts it in the background and offers its free
-  models (free ones first, with a note on data use). The requests go through OpenCode itself, as OpenCode requires
-  for its free models. The free models have a daily quota; when it is used up, the program says when it is
-  available again.
+- **Free on this computer** (built-in AI, Windows, macOS, Linux): an open language model (Google's Gemma 4,
+  Apache-2.0) runs directly on the computer with the llama.cpp runtime – no account, no key, no daily limit, and the
+  texts never leave the computer. Choose **Gemma 4 E2B** (2.8 GB, fast, also without a graphics card) or **Gemma 4
+  E4B** (4.6 GB, better translations). **Download and use** fetches the runtime and model once from the official
+  sources (GitHub, Hugging Face) and verifies their checksums; an interrupted download continues where it stopped.
+  **Folder …** chooses a drive with more space; **Delete model** frees the space again. A graphics card is used if
+  available. New installations use the built-in AI by default: the editor then shows a notice with **Download now**
+  until it is ready. Small local models translate solidly but do not reach the quality of large cloud models – for
+  demanding texts choose the larger model or another connection.
+- **Free via OpenCode**: the program starts OpenCode in the background and offers its free models (free ones first,
+  with a note on data use). If OpenCode is not installed, **Download OpenCode** fetches it from the official release
+  (MIT license, about 80 MB). The requests go through OpenCode itself, as OpenCode requires for its free models; no
+  account is needed. The free models have a daily quota per internet connection; when it is used up, the program
+  says when it is available again.
 - **Local on this computer**: **Search** finds Ollama, LM Studio, llama.cpp and similar servers automatically,
   including their models. Free and confidential – the texts never leave the computer.
-- **Free with your own key**: OpenRouter (models ending in “:free”), Google Gemini or Groq. **Get key** opens the
-  provider's page; paste the key and **Connect** shows the free models. Free cloud tiers have volume limits and
+- **Free online**: without signing up, **OVHcloud AI Endpoints** (data centres in the EU; without a key 2 requests
+  per minute and model; proven: gpt-oss-120b) and the **Kilo Gateway** (free models, about 200 requests per hour; the
+  providers behind it may log) work: choose the service, **Connect**, **Use**. With a free key there are also
+  OpenRouter (models ending in “:free”), Google Gemini, Groq, Mistral, NVIDIA NIM and Cerebras – **Get key** opens the
+  provider's page. If a service hits its rate limit, the program waits briefly and tries again. Free cloud tiers
   partly store inputs – not for confidential texts.
 
 Manual setup is under **Advanced: edit AI connections manually**.

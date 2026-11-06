@@ -136,6 +136,34 @@ public partial class EditorViewModel : ViewModelBase
     [ObservableProperty] public partial bool DictionaryMissing { get; set; }
     [ObservableProperty] public partial string DictionaryInfo { get; set; } = "";
 
+    /// <summary>Die gewählte KI ist die eingebaute, aber noch nicht heruntergeladen – der Editor bietet den Download an.</summary>
+    [ObservableProperty] public partial bool AiMissing { get; set; }
+    [ObservableProperty] public partial string AiInfo { get; set; } = "";
+    public AiDownloadService AiDownload => AppServices.AiDownload;
+
+    /// <summary>Prüfen, ob die KI für Übersetzungen bereitsteht (beim Öffnen und nach Änderungen in den Einstellungen).</summary>
+    public void CheckAi()
+    {
+        var ai = AppServices.Ai;
+        var model = ai.Get(ai.TranslateProviderId) is { Kind: Core.Ai.AiProviderKind.BuiltIn } p ? Core.Ai.BuiltInAi.Model(p.Model) : null;
+        AiMissing = model != null && !Core.Ai.BuiltInAi.IsInstalled(model);
+        AiInfo = model == null || !AiMissing ? "" :
+            $"Die kostenlose KI ({model.Name}) ist noch nicht heruntergeladen: einmalig {Core.Ai.BuiltInAi.FormatSize(Core.Ai.BuiltInAi.MissingBytes(model))}, " +
+            "danach übersetzt sie ohne Konto und offline auf diesem Rechner.";
+    }
+
+    [RelayCommand]
+    private async Task DownloadAi()
+    {
+        var ai = AppServices.Ai;
+        if (ai.Get(ai.TranslateProviderId) is not { Kind: Core.Ai.AiProviderKind.BuiltIn } p || Core.Ai.BuiltInAi.Model(p.Model) is not { } model) return;
+        if (await AppServices.AiDownload.InstallAsync(model)) _main.Status = $"{model.Name} ist bereit.";
+        CheckAi();
+    }
+
+    [RelayCommand]
+    private void OpenAiSettings() => _main.SelectedTab = 5;
+
     [RelayCommand]
     private void ZoomIn() => EditorFontSize = Math.Min(EditorFontSize + 1, 28);
 
@@ -201,6 +229,7 @@ public partial class EditorViewModel : ViewModelBase
         SourceLanguage = doc.SourceLanguage;
         TargetLanguage = doc.TargetLanguage;
         CheckDictionary(doc.TargetLanguage);
+        CheckAi();
         CanResegment = Workflow.CanResegment(doc) && !project.IsShared;
         StartSync(project, file, doc);
         _all = doc.Paragraphs.SelectMany(p => p.Segments.Select(s => new SegmentViewModel(s, p.Context, p.TagData))).ToList();
@@ -888,7 +917,7 @@ public partial class EditorViewModel : ViewModelBase
                    ?? _lastEvaluation.Scores.FirstOrDefault(s => s.Label == _lastEvaluation.BestLabel)?.Text
                    ?? _lastEvaluation.Scores.FirstOrDefault()?.Text;
         if (text == null) return;
-        Selected.Model.Target = TagText.EnsureTags(Selected.Source, text);
+        Selected.Model.Target = TagText.Repair(Selected.Source, text);
         Selected.Model.Origin = TranslationOrigin.Ai;
         Selected.Model.Status = SegmentStatus.Draft;
         Selected.Refresh();

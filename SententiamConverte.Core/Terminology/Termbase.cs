@@ -53,6 +53,29 @@ public sealed class Termbase : ITermbase
     public long AddConcept(IEnumerable<(string Lang, string Text, TermStatus Status)> terms, string? definition = null, string? domain = null, string? source = null)
     {
         using var tx = _db.BeginTransaction();
+        var id = InsertConcept(terms, definition, domain, source);
+        tx.Commit();
+        _cache.Clear();
+        return id;
+    }
+
+    /// <summary>Viele Einträge in einer Transaktion (große Importe wie IATE).</summary>
+    public int AddConcepts(IEnumerable<(IReadOnlyList<(string Lang, string Text, TermStatus Status)> Terms, string? Definition, string? Domain, string? Source)> concepts)
+    {
+        var n = 0;
+        using var tx = _db.BeginTransaction();
+        foreach (var c in concepts)
+        {
+            InsertConcept(c.Terms, c.Definition, c.Domain, c.Source);
+            n++;
+        }
+        tx.Commit();
+        _cache.Clear();
+        return n;
+    }
+
+    private long InsertConcept(IEnumerable<(string Lang, string Text, TermStatus Status)> terms, string? definition, string? domain, string? source)
+    {
         long id;
         using (var cmd = _db.CreateCommand())
         {
@@ -65,8 +88,6 @@ public sealed class Termbase : ITermbase
         }
         foreach (var t in terms.Where(t => !string.IsNullOrWhiteSpace(t.Text)))
             InsertTerm(id, t.Lang, t.Text.Trim(), t.Status, null);
-        tx.Commit();
-        _cache.Clear();
         return id;
     }
 

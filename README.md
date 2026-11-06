@@ -128,10 +128,17 @@ interface and manual included (Settings → User interface language).*
 - Handbuch, API-Referenz und Entwickleranleitung im Programm unter „Hilfe“ (F1), mit Suche
 
 **KI**
-- **KI einrichten in einem Klick** (Einstellungen): kostenlos über die eigene **OpenCode**-Installation (deren
-  kostenlose Modelle, Anfragen laufen über OpenCode selbst), **lokale Server** (Ollama, LM Studio, llama.cpp …)
-  werden automatisch gefunden, oder **kostenlose Cloud-Stufen** mit eigenem Schlüssel (OpenRouter, Gemini, Groq);
+- **Kostenlose KI eingebaut**: ein offenes Sprachmodell (Gemma 4, Apache-2.0) läuft mit llama.cpp direkt auf dem
+  Rechner – ohne Konto, ohne Schlüssel, ohne Tageslimit, offline und vertraulich; Download mit einem Klick
+  (2,8 bzw. 4,6 GB, Speicherort wählbar), Grafikkarte wird genutzt, wenn vorhanden (Windows, macOS, Linux)
+- **KI einrichten in einem Klick** (Einstellungen): außerdem **kostenlos online ohne Konto** (OVHcloud mit
+  EU-Rechenzentren, Kilo Gateway), kostenlos über **OpenCode** (wird bei Bedarf heruntergeladen; Anfragen laufen über
+  OpenCode selbst), **lokale Server** (Ollama, LM Studio, llama.cpp …) werden automatisch gefunden, oder
+  **kostenlose Cloud-Stufen** mit eigenem Schlüssel (OpenRouter, Gemini, Groq, Mistral, NVIDIA, Cerebras);
   jeder Weg wird sofort getestet und auf Wunsch für alle Aufgaben genutzt
+- **Freie Sprachdaten mit einem Klick**: Translation Memories aus dem OPUS-Archiv (u. a. EU-Übersetzungsspeicher
+  DGT, Europarl, EU-Recht) und die EU-Terminologie IATE finden, herunterladen, aufs Projektsprachpaar zuschneiden und
+  anbinden
 - KI-Zugänge frei definierbar: Claude (Anthropic-API) oder jeder Server mit OpenAI-kompatibler Schnittstelle,
   lokal (llama.cpp/Strata, Ollama, LM Studio, vLLM) oder in der Cloud. Je Aufgabe ein anderer Zugang möglich.
 - **Themenrecherche**: Suchanfragen in jeder Sprache, Fachtexte lesen, mehrsprachige Begriffsliste mit Belegen

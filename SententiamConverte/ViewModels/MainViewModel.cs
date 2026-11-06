@@ -286,6 +286,7 @@ public partial class MainViewModel : ViewModelBase
             RefreshFiles();
         }
         if (value == 6) Extensions.Refresh();      // Bezug (offenes Dokument, Segment) aktuell anzeigen
+        if (value == 1) Editor.CheckAi();          // KI inzwischen eingerichtet oder gewechselt?
     }
 
     partial void OnProjectTopicChanged(string value)

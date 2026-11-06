@@ -37,6 +37,191 @@ public class LiveTests
         finally { OpenCodeServer.Stop(); }
     }
 
+    /// <summary>
+    /// Eingebaute KI mit echtem Modell (Gemma 4 E2B): Laufzeit starten, mit dem Übersetzungsagenten übersetzen, Zeiten messen.
+    /// Ordner mit Laufzeit und Modell über SC_BUILTIN_FOLDER; Ergebnis zusätzlich in %TEMP%\sc-eingebaute-ki.txt.
+    /// </summary>
+    [Fact(Explicit = true)]
+    public async Task BuiltInAiTranslates()
+    {
+        if (Environment.GetEnvironmentVariable("SC_BUILTIN_FOLDER") is { Length: > 0 } folder) BuiltInAi.Folder = folder;
+        var model = BuiltInAi.Model("gemma-4-e2b")!;
+        Assert.True(BuiltInAi.IsInstalled(model), "Laufzeit und Modell fehlen in " + BuiltInAi.Folder);
+        var report = new System.Text.StringBuilder();
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            var chat = ChatModelFactory.Create(AiSettings.BuiltInPreset(model));
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            var first = await chat.AskAsync("You are a professional translator. Answer only with the translation.",
+                "Translate from German into English: Das Gerät vor der Reinigung ausschalten.", ct);
+            report.AppendLine($"Start + erste Antwort: {watch.Elapsed.TotalSeconds:0.0} s → {first}");
+            Assert.Contains("device", first, StringComparison.OrdinalIgnoreCase);
+
+            var agent = new SententiamConverte.Core.Agents.AiTranslator(new SententiamConverte.Core.Agents.AgentContext { Model = chat });
+            (string Source, string Target)[] cases =
+            [
+                ("Die Schraube mit ⟨1⟩5 Nm⟨/1⟩ anziehen.", "en-GB"),
+                ("Entwicklung eines Systems zur Materialverfolgung von der Konstruktion bis in die Produktion.", "en-GB"),
+                ("⟨1⟩Material & Einkauf:⟨/1⟩ Stücklisten, Bestelllisten, automatisierte Bestellprozesse, Materialnachverfolgung.", "en-GB"),
+                ("Koordination komplexer Bauprojekte: Anforderungen klären, Aufgaben verteilen, Termine planen und die Umsetzung bis zur Produktion begleiten.", "en-GB"),
+                ("Das Gerät vor der Reinigung ausschalten und den Netzstecker ziehen.", "pl-PL"),
+                ("Freiwillige Feuerwehr Stimpfach; Erste-Hilfe-Schulung.", "pl-PL"),
+            ];
+            foreach (var (source, target) in cases)
+            {
+                watch.Restart();
+                var result = await agent.TranslateAsync(source, "de-DE", target, "Lebenslauf / Technik", ct: ct);
+                report.AppendLine($"[{target}] {watch.Elapsed.TotalSeconds:0.0} s");
+                report.AppendLine($"  {source}");
+                report.AppendLine($"  → {result}");
+                Assert.False(string.IsNullOrWhiteSpace(result));
+                foreach (var tag in new[] { "⟨1⟩", "⟨/1⟩" })
+                    if (source.Contains(tag)) Assert.Contains(tag, result);
+            }
+        }
+        finally
+        {
+            report.AppendLine("--- Laufzeit ---");
+            foreach (var line in BuiltInAi.RecentLog.Where(l => System.Text.RegularExpressions.Regex.IsMatch(l,
+                         "Vulkan|GPU|offload|device|CPU|eval time|prompt eval|tokens per second|error|warn", System.Text.RegularExpressions.RegexOptions.IgnoreCase)).Take(60))
+                report.AppendLine(line);
+            File.WriteAllText(Path.Combine(Path.GetTempPath(), "sc-eingebaute-ki.txt"), report.ToString());
+            TestContext.Current.TestOutputHelper?.WriteLine(report.ToString());
+            BuiltInAi.Stop();
+            BuiltInAi.Folder = "";
+        }
+    }
+
+    /// <summary>
+    /// Alle kostenlosen OpenCode-Modelle mit denselben Übersetzungsaufgaben (verbraucht Tageskontingent).
+    /// Ergebnis zusätzlich in %TEMP%\sc-opencode-modelle.txt.
+    /// </summary>
+    [Fact(Explicit = true)]
+    public async Task AllFreeOpenCodeModelsTranslate()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var report = new System.Text.StringBuilder();
+        (string Source, string Target)[] cases =
+        [
+            ("Die Schraube mit ⟨1⟩5 Nm⟨/1⟩ anziehen.", "en-GB"),
+            ("Koordination komplexer Bauprojekte: Anforderungen klären, Aufgaben verteilen, Termine planen und die Umsetzung bis zur Produktion begleiten.", "en-GB"),
+            ("Freiwillige Feuerwehr Stimpfach; Erste-Hilfe-Schulung.", "pl-PL"),
+        ];
+        var ok = 0;
+        try
+        {
+            var models = (await OpenCodeServer.ModelsAsync(new AiProviderConfig { Kind = AiProviderKind.OpenCode }, ct))
+                .Where(m => m.Free && m.ProviderId == "opencode").ToList();
+            report.AppendLine($"{models.Count} kostenlose Modelle: {string.Join(", ", models.Select(m => m.ModelId))}");
+            foreach (var m in models)
+            {
+                report.AppendLine($"== {m.Id} ({m.DataNote ?? "ohne Hinweis"})");
+                var chat = ChatModelFactory.Create(new AiProviderConfig { Name = "OpenCode", Kind = AiProviderKind.OpenCode, Model = m.Id, TimeoutSeconds = 120 });
+                var agent = new SententiamConverte.Core.Agents.AiTranslator(new SententiamConverte.Core.Agents.AgentContext { Model = chat });
+                foreach (var (source, target) in cases)
+                {
+                    var watch = System.Diagnostics.Stopwatch.StartNew();
+                    try
+                    {
+                        var result = await agent.TranslateAsync(source, "de-DE", target, "Lebenslauf / Technik", ct: ct);
+                        report.AppendLine($"  [{target}] {watch.Elapsed.TotalSeconds:0.0} s → {result}");
+                        ok++;
+                    }
+                    catch (AiException ex)
+                    {
+                        report.AppendLine($"  [{target}] Fehler nach {watch.Elapsed.TotalSeconds:0.0} s: {ex.Message}");
+                        if (ex.Message.Contains("Kontingent")) break;
+                    }
+                }
+            }
+        }
+        finally
+        {
+            File.WriteAllText(Path.Combine(Path.GetTempPath(), "sc-opencode-modelle.txt"), report.ToString());
+            OpenCodeServer.Stop();
+        }
+        Assert.True(ok > 0, report.ToString());
+    }
+
+    /// <summary>Kostenlose Online-Dienste ohne Anmeldung (OVHcloud, Kilo) über den Übersetzungsagenten. Ergebnis in %TEMP%\sc-online-ohne-konto.txt.</summary>
+    [Fact(Explicit = true)]
+    public async Task KeylessOnlineServicesTranslate()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var report = new System.Text.StringBuilder();
+        var ok = 0;
+        foreach (var svc in AiDiscovery.FreeServices.Where(s => !s.NeedsKey))
+        {
+            try
+            {
+                var models = (await AiDiscovery.ModelsAsync(svc.BaseUrl, null, ct: ct)).Where(svc.IsFreeModel).ToList();
+                var model = AiDiscovery.SuggestModel(models, svc.Preferred)!;
+                report.AppendLine($"== {svc.Name}: {models.Count} Modelle, gewählt: {model}");
+                var chat = ChatModelFactory.Create(new AiProviderConfig { Name = svc.Name, Kind = AiProviderKind.OpenAiCompatible, BaseUrl = svc.BaseUrl, Model = model, Temperature = 0.2 });
+                var agent = new SententiamConverte.Core.Agents.AiTranslator(new SententiamConverte.Core.Agents.AgentContext { Model = chat });
+                foreach (var (source, target) in new[] { ("Die Schraube mit ⟨1⟩5 Nm⟨/1⟩ anziehen.", "en-GB"), ("Freiwillige Feuerwehr Stimpfach; Erste-Hilfe-Schulung.", "pl-PL") })
+                {
+                    var watch = System.Diagnostics.Stopwatch.StartNew();
+                    var result = await agent.TranslateAsync(source, "de-DE", target, "Lebenslauf / Technik", ct: ct);
+                    report.AppendLine($"  [{target}] {watch.Elapsed.TotalSeconds:0.0} s → {result}");
+                    ok++;
+                }
+            }
+            catch (AiException ex)
+            {
+                report.AppendLine($"  Fehler: {ex.Message}");
+            }
+        }
+        File.WriteAllText(Path.Combine(Path.GetTempPath(), "sc-online-ohne-konto.txt"), report.ToString());
+        Assert.True(ok >= 2, report.ToString());
+    }
+
+    /// <summary>
+    /// Freie Sprachdaten: Suche für de→en, echter Download und Import des EZB-Speichers und von IATE (nur de/en).
+    /// Ordner über SC_LANGDATA_FOLDER; Ergebnis in %TEMP%\sc-sprachdaten.txt.
+    /// </summary>
+    [Fact(Explicit = true)]
+    public async Task LanguageDataDownloadsAndImports()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var folder = Environment.GetEnvironmentVariable("SC_LANGDATA_FOLDER") ?? Path.Combine(Path.GetTempPath(), "sc-sprachdaten");
+        var report = new System.Text.StringBuilder();
+        try
+        {
+            var sets = await SententiamConverte.Core.Resources.LanguageData.SearchAsync("de-DE", "en-GB", ct);
+            report.AppendLine($"{sets.Count} Datensätze, davon {sets.Count(s => s.Recommended)} empfohlen:");
+            foreach (var s in sets.Where(s => s.Recommended).Take(20))
+                report.AppendLine($"  {s.Name,-22} {s.KindText,-18} {s.UnitsText,12} Einheiten {s.SizeText,9}  {s.License}");
+
+            foreach (var id in new[] { "opus-ecb", "iate" })
+            {
+                var set = sets.First(s => s.Id == id);
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                var result = await SententiamConverte.Core.Resources.LanguageData.InstallAsync(set, "de-DE", "en-GB", folder, null, ct);
+                report.AppendLine($"{set.Name}: {result.Count:N0} Einträge in {watch.Elapsed.TotalSeconds:0} s → {result.Path} ({new FileInfo(result.Path).Length / 1e6:0} MB)");
+                Assert.True(result.Count > 1000);
+                if (set.Kind == SententiamConverte.Core.Remote.ResourceKind.Tm)
+                {
+                    using var tm = new SententiamConverte.Core.Tm.TranslationMemory(result.Path);
+                    watch.Restart();
+                    var hits = tm.Search("de-DE", "en-GB", "Die Europäische Zentralbank hat beschlossen, die Leitzinsen unverändert zu lassen.");
+                    report.AppendLine($"  TM-Suche ({watch.ElapsedMilliseconds} ms): " + string.Join(" | ", hits.Take(2).Select(h => $"{h.Score}% {h.Unit.Target}")));
+                }
+                else
+                {
+                    using var tb = new SententiamConverte.Core.Terminology.Termbase(result.Path);
+                    var hits = tb.Lookup("de-DE", "Zentralbank").Take(3).ToList();
+                    report.AppendLine("  Terminologie „Zentralbank“: " + string.Join(" | ", hits.Select(c => string.Join(", ", c.Terms.Select(x => $"{x.Language}:{x.Text}").Take(4)))));
+                }
+            }
+        }
+        finally
+        {
+            File.WriteAllText(Path.Combine(Path.GetTempPath(), "sc-sprachdaten.txt"), report.ToString());
+        }
+    }
+
     /// <summary>Lokale KI-Server auf den üblichen Ports.</summary>
     [Fact(Explicit = true)]
     public async Task DetectsLocalServers()

@@ -26,5 +26,6 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="SententiamConverte.Core.Tests" />
+    <InternalsVisibleTo Include="SententiamConverte.UiTests" />
   </ItemGroup>
 </Project>

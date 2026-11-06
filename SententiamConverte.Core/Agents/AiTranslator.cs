@@ -49,7 +49,7 @@ public sealed class AiTranslator(AgentContext ctx)
             "You are a professional translator. You produce publication-ready translations that read like native text.",
             sb.ToString(), ct);
         answer = answer.Trim().Trim('"', '„', '“').Trim();
-        return TagText.EnsureTags(source, answer);
+        return TagText.Repair(source, answer);
     }
 
     /// <summary>Wissen aus den Wissensdatenbanken (Fachwissen, Stilregeln, Sprachgebrauch) als Kontext.</summary>

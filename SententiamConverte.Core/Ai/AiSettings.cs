@@ -11,6 +11,8 @@ public enum AiProviderKind
     Anthropic,
     /// <summary>Über die eigene OpenCode-Installation (auch deren kostenlose Modelle). Modell als „Anbieter/Modell“.</summary>
     OpenCode,
+    /// <summary>Eingebaute KI: offenes Modell auf diesem Rechner (siehe <see cref="BuiltInAi"/>). Modell = Kennung, z. B. gemma-4-e2b.</summary>
+    BuiltIn,
 }
 
 /// <summary>Ein frei definierbarer KI-Zugang.</summary>
@@ -44,6 +46,7 @@ public sealed class AiProviderConfig
     {
         get
         {
+            if (Kind == AiProviderKind.BuiltIn) return true;
             if (!Uri.TryCreate(BaseUrl, UriKind.Absolute, out var uri)) return false;
             var host = uri.Host.ToLowerInvariant();
             if (host is "localhost" or "127.0.0.1" or "::1" or "[::1]" || host.EndsWith(".local") || host.EndsWith(".localhost")) return true;
@@ -115,12 +118,16 @@ public sealed class AiSettings
     /// <summary>In welcher Sprache die Agenten ihre Begründungen schreiben.</summary>
     public string ExplanationLanguage { get; set; } = "Deutsch";
 
+    /// <summary>Ordner für die eingebaute KI (Laufzeit und Modelle); leer = Standardordner im Benutzerprofil.</summary>
+    public string? BuiltInFolder { get; set; }
+
     public AiProviderConfig? Get(string? id) =>
         Providers.FirstOrDefault(p => p.Id == id) ?? Providers.FirstOrDefault();
 
     /// <summary>Vorlagen für die Auswahl „Neuer Zugang“.</summary>
     public static IReadOnlyList<AiProviderConfig> Presets() =>
     [
+        BuiltInPreset(),
         new() { Name = "Claude (Anthropic)", Kind = AiProviderKind.Anthropic, BaseUrl = "https://api.anthropic.com", ApiKey = "env:ANTHROPIC_API_KEY", Model = "claude-opus-5-5", MaxTokens = 16000, MaxCharsPerPage = 12000 },
         new() { Name = "Lokal: Strata / llama.cpp", Kind = AiProviderKind.OpenAiCompatible, BaseUrl = "http://localhost:8080/v1", Model = "local", Temperature = 0.2, MaxCharsPerPage = 3000 },
         new() { Name = "Lokal: Ollama", Kind = AiProviderKind.OpenAiCompatible, BaseUrl = "http://localhost:11434/v1", Model = "qwen3:14b", Temperature = 0.2, MaxCharsPerPage = 3000 },
@@ -133,6 +140,17 @@ public sealed class AiSettings
         new() { Name = "Eigener Server", Kind = AiProviderKind.OpenAiCompatible, BaseUrl = "http://", Model = "" },
     ];
 
+    /// <summary>Die kostenlose eingebaute KI mit dem kleineren, schnellen Modell.</summary>
+    public static AiProviderConfig BuiltInPreset(BuiltInModel? model = null)
+    {
+        model ??= BuiltInAi.Models[0];
+        return new AiProviderConfig
+        {
+            Name = "Kostenlose KI auf diesem Rechner (" + model.Name + ")", Kind = AiProviderKind.BuiltIn, Model = model.Id,
+            Temperature = 0.2, MaxCharsPerPage = 3000,
+        };
+    }
+
     private static readonly JsonSerializerOptions Json = new()
     {
         WriteIndented = true,
@@ -144,24 +162,40 @@ public sealed class AiSettings
     public static AiSettings Load(string? path = null)
     {
         path ??= DefaultPath;
+        var settings = Defaults();
         if (File.Exists(path))
         {
             try
             {
-                return JsonSerializer.Deserialize<AiSettings>(File.ReadAllText(path), Json) ?? Defaults();
+                settings = JsonSerializer.Deserialize<AiSettings>(File.ReadAllText(path), Json) ?? settings;
             }
             catch (JsonException) { }      // ältere oder beschädigte Datei → Standardwerte
         }
-        return Defaults();
+        BuiltInAi.Folder = settings.BuiltInFolder ?? "";
+        return settings;
     }
 
+    /// <summary>
+    /// Neue Installation: zuerst die kostenlose eingebaute KI (wird beim ersten Gebrauch bzw. unter „KI einrichten“
+    /// heruntergeladen), daneben Claude und ein lokaler Server als Vorlagen.
+    /// </summary>
     private static AiSettings Defaults()
     {
-        var presets = Presets();
+        var claude = new AiProviderConfig
+        {
+            Name = "Claude (Anthropic)", Kind = AiProviderKind.Anthropic, BaseUrl = "https://api.anthropic.com", ApiKey = "env:ANTHROPIC_API_KEY",
+            Model = "claude-opus-5-5", MaxTokens = 16000, MaxCharsPerPage = 12000,
+        };
+        var local = new AiProviderConfig
+        {
+            Name = "Lokal: Strata / llama.cpp", Kind = AiProviderKind.OpenAiCompatible, BaseUrl = "http://localhost:8080/v1", Model = "local",
+            Temperature = 0.2, MaxCharsPerPage = 3000,
+        };
+        var providers = BuiltInAi.IsSupported ? new List<AiProviderConfig> { BuiltInPreset(), claude, local } : [claude, local];
         return new AiSettings
         {
-            Providers = [presets[0], presets[1]],
-            Search = new SearchConfig { Kind = SearchProviderKind.ClaudeWebSearch, ClaudeProviderId = presets[0].Id },
+            Providers = providers,
+            Search = new SearchConfig { Kind = SearchProviderKind.ClaudeWebSearch, ClaudeProviderId = claude.Id },
         };
     }
 

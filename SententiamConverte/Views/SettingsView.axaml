@@ -25,6 +25,49 @@
                     <TextBlock Classes="muted" TextWrapping="Wrap"
                                Text="{l:T 'Einen Weg wählen – das Programm richtet den Zugang ein, testet ihn und nutzt ihn für Übersetzung, Recherche und Bewertung. Kostenlose Wege haben Grenzen bei Menge und Datenschutz; für vertrauliche Texte ein lokales Modell verwenden.'}" />
                     <WrapPanel>
+                        <!-- Eingebaute KI -->
+                        <Border Classes="card" Width="340" Margin="0,0,12,12" IsVisible="{Binding IsBuiltInSupported}">
+                            <StackPanel Spacing="8">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <PathIcon Data="{StaticResource Ic.Ai}" />
+                                    <TextBlock Text="{l:T 'Kostenlos auf diesem Rechner'}" Classes="h2" />
+                                </StackPanel>
+                                <TextBlock Classes="muted" TextWrapping="Wrap" FontSize="12.5"
+                                           Text="{l:T 'Eingebaute KI: ein offenes Sprachmodell (Gemma 4, Apache-2.0) läuft direkt auf diesem Rechner – ohne Konto, ohne Schlüssel, ohne Tageslimit, und die Texte verlassen den Rechner nicht. Einmaliger Download; eine Grafikkarte wird genutzt, wenn vorhanden.'}" />
+                                <ComboBox ItemsSource="{Binding BuiltInModels}" SelectedItem="{Binding SelectedBuiltInModel}" HorizontalAlignment="Stretch">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="ai:BuiltInModel">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding Description, Converter={x:Static l:L.Text}}" FontSize="12" Classes="muted" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <TextBlock Text="{Binding BuiltInStatus, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontSize="12" />
+                                <Grid ColumnDefinitions="*,6,Auto">
+                                    <TextBlock Text="{Binding BuiltInFolder}" TextTrimming="CharacterEllipsis" FontSize="12" Classes="muted"
+                                               VerticalAlignment="Center" ToolTip.Tip="{Binding BuiltInFolder}" />
+                                    <Button Grid.Column="2" Content="{l:T 'Ordner …'}" Command="{Binding ChooseBuiltInFolderCommand}"
+                                            ToolTip.Tip="{l:T 'Speicherort für Laufzeit und Modelle, z. B. ein Laufwerk mit mehr Platz'}" />
+                                </Grid>
+                                <StackPanel Spacing="4" IsVisible="{Binding Download.IsRunning}">
+                                    <ProgressBar Value="{Binding Download.Fraction}" Maximum="1" />
+                                    <Grid ColumnDefinitions="*,6,Auto">
+                                        <TextBlock Text="{Binding Download.Text, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontSize="12" VerticalAlignment="Center" />
+                                        <Button Grid.Column="2" Content="{l:T 'Abbrechen'}" Command="{Binding CancelDownloadCommand}" />
+                                    </Grid>
+                                </StackPanel>
+                                <TextBlock Text="{Binding Download.Text, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontSize="12"
+                                           IsVisible="{Binding !Download.IsRunning}" />
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Button Content="{Binding BuiltInButton, Converter={x:Static l:L.Text}}" Classes="accent" Command="{Binding UseBuiltInCommand}"
+                                            IsEnabled="{Binding !Download.IsRunning}" />
+                                    <Button Content="{l:T 'Modell löschen'}" Command="{Binding RemoveBuiltInCommand}" IsVisible="{Binding IsSelectedInstalled}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
                         <!-- OpenCode -->
                         <Border Classes="card" Width="340" Margin="0,0,12,12" VerticalAlignment="Stretch">
                             <StackPanel Spacing="8">
@@ -33,7 +76,7 @@
                                     <TextBlock Text="{l:T 'Kostenlos über OpenCode'}" Classes="h2" />
                                 </StackPanel>
                                 <TextBlock Classes="muted" TextWrapping="Wrap" FontSize="12.5"
-                                           Text="{l:T 'Nutzt die kostenlosen Modelle der eigenen OpenCode-Installation (mit Tageskontingent). OpenCode wird dafür im Hintergrund gestartet; die Anfragen laufen über OpenCode selbst.'}" />
+                                           Text="{l:T 'Nutzt die kostenlosen Modelle von OpenCode (mit Tageskontingent, Texte gehen an die Anbieter der Modelle). OpenCode wird dafür im Hintergrund gestartet; die Anfragen laufen über OpenCode selbst.'}" />
                                 <StackPanel Spacing="8" IsVisible="{Binding IsOpenCodeInstalled}">
                                     <Button Content="{l:T 'Modelle laden'}" Command="{Binding LoadOpenCodeModelsCommand}" />
                                     <ComboBox ItemsSource="{Binding OpenCodeModels}" SelectedItem="{Binding SelectedOpenCodeModel}" HorizontalAlignment="Stretch"
@@ -52,8 +95,12 @@
                                     <TextBlock Text="{Binding OpenCodeNote, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontSize="12" Classes="muted" />
                                     <Button Content="{l:T 'Verwenden'}" Classes="accent" Command="{Binding UseOpenCodeCommand}" />
                                 </StackPanel>
-                                <TextBlock Text="{l:T 'OpenCode ist auf diesem Rechner nicht installiert (opencode.ai).'}" TextWrapping="Wrap"
-                                           IsVisible="{Binding !IsOpenCodeInstalled}" />
+                                <StackPanel Spacing="8" IsVisible="{Binding !IsOpenCodeInstalled}">
+                                    <TextBlock Text="{l:T 'OpenCode ist auf diesem Rechner noch nicht installiert. Das Programm kann es aus dem offiziellen Release laden (MIT-Lizenz, etwa 80 MB).'}"
+                                               TextWrapping="Wrap" />
+                                    <Button Content="{l:T 'OpenCode herunterladen'}" Classes="accent" Command="{Binding DownloadOpenCodeCommand}"
+                                            IsVisible="{Binding CanDownloadOpenCode}" IsEnabled="{Binding !Download.IsRunning}" />
+                                </StackPanel>
                             </StackPanel>
                         </Border>
 
@@ -86,7 +133,7 @@
                             <StackPanel Spacing="8">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <PathIcon Data="{StaticResource Ic.Cloud}" />
-                                    <TextBlock Text="{l:T 'Kostenlos mit eigenem Schlüssel'}" Classes="h2" />
+                                    <TextBlock Text="{l:T 'Kostenlos online'}" Classes="h2" />
                                 </StackPanel>
                                 <ComboBox ItemsSource="{Binding Services}" SelectedItem="{Binding SelectedService}" HorizontalAlignment="Stretch">
                                     <ComboBox.ItemTemplate>
@@ -97,7 +144,7 @@
                                 </ComboBox>
                                 <TextBlock Text="{Binding SelectedService.Note, Converter={x:Static l:L.Text}}" Classes="muted" TextWrapping="Wrap" FontSize="12" />
                                 <Grid ColumnDefinitions="*,6,Auto">
-                                    <TextBox Text="{Binding ServiceKey}" PasswordChar="•" PlaceholderText="{l:T 'Schlüssel einfügen'}" />
+                                    <TextBox Text="{Binding ServiceKey}" PasswordChar="•" PlaceholderText="{Binding ServiceKeyHint, Converter={x:Static l:L.Text}}" />
                                     <Button Grid.Column="2" Command="{Binding OpenKeyPageCommand}" ToolTip.Tip="{l:T 'Seite des Anbieters öffnen, um einen Schlüssel zu holen'}">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <PathIcon Data="{StaticResource Ic.Key}" Width="16" Height="16" />

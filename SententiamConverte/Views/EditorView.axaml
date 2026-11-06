@@ -86,15 +86,38 @@
             </StackPanel>
         </Border>
 
-        <!-- Kein Wörterbuch für die Zielsprache: mit einem Klick laden -->
-        <Border Grid.Row="1" Classes="infobar" Margin="8,8,8,0" IsVisible="{Binding DictionaryMissing}">
-            <Grid ColumnDefinitions="Auto,*,Auto">
-                <PathIcon Data="{StaticResource Ic.Spelling}" Width="18" Height="18" Margin="0,0,10,0" />
-                <TextBlock Grid.Column="1" Text="{Binding DictionaryInfo, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" VerticalAlignment="Center" />
-                <Button Grid.Column="2" Content="{l:T 'Wörterbuch laden'}" Command="{Binding DownloadDictionaryCommand}" Margin="10,0,0,0"
-                        ToolTip.Tip="{l:T 'Freies Wörterbuch aus dem LibreOffice-Projekt (eigene Lizenz)'}" />
-            </Grid>
-        </Border>
+        <StackPanel Grid.Row="1">
+            <!-- Kostenlose KI noch nicht heruntergeladen: mit einem Klick laden -->
+            <Border Classes="infobar" Margin="8,8,8,0" IsVisible="{Binding AiMissing}">
+                <StackPanel Spacing="6">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                        <PathIcon Data="{StaticResource Ic.Ai}" Width="18" Height="18" Margin="0,0,10,0" />
+                        <TextBlock Grid.Column="1" Text="{Binding AiInfo, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <Button Grid.Column="2" Content="{l:T 'Jetzt herunterladen'}" Command="{Binding DownloadAiCommand}" Margin="10,0,0,0"
+                                IsEnabled="{Binding !AiDownload.IsRunning}"
+                                ToolTip.Tip="{l:T 'Offenes Sprachmodell (Gemma 4, Apache-2.0) und Laufzeit llama.cpp (MIT) aus den offiziellen Quellen'}" />
+                        <Button Grid.Column="3" Content="{l:T 'Andere KI oder Ordner …'}" Command="{Binding OpenAiSettingsCommand}" Margin="6,0,0,0" />
+                    </Grid>
+                    <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding AiDownload.IsRunning}">
+                        <StackPanel Spacing="3">
+                            <ProgressBar Value="{Binding AiDownload.Fraction}" Maximum="1" />
+                            <TextBlock Text="{Binding AiDownload.Text, Converter={x:Static l:L.Text}}" FontSize="12" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="{l:T 'Abbrechen'}" Command="{Binding AiDownload.CancelCommand}" Margin="10,0,0,0" VerticalAlignment="Center" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Kein Wörterbuch für die Zielsprache: mit einem Klick laden -->
+            <Border Classes="infobar" Margin="8,8,8,0" IsVisible="{Binding DictionaryMissing}">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <PathIcon Data="{StaticResource Ic.Spelling}" Width="18" Height="18" Margin="0,0,10,0" />
+                    <TextBlock Grid.Column="1" Text="{Binding DictionaryInfo, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                    <Button Grid.Column="2" Content="{l:T 'Wörterbuch laden'}" Command="{Binding DownloadDictionaryCommand}" Margin="10,0,0,0"
+                            ToolTip.Tip="{l:T 'Freies Wörterbuch aus dem LibreOffice-Projekt (eigene Lizenz)'}" />
+                </Grid>
+            </Border>
+        </StackPanel>
 
         <!-- Suchen und Ersetzen -->
         <Border Grid.Row="2" Padding="8,6,8,0" IsVisible="{Binding #FindToggle.IsChecked}">

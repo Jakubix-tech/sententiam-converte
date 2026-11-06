@@ -88,6 +88,44 @@ public static partial class TagText
         return depth;
     }
 
+    /// <summary>Tags, die eine KI leicht verändert zurückgibt: „⟨/1>“, „&lt;/1⟩“, „⟨ 1 ⟩“.</summary>
+    [GeneratedRegex("[⟨<]\\s*(/?)\\s*(\\d+)\\s*(/?)\\s*[⟩>]")]
+    private static partial Regex LooseTagRegex();
+
+    /// <summary>
+    /// Räumt die Tags einer KI-Übersetzung auf: verformte Tags werden repariert, Tags, die die Quelle nicht hat
+    /// (oder öfter als die Quelle), entfernt – samt des Leerraums, den sie hinterlassen –, fehlende ergänzt.
+    /// Kleine Modelle erfinden gern Tags, wo die Quelle keine hat.
+    /// </summary>
+    public static string Repair(string source, string target)
+    {
+        target = LooseTagRegex().Replace(target, m =>
+            m.Value.Contains('<') && !m.Value.Contains('⟨') && !m.Value.Contains('⟩')
+                ? m.Value                                                    // echtes HTML/XML im Text, kein Tag
+                : $"{Open}{m.Groups[1].Value}{m.Groups[2].Value}{m.Groups[3].Value}{Close}");
+        var allowed = Tags(source).GroupBy(t => (t.Kind, t.Id)).ToDictionary(g => g.Key, g => g.Count());
+        var sb = new StringBuilder();
+        var pos = 0;
+        foreach (var t in Tags(target).ToList())
+        {
+            sb.Append(target, pos, t.Index - pos);
+            pos = t.Index + t.Length;
+            if (allowed.TryGetValue((t.Kind, t.Id), out var left) && left > 0)
+            {
+                allowed[(t.Kind, t.Id)] = left - 1;
+                sb.Append(target, t.Index, t.Length);
+                continue;
+            }
+            // überzähliges Tag weglassen; „Wort ⟨1⟩ Wort“ → „Wort Wort“, „Wort ⟨2/⟩.“ → „Wort.“
+            var spaceBefore = sb.Length > 0 && sb[^1] == ' ';
+            var next = pos < target.Length ? target[pos] : '\0';
+            if (spaceBefore && (next == ' ' || next == '\0' || char.IsPunctuation(next) && next is not ('(' or '[' or '„' or '“' or '"')))
+                sb.Length--;
+        }
+        sb.Append(target, pos, target.Length - pos);
+        return EnsureTags(source, sb.ToString().Trim());
+    }
+
     /// <summary>
     /// Übernimmt die Tags aus <paramref name="source"/> in einen Text ohne Tags:
     /// Platzhalter ans Ende, Paare um den ganzen Text. Notlösung, wenn eine KI Tags verliert.

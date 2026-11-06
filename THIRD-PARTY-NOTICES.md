@@ -21,6 +21,31 @@ Sententiam converte nutzt folgende Bibliotheken. Ihre Lizenzen gelten für den j
 | AndroidX (Xamarin.AndroidX.*) | Start-Bildschirm auf Android | MIT / Apache-2.0 |
 | xUnit, Avalonia.Headless | nur Tests, nicht ausgeliefert | Apache-2.0 / MIT |
 
+## Auf Wunsch geladene KI-Komponenten
+
+Nicht in den Paketen enthalten. Erst wenn der Benutzer es ausdrücklich auswählt, lädt das Programm aus den
+offiziellen Quellen und prüft die SHA-256-Prüfsummen:
+
+| Komponente | Quelle | Lizenz |
+|---|---|---|
+| llama.cpp (llama-server) | github.com/ggml-org/llama.cpp, Release-Pakete | MIT |
+| Gemma 4 E2B/E4B (GGUF) | huggingface.co/ggml-org (Modelle von Google) | Apache-2.0 |
+| OpenCode | github.com/anomalyco/opencode, Release-Pakete | MIT |
+
+Für die kostenlosen Modelle, die OpenCode anbietet, gelten die Bedingungen von OpenCode und der jeweiligen Anbieter.
+
+## Auf Wunsch geladene Sprachdaten
+
+Ebenfalls nicht enthalten. Auf ausdrücklichen Wunsch lädt das Programm frei verfügbare Translation Memories über die
+offizielle Schnittstelle des OPUS-Archivs (opus.nlpl.eu, University of Helsinki) und die frei verfügbare
+IATE-Gesamtausgabe (iate.europa.eu, verlinkt im EU-Datenportal). Für jeden Datensatz gilt dessen eigene Lizenz
+(im Programm angezeigt, Einzelheiten auf der Korpusseite); bei den meisten ist die Quelle anzugeben.
+
+## Online-KI-Dienste
+
+Die Dienste unter „Kostenlos online“ (u. a. OVHcloud AI Endpoints, Kilo Gateway) werden nur über ihre offiziellen
+Schnittstellen und nur auf Wunsch des Benutzers angesprochen; es gelten deren Bedingungen.
+
 ## Wörterbücher
 
 Hunspell-Wörterbücher werden **nicht mitgeliefert**. Sie werden erst auf ausdrücklichen Wunsch des Benutzers

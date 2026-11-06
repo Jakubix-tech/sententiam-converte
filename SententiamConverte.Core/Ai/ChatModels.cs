@@ -29,6 +29,7 @@ public static class ChatModelFactory
     {
         AiProviderKind.Anthropic => new ClaudeChatModel(config),
         AiProviderKind.OpenCode => new OpenCodeChatModel(config),
+        AiProviderKind.BuiltIn => new BuiltInChatModel(config),
         _ => new OpenAiCompatibleChatModel(config),
     };
 }
@@ -66,14 +67,30 @@ public sealed partial class OpenAiCompatibleChatModel : IChatModel
         if (_config.Temperature is { } t) body["temperature"] = t;
 
         var url = _config.BaseUrl.TrimEnd('/') + "/chat/completions";
-        using var response = await _http.PostAsJsonAsync(url, body, ct);
-        var text = await response.Content.ReadAsStringAsync(ct);
-        if (!response.IsSuccessStatusCode)
+        string text;
+        for (var attempt = 1; ; attempt++)
+        {
+            using var response = await _http.PostAsJsonAsync(url, body, ct);
+            text = await response.Content.ReadAsStringAsync(ct);
+            if (response.IsSuccessStatusCode) break;
+            // Mengenbegrenzung (kostenlose Stufen): kurz warten und erneut versuchen
+            if ((int)response.StatusCode == 429 && attempt < 4)
+            {
+                var wait = response.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(Math.Min(60, 15 * attempt));
+                await Task.Delay(wait < TimeSpan.FromSeconds(90) ? wait : TimeSpan.FromSeconds(90), ct);
+                continue;
+            }
+            if ((int)response.StatusCode == 429)
+                throw new AiException($"{_config.Name}: Die Mengenbegrenzung des Anbieters ist erreicht. Etwas warten oder ein anderes Modell bzw. einen eigenen Schlüssel verwenden.");
             throw new AiException($"{_config.Name}: HTTP {(int)response.StatusCode} – {Shorten(text)}");
+        }
         var json = JsonNode.Parse(text);
         var content = json?["choices"]?[0]?["message"]?["content"]?.GetValue<string>() ?? "";
         // Denkmodelle (Qwen3, DeepSeek-R1 …) schreiben ihre Überlegungen in <think>-Blöcke.
-        return ThinkBlock().Replace(content, "").Trim();
+        var answer = ThinkBlock().Replace(content, "").Trim();
+        if (answer.Length == 0)
+            throw new AiException($"{_config.Name}: Das Modell hat keine Antwort geliefert (bei Denkmodellen oft zu wenig Platz für die Antwort) – ein anderes Modell wählen.");
+        return answer;
     }
 
     internal static string Shorten(string s) => s.Length > 400 ? s[..400] + " …" : s;

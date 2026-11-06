@@ -41,8 +41,10 @@ public static class OpenCodeServer
         ["nemotron-3.5-super-vl-free"] = "Testnutzung, keine vertraulichen Daten",
     };
 
-    /// <summary>Sucht das OpenCode-Programm (PATH, npm-Installation, Installationsskript).</summary>
-    public static string? FindExecutable()
+    /// <summary>Sucht das OpenCode-Programm (PATH, npm-Installation, Installationsskript, vom Programm geladene Fassung).</summary>
+    public static string? FindExecutable() => FindInstalled() ?? OpenCodeInstaller.Executable;
+
+    private static string? FindInstalled()
     {
         var names = OperatingSystem.IsWindows() ? new[] { "opencode.exe", "opencode.cmd" } : new[] { "opencode" };
         var dirs = (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries).ToList();
@@ -226,11 +228,17 @@ public sealed class OpenCodeChatModel(AiProviderConfig config) : IChatModel
             var answer = all.LastOrDefault(m => (string?)m?["info"]?["role"] == "assistant")
                          ?? throw new AiException("OpenCode hat keine Antwort geliefert.");
             if (answer["info"]?["error"] is { } error)
-                throw new AiException("OpenCode: " + ((string?)error["data"]?["message"] ?? (string?)error["name"] ?? error.ToJsonString()));
+            {
+                var message = (string?)error["data"]?["message"] ?? (string?)error["name"] ?? error.ToJsonString();
+                if (message.Contains("not available in your country", StringComparison.OrdinalIgnoreCase))
+                    throw new AiException($"OpenCode: Das Modell {config.Model} ist in diesem Land nicht verfügbar – ein anderes Modell wählen.");
+                throw new AiException("OpenCode: " + message);
+            }
             var result = string.Concat((answer["parts"]?.AsArray() ?? [])
                 .Where(p => (string?)p?["type"] == "text" && (bool?)p?["synthetic"] != true)
-                .Select(p => (string?)p!["text"]));
-            return result.Trim();
+                .Select(p => (string?)p!["text"])).Trim();
+            if (result.Length == 0) throw new AiException("OpenCode hat keine Antwort geliefert.");
+            return result;
         }
         catch (OperationCanceledException)
         {
@@ -266,5 +274,85 @@ public sealed class OpenCodeChatModel(AiProviderConfig config) : IChatModel
     {
         try { (await call()).Dispose(); }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException) { }
+    }
+}
+
+/// <summary>
+/// Lädt OpenCode auf Wunsch aus dem offiziellen GitHub-Release (MIT-Lizenz) in den Ordner der eingebauten KI –
+/// für alle, die OpenCode nicht selbst installiert haben. Die Prüfsumme aus dem Release wird verglichen.
+/// </summary>
+public static class OpenCodeInstaller
+{
+    /// <summary>Für Tests: andere Release-Abfrage.</summary>
+    internal static string ReleaseApi { get; set; } = "https://api.github.com/repos/anomalyco/opencode/releases/latest";
+
+    public static string Folder => Path.Combine(BuiltInAi.Folder, "opencode");
+
+    /// <summary>Name des Release-Pakets für dieses System; null, wenn es keins gibt (Android).</summary>
+    public static string? AssetName
+    {
+        get
+        {
+            if (OperatingSystem.IsAndroid() || OperatingSystem.IsIOS()) return null;
+            var arch = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture switch
+            {
+                System.Runtime.InteropServices.Architecture.X64 => "x64",
+                System.Runtime.InteropServices.Architecture.Arm64 => "arm64",
+                _ => null,
+            };
+            if (arch == null) return null;
+            if (OperatingSystem.IsWindows()) return $"opencode-windows-{arch}.zip";
+            if (OperatingSystem.IsMacOS()) return $"opencode-darwin-{arch}.zip";
+            if (OperatingSystem.IsLinux()) return $"opencode-linux-{arch}.tar.gz";
+            return null;
+        }
+    }
+
+    public static bool IsSupported => AssetName != null;
+
+    public static string? Executable
+    {
+        get
+        {
+            if (!Directory.Exists(Folder)) return null;
+            var name = OperatingSystem.IsWindows() ? "opencode.exe" : "opencode";
+            return Directory.EnumerateFiles(Folder, name, SearchOption.AllDirectories).FirstOrDefault();
+        }
+    }
+
+    /// <summary>Neueste Fassung laden, prüfen und entpacken.</summary>
+    public static async Task InstallAsync(IProgress<DownloadProgress>? progress = null, CancellationToken ct = default)
+    {
+        var assetName = AssetName ?? throw new AiException("OpenCode gibt es für dieses System nicht.");
+        using var http = BuiltInAi.Http();
+        var release = JsonNode.Parse(await http.GetStringAsync(ReleaseApi, ct))!;
+        var asset = (release["assets"]?.AsArray() ?? []).FirstOrDefault(a => (string?)a?["name"] == assetName)
+                    ?? throw new AiException($"Im aktuellen OpenCode-Release fehlt das Paket {assetName}.");
+        var digest = (string?)asset["digest"] ?? "";
+        if (!digest.StartsWith("sha256:")) throw new AiException("Das OpenCode-Release enthält keine Prüfsumme – Download abgebrochen.");
+        var size = (long?)asset["size"] ?? 0;
+        if (BuiltInAi.FreeSpace(BuiltInAi.Folder) is { } free && free < size * 4)
+            throw new AiException($"Zu wenig Speicherplatz für OpenCode ({BuiltInAi.FormatSize(size * 3)} nötig).");
+
+        Directory.CreateDirectory(Folder);
+        var archive = Path.Combine(Folder, assetName);
+        await BuiltInAi.DownloadAsync(http, (string)asset["browser_download_url"]!, archive, size, digest[7..], "OpenCode", progress, ct);
+        var version = ((string?)release["tag_name"] ?? "neu").Trim();
+        var target = Path.Combine(Folder, version);
+        if (Directory.Exists(target)) Directory.Delete(target, true);
+        Directory.CreateDirectory(target);
+        if (archive.EndsWith(".zip")) System.IO.Compression.ZipFile.ExtractToDirectory(archive, target, overwriteFiles: true);
+        else
+        {
+            await using var file = File.OpenRead(archive);
+            await using var gzip = new System.IO.Compression.GZipStream(file, System.IO.Compression.CompressionMode.Decompress);
+            await System.Formats.Tar.TarFile.ExtractToDirectoryAsync(gzip, target, overwriteFiles: true, ct);
+        }
+        File.Delete(archive);
+        foreach (var old in Directory.EnumerateDirectories(Folder).Where(d => !string.Equals(d, target, StringComparison.OrdinalIgnoreCase)))
+            Directory.Delete(old, true);
+        var exe = Executable ?? throw new AiException("Das OpenCode-Paket enthält kein ausführbares Programm.");
+        if (!OperatingSystem.IsWindows())
+            File.SetUnixFileMode(exe, File.GetUnixFileMode(exe) | UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute);
     }
 }

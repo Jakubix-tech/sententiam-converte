@@ -40,6 +40,9 @@ public sealed class UiSettings
 
     public List<string> RecentProjects { get; set; } = new();
 
+    /// <summary>Ordner für heruntergeladene freie Sprachdaten; leer = Standardordner.</summary>
+    public string LanguageDataFolder { get; set; } = "";
+
     /// <summary>Sprache der Oberfläche: „de“, „en“ oder leer (= Systemsprache). Wirkt nach Neustart.</summary>
     public string UiLanguage { get; set; } = "";
 
@@ -85,6 +88,9 @@ public static class AppServices
     public static UiSettings Ui { get; } = UiSettings.Load();
     public static IPlatformServices? Platform { get; set; }
     public static Core.Qa.SpellChecker Spell { get; } = new();
+
+    /// <summary>Download der eingebauten KI bzw. von OpenCode (einer für das ganze Programm).</summary>
+    public static AiDownloadService AiDownload { get; } = new();
     public static Core.Remote.ServerSettings Servers { get; set; } = Core.Remote.ServerSettings.Load();
     public static ILocalApiHost? LocalApi { get; set; }
 

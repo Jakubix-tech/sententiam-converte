@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Xml;
 using System.Xml.Linq;
 using SententiamConverte.Core.Model;
 using SententiamConverte.Core.Tm;
@@ -16,24 +17,48 @@ public static class TmxIo
     /// <summary>
     /// Importiert alle Übersetzungseinheiten. Ist <paramref name="onlySource"/>/<paramref name="onlyTarget"/> gesetzt,
     /// werden nur passende Sprachpaare übernommen; sonst jedes Paar aus Ausgangssprache und weiterer Sprache.
+    /// <paramref name="anyDirection"/>: die Ausgangssprache ergibt sich aus <paramref name="onlySource"/> statt aus srclang
+    /// (frei verfügbare Korpora liegen oft in der Gegenrichtung vor). Die Datei wird schrittweise gelesen, auch mehrere GB.
     /// </summary>
-    public static ImportResult Import(Stream input, ITranslationMemory tm, string? onlySource = null, string? onlyTarget = null)
+    public static ImportResult Import(Stream input, ITranslationMemory tm, string? onlySource = null, string? onlyTarget = null,
+        bool anyDirection = false, IProgress<long>? progress = null, CancellationToken ct = default)
     {
-        var x = XDocument.Load(input);
-        var header = x.Root?.Element("header");
-        var headerSrc = (string?)header?.Attribute("srclang");
+        string? headerSrc = null;
         var langs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        long seen = 0;
+
+        IEnumerable<XElement> TranslationUnits()
+        {
+            using var reader = XmlReader.Create(input, new XmlReaderSettings { DtdProcessing = DtdProcessing.Ignore, XmlResolver = null });
+            reader.MoveToContent();
+            while (!reader.EOF)
+            {
+                if (reader.NodeType == XmlNodeType.Element && reader.LocalName == "header")
+                {
+                    headerSrc = reader.GetAttribute("srclang");
+                    reader.Read();
+                }
+                else if (reader.NodeType == XmlNodeType.Element && reader.LocalName == "tu")
+                {
+                    ct.ThrowIfCancellationRequested();
+                    if (++seen % 2000 == 0) progress?.Report(seen);
+                    yield return (XElement)XNode.ReadFrom(reader);
+                }
+                else reader.Read();
+            }
+            progress?.Report(seen);
+        }
 
         IEnumerable<TmEntry> Units()
         {
-            foreach (var tu in x.Descendants("tu"))
+            foreach (var tu in TranslationUnits())
             {
                 var tuvs = tu.Elements("tuv")
                     .Select(v => (Lang: (string?)v.Attribute(XNamespace.Xml + "lang") ?? (string?)v.Attribute("lang") ?? "",
                                   Seg: v.Element("seg")))
                     .Where(v => v.Seg != null && v.Lang != "").ToList();
                 if (tuvs.Count < 2) continue;
-                var srcLang = (string?)tu.Attribute("srclang") ?? headerSrc;
+                var srcLang = anyDirection && onlySource != null ? onlySource : (string?)tu.Attribute("srclang") ?? headerSrc;
                 var src = srcLang is null or "*all*" ? tuvs[0] : tuvs.FirstOrDefault(v => Languages.Matches(v.Lang, srcLang));
                 if (src.Seg == null) continue;
                 var created = ParseDate((string?)tu.Attribute("changedate") ?? (string?)tu.Attribute("creationdate"));
@@ -45,9 +70,13 @@ public static class TmxIo
                 {
                     if (onlySource != null && !Languages.Matches(src.Lang, onlySource)) continue;
                     if (onlyTarget != null && !Languages.Matches(tgt.Lang, onlyTarget)) continue;
-                    langs.Add(src.Lang);
-                    langs.Add(tgt.Lang);
-                    yield return new TmEntry(src.Lang, tgt.Lang, SegToTagged(src.Seg!), SegToTagged(tgt.Seg!), created, "import", structure, prev, next);
+                    langs.Add(anyDirection && onlySource != null ? onlySource : src.Lang);
+                    langs.Add(anyDirection && onlyTarget != null ? onlyTarget : tgt.Lang);
+                    var source = SegToTagged(src.Seg!);
+                    var target = SegToTagged(tgt.Seg!);
+                    if (source.Trim().Length == 0 || target.Trim().Length == 0) continue;
+                    yield return new TmEntry(anyDirection && onlySource != null ? onlySource : src.Lang, anyDirection && onlyTarget != null ? onlyTarget : tgt.Lang,
+                        source, target, created, "import", structure, prev, next);
                 }
             }
         }

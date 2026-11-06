@@ -83,7 +83,7 @@ public partial class SettingsViewModel : ViewModelBase
 
     public ObservableCollection<ProviderViewModel> Providers { get; } = new();
     public IReadOnlyList<AiProviderConfig> Presets { get; } = AiSettings.Presets();
-    public IReadOnlyList<string> KindNames { get; } = new[] { "OpenAI-kompatibel (lokal oder Cloud)", "Anthropic Claude", "OpenCode (eigene Installation)" }.Select(L.T).ToList();
+    public IReadOnlyList<string> KindNames { get; } = new[] { "OpenAI-kompatibel (lokal oder Cloud)", "Anthropic Claude", "OpenCode (eigene Installation)", "Eingebaute KI (auf diesem Rechner)" }.Select(L.T).ToList();
     public IReadOnlyList<string> SearchNames { get; } = new[] { "Keine", "SearXNG (eigener Server)", "Brave Search (API-Schlüssel)", "Tavily (API-Schlüssel)", "Claude-Websuche" }.Select(L.T).ToList();
 
     [ObservableProperty] public partial ProviderViewModel? Selected { get; set; }
@@ -338,6 +338,7 @@ public partial class SettingsViewModel : ViewModelBase
             ResearchProviderId = ResearchProvider?.Id,
             EvaluateProviderId = EvaluateProvider?.Id,
             ExplanationLanguage = ExplanationLanguage,
+            BuiltInFolder = AppServices.Ai.BuiltInFolder,
             SourceProfiles = Profiles.Where(p => p.Name.Trim().Length > 0).Select(p => p.ToProfile()).ToList(),
             Search = new SearchConfig
             {

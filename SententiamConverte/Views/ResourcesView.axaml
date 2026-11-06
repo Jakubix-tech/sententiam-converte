@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:l="using:SententiamConverte.Services"
              xmlns:vm="using:SententiamConverte.ViewModels"
+             xmlns:res="using:SententiamConverte.Core.Resources"
              x:Class="SententiamConverte.Views.ResourcesView"
              x:DataType="vm:ResourcesViewModel">
     <ScrollViewer>
@@ -44,6 +45,58 @@
                         <Button Content="{l:T 'Neue lokale Datenbank anlegen'}" Command="{Binding CreateLocalCommand}" Margin="0,0,8,4"
                                 ToolTip.Tip="{l:T 'Legt eine gemeinsame Datei im Benutzerordner an (Name aus dem Feld rechts neben dem Server, sonst „Gemeinsam“)'}" />
                     </WrapPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Freie Sprachdaten: finden, herunterladen, anbinden -->
+            <Border Classes="card">
+                <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <PathIcon Data="{StaticResource Ic.Globe}" />
+                        <TextBlock Text="{l:T 'Freie Sprachdaten herunterladen'}" Classes="h2" />
+                    </StackPanel>
+                    <TextBlock TextWrapping="Wrap" Classes="muted" FontSize="12"
+                               Text="{l:T 'Frei verfügbare Translation Memories (OPUS-Archiv: u. a. EU-Übersetzungsspeicher DGT, Europarl, EU-Recht, Arzneimittel, Verwaltung, Software) und die EU-Terminologie IATE. Das Programm lädt den gewählten Datensatz aus der offiziellen Quelle, übernimmt nur das Sprachpaar des Projekts und bindet ihn an. Die Lizenz des Datensatzes gilt – meist mit Pflicht zur Quellenangabe.'}" />
+                    <WrapPanel>
+                        <TextBlock Text="{l:T 'Zielsprache:'}" VerticalAlignment="Center" Margin="0,0,6,4" />
+                        <ComboBox ItemsSource="{Binding DataTargetLanguages}" SelectedItem="{Binding DataTargetLanguage}" MinWidth="110" Margin="0,0,8,4" />
+                        <Button Content="{l:T 'Suchen'}" Command="{Binding SearchDataSetsCommand}" Margin="0,0,8,4" />
+                        <CheckBox Content="{l:T 'Alle anzeigen (auch sehr große oder eingeschränkt nutzbare)'}" IsChecked="{Binding ShowAllDataSets}" Margin="0,0,8,4" />
+                    </WrapPanel>
+                    <ListBox ItemsSource="{Binding DataSets}" SelectedItem="{Binding SelectedDataSet}" MaxHeight="280"
+                             IsVisible="{Binding DataSets.Count}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="res:LanguageDataSet">
+                                <Grid ColumnDefinitions="*,150,120,80">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding Description, Converter={x:Static l:L.Text}}" FontSize="12" Classes="muted" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="{Binding KindText, Converter={x:Static l:L.Text}}" VerticalAlignment="Center" FontSize="12" />
+                                    <TextBlock Grid.Column="2" Text="{Binding UnitsText}" VerticalAlignment="Center" FontSize="12" HorizontalAlignment="Right" />
+                                    <TextBlock Grid.Column="3" Text="{Binding SizeText}" VerticalAlignment="Center" FontSize="12" HorizontalAlignment="Right" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <TextBlock Text="{Binding DataInfo, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontSize="12" />
+                    <Grid ColumnDefinitions="Auto,*,6,Auto">
+                        <TextBlock Text="{l:T 'Ordner:'}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12" />
+                        <TextBlock Grid.Column="1" Text="{Binding DataFolder}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" FontSize="12" Classes="muted" />
+                        <Button Grid.Column="3" Content="{l:T 'Ordner …'}" Command="{Binding ChooseDataFolderCommand}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="*,6,Auto" IsVisible="{Binding Download.IsRunning}">
+                        <StackPanel Spacing="3">
+                            <ProgressBar Value="{Binding Download.Fraction}" Maximum="1" />
+                            <TextBlock Text="{Binding Download.Text, Converter={x:Static l:L.Text}}" FontSize="12" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <Button Grid.Column="2" Content="{l:T 'Abbrechen'}" Command="{Binding Download.CancelCommand}" VerticalAlignment="Center" />
+                    </Grid>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Button Content="{l:T 'Herunterladen und anbinden'}" Classes="accent" Command="{Binding InstallDataSetCommand}"
+                                IsEnabled="{Binding !Download.IsRunning}" />
+                        <SelectableTextBlock Text="{Binding DataStatus, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" VerticalAlignment="Center" FontSize="12" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
