@@ -59,11 +59,50 @@ public sealed class SourceProfile
         return s.StartsWith("www.") ? s[4..] : s;
     }
 
+    /// <summary>Profil zu einem Fachgebiet, auch unter anderen Namen („law“, „prawo“, „language“ …).</summary>
+    public static SourceProfile? Find(IEnumerable<SourceProfile> profiles, string field)
+    {
+        var f = field.Trim().ToLowerInvariant();
+        if (f.Length == 0) return null;
+        var list = profiles.ToList();
+        var name = f switch
+        {
+            _ when f.StartsWith("law") || f.StartsWith("legal") || f.StartsWith("recht") || f.StartsWith("praw") || f.StartsWith("droit")
+                   || f.StartsWith("dirit") || f.StartsWith("derech") || f.StartsWith("jur") => "Recht",
+            _ when f.StartsWith("medi") || f.StartsWith("health") || f.StartsWith("gesund") || f.StartsWith("pharm") => "Medizin",
+            _ when f.StartsWith("tech") || f.StartsWith("engineer") || f.StartsWith("norm") || f.StartsWith("maschin") => "Technik",
+            _ when f.StartsWith("langu") || f.StartsWith("sprach") || f.StartsWith("dict") || f.StartsWith("wörterb") || f.StartsWith("język")
+                   || f.StartsWith("jezyk") || f.StartsWith("lingu") || f.StartsWith("usage") || f.StartsWith("grammar") => "Sprache",
+            _ when f is "eu" || f.StartsWith("europ") || f.StartsWith("verwalt") || f.StartsWith("admin") => "EU und Verwaltung",
+            _ => field.Trim(),
+        };
+        return list.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase))
+               ?? list.FirstOrDefault(p => p.Name.StartsWith(field.Trim(), StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>Neue Profile seit der ersten Fassung, für ältere Einstellungsdateien.</summary>
+    public const int DefaultsVersion = 2;
+
+    /// <summary>Ältere Einstellungen um das ergänzen, was in neueren Standardprofilen dazugekommen ist (ohne Eigenes zu ändern).</summary>
+    public static void Upgrade(List<SourceProfile> profiles, int fromVersion)
+    {
+        if (fromVersion >= 2) return;
+        var defaults = Defaults();
+        if (profiles.All(p => !string.Equals(p.Name, "Sprache", StringComparison.OrdinalIgnoreCase)))
+            profiles.Add(defaults.First(p => p.Name == "Sprache"));
+        if (profiles.FirstOrDefault(p => p.Name == "Recht")?.Languages.FirstOrDefault(l => l.Language == "*") is { } eu
+            && !eu.Sites.Contains("eur-lex.europa.eu", StringComparer.OrdinalIgnoreCase))
+            eu.Sites.Add("eur-lex.europa.eu");
+    }
+
     /// <summary>
-    /// Vorschläge zum Start; jederzeit in den Einstellungen änderbar. Aufgenommen sind nur Seiten, die das
-    /// automatische Lesen erlauben (robots.txt) und lesbaren Text liefern (geprüft am 15.10.2026).
-    /// Nicht enthalten, weil sie das Lesen durch Programme untersagen oder technisch verhindern: EUR-Lex, IATE,
-    /// Légifrance, ISAP, sn.pl, ISO, IEC/Electropedia, AWMF, BAuA, OSHA – diese bitte selbst im Browser nachschlagen.
+    /// Vorschläge zum Start; jederzeit in den Einstellungen änderbar. Aufgenommen sind Seiten, die das automatische
+    /// Lesen erlauben (robots.txt) und lesbaren Text liefern (geprüft am 15.10.2026, EUR-Lex und Sprachseiten am
+    /// 06.11.2026). Nicht enthalten, weil sie das Lesen durch Programme untersagen oder technisch verhindern: IATE,
+    /// Légifrance, ISAP, sn.pl, ISO, IEC/Electropedia, AWMF, BAuA, OSHA. Im Profil „Sprache“ stehen auch Wörterbücher,
+    /// die nur in Suchergebnissen erscheinen, deren Seiten das Programm aber nicht liest (DWDS und Larousse mit
+    /// TDM-Vorbehalt, Duden mit „noindex“, die englischen Wörterbücher sperren Programme aus); das DWDS ist zusätzlich
+    /// über seine offizielle Schnittstelle angebunden.
     /// </summary>
     public static List<SourceProfile> Defaults() =>
     [
@@ -73,7 +112,7 @@ public sealed class SourceProfile
             Description = "Gesetze, Rechtsprechung und Behörden; Begriffe hängen von der Rechtsordnung ab.",
             Languages =
             [
-                new() { Language = "*", System = "EU-Recht", Sites = ["curia.europa.eu"] },
+                new() { Language = "*", System = "EU-Recht", Sites = ["curia.europa.eu", "eur-lex.europa.eu"] },
                 new() { Language = "de-DE", System = "deutsches Recht (BGB, HGB, ZPO, StGB …)", Sites = ["gesetze-im-internet.de", "dejure.org", "bundesgerichtshof.de", "bundesjustizamt.de"] },
                 new() { Language = "de-AT", System = "österreichisches Recht (ABGB, UGB, ZPO)", Sites = ["ris.bka.gv.at", "oesterreich.gv.at"] },
                 new() { Language = "de-CH", System = "schweizerisches Recht (ZGB, OR)", Sites = ["fedlex.admin.ch"] },
@@ -109,6 +148,23 @@ public sealed class SourceProfile
                 new() { Language = "en-GB", System = "BSI-Normen, HSE", Sites = ["bsigroup.com", "hse.gov.uk"] },
                 new() { Language = "en-US", System = "NIST", Sites = ["nist.gov"] },
                 new() { Language = "pl-PL", System = "PKN-Normen, CIOP", Sites = ["pkn.pl", "ciop.pl"] },
+            ],
+        },
+        new()
+        {
+            Name = "Sprache",
+            Description = "Wörterbücher, Sprachberatung und Korpora: Schreibung, Bedeutung, Gebrauch.",
+            Languages =
+            [
+                new() { Language = "*", System = "Wiktionary (alle Sprachen)", Sites = ["wiktionary.org"] },
+                new() { Language = "de-DE", System = "Standarddeutsch (amtliches Regelwerk, DWDS, Duden)", Sites = ["dwds.de", "duden.de", "grammis.ids-mannheim.de", "owid.de", "rechtschreibrat.com"] },
+                new() { Language = "pl-PL", System = "polnische Standardsprache (Rada Języka Polskiego, PWN)", Sites = ["sjp.pwn.pl", "wsjp.pl", "rjp.pan.pl", "nkjp.pl"] },
+                new() { Language = "en-GB", System = "britisches Englisch", Sites = ["dictionary.cambridge.org", "oxfordlearnersdictionaries.com", "collinsdictionary.com"] },
+                new() { Language = "en-US", System = "amerikanisches Englisch", Sites = ["merriam-webster.com", "dictionary.cambridge.org"] },
+                new() { Language = "fr-FR", System = "Französisch (Académie française, CNRTL)", Sites = ["cnrtl.fr", "dictionnaire.lerobert.com", "larousse.fr"] },
+                new() { Language = "it-IT", System = "Italienisch (Accademia della Crusca)", Sites = ["treccani.it", "accademiadellacrusca.it"] },
+                new() { Language = "es-ES", System = "Spanisch (Real Academia Española)", Sites = ["dle.rae.es", "fundeu.es"] },
+                new() { Language = "nl-NL", System = "Niederländisch (Taalunie)", Sites = ["vandale.nl", "taalunie.org"] },
             ],
         },
         new()

@@ -88,8 +88,8 @@ public static partial class TagText
         return depth;
     }
 
-    /// <summary>Tags, die eine KI leicht verändert zurückgibt: „⟨/1>“, „&lt;/1⟩“, „⟨ 1 ⟩“.</summary>
-    [GeneratedRegex("[⟨<]\\s*(/?)\\s*(\\d+)\\s*(/?)\\s*[⟩>]")]
+    /// <summary>Tags, die eine KI leicht verändert zurückgibt: „⟨/1>“, „&lt;/1⟩“, „⟨ 1 ⟩“, „⟩/1⟩“.</summary>
+    [GeneratedRegex("[⟨<⟩]\\s*(/?)\\s*(\\d+)\\s*(/?)\\s*[⟩>]")]
     private static partial Regex LooseTagRegex();
 
     /// <summary>
@@ -123,7 +123,25 @@ public static partial class TagText
                 sb.Length--;
         }
         sb.Append(target, pos, target.Length - pos);
-        return EnsureTags(source, sb.ToString().Trim());
+        return EnsureTags(source, RemoveStrayMarks(sb.ToString()).Trim());
+    }
+
+    /// <summary>Einzelne Tag-Klammern ohne Tag („authorised⟩ personnel“) – Reste, die kleine Modelle hinterlassen.</summary>
+    private static string RemoveStrayMarks(string text)
+    {
+        if (text.IndexOfAny([Open, Close]) < 0) return text;
+        var keep = Tags(text).SelectMany(t => Enumerable.Range(t.Index, t.Length)).ToHashSet();
+        var sb = new StringBuilder(text.Length);
+        for (var i = 0; i < text.Length; i++)
+        {
+            if (text[i] is Open or Close && !keep.Contains(i))
+            {
+                if (sb.Length > 0 && sb[^1] == ' ' && (i + 1 >= text.Length || text[i + 1] == ' ')) sb.Length--;
+                continue;
+            }
+            sb.Append(text[i]);
+        }
+        return sb.ToString();
     }
 
     /// <summary>

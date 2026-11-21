@@ -178,6 +178,86 @@ public sealed class SententiamClient : ISententiam, IDisposable
     public Task<TermComparisonResult> CompareTermAsync(CompareRequest request, CancellationToken ct = default) =>
         Send<TermComparisonResult>(HttpMethod.Post, "agents/compare", request, ct);
 
+    // ---------- Lektorat und Fehlerbewertung ----------
+
+    private static string L(string project, string file, string language) => F(project, file) + "/" + E(language);
+
+    public Task<FileContent> ReviewFileAsync(string project, string file, string language, CancellationToken ct = default) =>
+        Get<FileContent>(L(project, file, language) + "/review", ct);
+    public Task<Core.Exchange.ReviewImportResult> ImportReviewAsync(string project, string file, string language, ReviewImportDto review, CancellationToken ct = default) =>
+        Send<Core.Exchange.ReviewImportResult>(HttpMethod.Post, L(project, file, language) + "/review", review, ct);
+    public Task<SegmentDto> AcceptChangeAsync(string project, string file, string language, int id, CancellationToken ct = default) =>
+        Send<SegmentDto>(HttpMethod.Post, S(project, file, language, id) + "/accept-change", null, ct);
+    public Task<SegmentDto> RejectChangeAsync(string project, string file, string language, int id, CancellationToken ct = default) =>
+        Send<SegmentDto>(HttpMethod.Post, S(project, file, language, id) + "/reject-change", null, ct);
+    public Task<SegmentDto> AddErrorAsync(string project, string file, string language, int id, LqaErrorDto error, CancellationToken ct = default) =>
+        Send<SegmentDto>(HttpMethod.Post, S(project, file, language, id) + "/errors", error, ct);
+    public Task<SegmentDto> RemoveErrorAsync(string project, string file, string language, int id, int index, CancellationToken ct = default) =>
+        Send<SegmentDto>(HttpMethod.Delete, S(project, file, language, id) + "/errors/" + index, null, ct);
+    public Task<LqaReport> EvaluationAsync(string project, string? file = null, string? language = null, CancellationToken ct = default) =>
+        file != null ? Get<LqaReport>(L(project, file, language ?? throw new ArgumentException("Sprache fehlt.")) + "/evaluation", ct)
+                     : Get<LqaReport>(P(project) + "/evaluation" + Q(("language", language)), ct);
+    public Task<FileContent> EvaluationReportAsync(string project, string file, string language, CancellationToken ct = default) =>
+        Get<FileContent>(L(project, file, language) + "/evaluation/report", ct);
+    public Task<LqaSettings> SetLqaSettingsAsync(string project, LqaSettings settings, CancellationToken ct = default) =>
+        Send<LqaSettings>(HttpMethod.Put, P(project) + "/evaluation-settings", settings, ct);
+
+    // ---------- Zahlen, Pseudoübersetzung, Angebot ----------
+
+    public Task<int> LocalizeNumbersAsync(string project, CancellationToken ct = default) => Send<int>(HttpMethod.Post, P(project) + "/localize-numbers", null, ct);
+    public Task<FileContent> PseudoTranslationAsync(string project, string file, string language, CancellationToken ct = default) =>
+        Get<FileContent>(L(project, file, language) + "/pseudo", ct);
+    public Task<QuoteDto> QuoteAsync(string project, Core.Analysis.RateSettings? rates = null, CancellationToken ct = default) =>
+        rates == null ? Get<QuoteDto>(P(project) + "/quote", ct) : Send<QuoteDto>(HttpMethod.Put, P(project) + "/quote", rates, ct);
+    public Task<FileContent> QuoteDocumentAsync(string project, CancellationToken ct = default) => Get<FileContent>(P(project) + "/quote/document", ct);
+
+    // ---------- Vorlagen und QA-Profile ----------
+
+    public Task<IReadOnlyList<Core.Projects.ProjectTemplate>> TemplatesAsync(CancellationToken ct = default) => List<Core.Projects.ProjectTemplate>("templates", ct);
+    public Task<Core.Projects.ProjectTemplate> SaveTemplateAsync(string project, string name, CancellationToken ct = default) =>
+        Send<Core.Projects.ProjectTemplate>(HttpMethod.Post, P(project) + "/template" + Q(("name", name)), null, ct);
+    public Task<IReadOnlyList<Core.Projects.QaProfile>> QaProfilesAsync(CancellationToken ct = default) => List<Core.Projects.QaProfile>("qa-profiles", ct);
+    public Task<Core.Projects.QaProfile> SaveQaProfileAsync(string project, string name, CancellationToken ct = default) =>
+        Send<Core.Projects.QaProfile>(HttpMethod.Post, P(project) + "/qa-profile" + Q(("name", name)), null, ct);
+    public Task<QaSettings> ApplyQaProfileAsync(string project, string name, CancellationToken ct = default) =>
+        Send<QaSettings>(HttpMethod.Put, P(project) + "/qa-profile" + Q(("name", name)), null, ct);
+
+    // ---------- TM-Pflege, Fachbegriffe, alte Übersetzungen ----------
+
+    public Task<TmReplaceResult> ReplaceInTmAsync(string project, TmReplaceDto request, CancellationToken ct = default) =>
+        Send<TmReplaceResult>(HttpMethod.Post, P(project) + "/tm/replace", request, ct);
+    public Task<TmCleanResult> CleanTmAsync(string project, TmCleanDto request, CancellationToken ct = default) =>
+        Send<TmCleanResult>(HttpMethod.Post, P(project) + "/tm/clean", request, ct);
+    public Task<IReadOnlyList<InconsistentDto>> InconsistentTmAsync(string project, CancellationToken ct = default) =>
+        List<InconsistentDto>(P(project) + "/tm/inconsistent", ct);
+    public async Task<IReadOnlyList<TermSuggestion>> ExtractTermsAsync(string project, ExtractTermsDto request, CancellationToken ct = default) =>
+        await Send<List<TermSuggestion>>(HttpMethod.Post, P(project) + "/terms/extract", request, ct);
+    public Task<ImportTranslationsResult> ImportTranslationsAsync(string project, ImportTranslationsDto request, CancellationToken ct = default) =>
+        Send<ImportTranslationsResult>(HttpMethod.Post, P(project) + "/import-translations", request, ct);
+
+    // ---------- Datenschutz ----------
+
+    public Task<Core.Privacy.PrivacySettings> SetPrivacyAsync(string project, Core.Privacy.PrivacySettings settings, CancellationToken ct = default) =>
+        Send<Core.Privacy.PrivacySettings>(HttpMethod.Put, P(project) + "/privacy", settings, ct);
+    public Task<IReadOnlyList<DetectedDto>> DetectSensitiveAsync(string project, CancellationToken ct = default) =>
+        List<DetectedDto>(P(project) + "/privacy/detected", ct);
+
+    // ---------- Team: Arbeitsschritte ----------
+
+    public Task<IReadOnlyList<FileStepDto>> WorkflowAsync(string project, CancellationToken ct = default) => List<FileStepDto>(P(project) + "/workflow", ct);
+    public Task<FileStep> SetWorkflowAsync(string project, string file, string language, WorkflowUpdate update, CancellationToken ct = default) =>
+        Send<FileStep>(HttpMethod.Put, L(project, file, language) + "/workflow", update, ct);
+
+    // ---------- Automatisierung, Sprachdaten, Diktat ----------
+
+    public async Task<IReadOnlyList<Core.Projects.WatchResult>> ProcessFolderAsync(string project, WatchRunDto request, CancellationToken ct = default) =>
+        await Send<List<Core.Projects.WatchResult>>(HttpMethod.Post, P(project) + "/process-folder", request, ct);
+    public Task<IReadOnlyList<LanguageDataSet>> LanguageDataAsync(string sourceLanguage, string targetLanguage, CancellationToken ct = default) =>
+        List<LanguageDataSet>("language-data" + Q(("sourceLanguage", sourceLanguage), ("targetLanguage", targetLanguage)), ct);
+    public Task<ProjectDto> InstallLanguageDataAsync(string project, LanguageDataInstallDto request, CancellationToken ct = default) =>
+        Send<ProjectDto>(HttpMethod.Post, P(project) + "/language-data", request, ct);
+    public Task<string> TranscribeAsync(TranscribeDto request, CancellationToken ct = default) => Send<string>(HttpMethod.Post, "transcribe", request, ct);
+
     // ---------- Erweiterungen ----------
 
     public Task<IReadOnlyList<ExtensionInfo>> ExtensionsAsync(CancellationToken ct = default) => List<ExtensionInfo>("extensions", ct);

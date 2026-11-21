@@ -78,14 +78,23 @@ public sealed class SharedProjectStore : IDisposable
             foreach (var seg in fresh.Segments)
             {
                 var o = old[seg.Id];
-                if ((o.Target, o.Status, o.Origin, o.MatchPercent, o.Comment) == (seg.Target, seg.Status, seg.Origin, seg.MatchPercent, seg.Comment)) continue;
+                if ((o.Target, o.Status, o.Origin, o.MatchPercent, o.Comment) == (seg.Target, seg.Status, seg.Origin, seg.MatchPercent, seg.Comment)
+                    && ReviewKey(o) == ReviewKey(seg)) continue;
                 s.Version++;
                 s.SegmentVersions[seg.Id] = s.Version;
-                s.Changes.Add(new SegmentChange(s.Version, seg.Id, seg.Target, seg.Status, seg.Origin, seg.MatchPercent, seg.Comment, user, DateTime.UtcNow));
+                s.Changes.Add(Change(s.Version, seg, user));
             }
             s.Doc = fresh;
         }
     }
+
+    /// <summary>Lektoratsstand eines Segments zum Vergleichen (offene Änderung und erfasste Fehler).</summary>
+    private static string ReviewKey(Segment s) =>
+        (s.ReviewBaseline ?? "") + "\u0001" + (s.Errors is { Count: > 0 } e ? System.Text.Json.JsonSerializer.Serialize(e) : "");
+
+    private static SegmentChange Change(long version, Segment seg, string user) =>
+        new(version, seg.Id, seg.Target, seg.Status, seg.Origin, seg.MatchPercent, seg.Comment, user, DateTime.UtcNow,
+            seg.ReviewBaseline ?? "", seg.Errors ?? []);
 
     public List<SharedProjectInfo> List() =>
         Directory.GetDirectories(_root)
@@ -95,9 +104,23 @@ public sealed class SharedProjectStore : IDisposable
     public SharedProjectInfo Info(string name)
     {
         var p = Project(name);
-        return new SharedProjectInfo(name, p.SourceLanguage, p.TargetLanguages, p.Topic,
-            p.Files.Select(f => new SharedFileInfo(f.Id, f.OriginalName, f.FilterId, p.LanguagesOf(f).ToList())).ToList());
+        lock (p)
+            return new SharedProjectInfo(name, p.SourceLanguage, p.TargetLanguages, p.Topic,
+                p.Files.Select(f => new SharedFileInfo(f.Id, f.OriginalName, f.FilterId, p.LanguagesOf(f).ToList(),
+                    p.LanguagesOf(f).Select(l => Entry(p, f.Id, l)?.ToStep() ?? new FileStep(l, WorkflowStep.Translation, null, null, null)).ToList())).ToList());
     }
+
+    private static WorkflowEntry? Entry(TranslationProject p, string fileId, string lang) => TeamWorkflow.Entry(p, fileId, lang);
+
+    /// <summary>Arbeitsschritt ändern (Regeln siehe <see cref="TeamWorkflow"/>).</summary>
+    public FileStep SetWorkflow(string project, string fileId, string lang, WorkflowUpdate u, string user, bool admin)
+    {
+        var p = Project(project);
+        lock (p) return TeamWorkflow.Set(p, fileId, lang, u, user, admin);
+    }
+
+    private static void CheckEditable(TranslationProject p, string fileId, string lang, string user, bool admin) =>
+        TeamWorkflow.CheckEditable(p, fileId, lang, user, admin);
 
     public void Create(SharedProjectCreate c)
     {
@@ -166,11 +189,12 @@ public sealed class SharedProjectStore : IDisposable
         }
     }
 
-    public SegmentUpdateResult Update(string project, string fileId, string lang, int segmentId, SegmentUpdate u, string user)
+    public SegmentUpdateResult Update(string project, string fileId, string lang, int segmentId, SegmentUpdate u, string user, bool admin = false)
     {
         var s = State(project, fileId, lang);
         lock (s.Project)
         {
+            CheckEditable(s.Project, fileId, lang, user, admin);
             var seg = s.Doc.Segments.FirstOrDefault(x => x.Id == segmentId) ?? throw new KeyNotFoundException(segmentId.ToString());
             var current = s.SegmentVersions.GetValueOrDefault(segmentId);
             if (current > u.BaseVersion)
@@ -188,10 +212,13 @@ public sealed class SharedProjectStore : IDisposable
             seg.Origin = u.Origin;
             seg.MatchPercent = u.MatchPercent;
             seg.Comment = u.Comment;
+            // Lektorat: nur übernehmen, was der Client mitschickt (ältere Programme senden nichts – dann bleibt es)
+            if (u.ReviewBaseline != null) seg.ReviewBaseline = u.ReviewBaseline.Length == 0 ? null : u.ReviewBaseline;
+            if (u.Errors != null) seg.Errors = u.Errors.Count == 0 ? null : u.Errors;
             seg.Modified = DateTime.UtcNow;
             s.Version++;
             s.SegmentVersions[segmentId] = s.Version;
-            var change = new SegmentChange(s.Version, segmentId, u.Target, u.Status, u.Origin, u.MatchPercent, u.Comment, user, DateTime.UtcNow);
+            var change = Change(s.Version, seg, user);
             s.Changes.Add(change);
             if (s.Changes.Count > 20000) s.Changes.RemoveRange(0, 10000);
             s.Project.SaveDocument(s.File, s.Doc);

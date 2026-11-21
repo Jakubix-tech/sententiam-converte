@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using CommunityToolkit.Mvvm.Input;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
@@ -32,8 +33,44 @@ internal static class TestSetup
     public static void Init()
     {
         Directory.CreateDirectory(Home);
+        SententiamConverte.Testing.TempCleanup.Start(Home, "sc-ui-");
         Environment.SetEnvironmentVariable("SENTENTIAM_HOME", Home);
         Environment.SetEnvironmentVariable("SENTENTIAM_LANG", "de");
+        // Die nachgebildeten KI-Server der Tests übersetzen nur; das vorherige Lesen des Dokuments prüft ein eigener Test
+        SententiamConverte.Services.AppServices.Ui.ReadDocumentFirst = false;
+        // Ablaufprotokoll an einem festen Ort, auch wenn einzelne Tests den Datenordner wechseln
+        SententiamConverte.Core.Diagnostics.ActivityLog.FolderOverride = Path.Combine(Home, "protokoll");
+        // keine echten Wikipedia-Abfragen aus der Recherche der nachgebildeten KI
+        SententiamConverte.Core.Agents.TermComparisonAgent.WikipediaLinks = false;
+        // kein echtes Docker: die Tests sehen „nicht installiert“, egal was auf dem Rechner ist
+        SententiamConverte.Core.Ai.LocalSearXng.RunOverride = (_, _, _) => Task.FromResult((-1, ""));
+        // Recherche-Reiter offen + Segment gewählt liest sonst das Segment mit der KI: in den Tests findet das nichts
+        SententiamConverte.ViewModels.EditorViewModel.FindOverride = _ => Task.FromResult(new List<SententiamConverte.Core.Agents.ResearchItem>());
+        // „Leere per KI“ fragt sonst „Auch recherchieren?“: die Tests übersetzen nur (die Recherche prüft ein eigener Test)
+        SententiamConverte.ViewModels.EditorViewModel.BatchResearchAnswerOverride = false;
+        // kein echtes SearXNG: auf diesem Rechner kann eins laufen, die Tests sollen die Suche nicht umstellen
+        SententiamConverte.Core.Ai.LocalSearXng.ProbeOverride = _ => Task.FromResult(false);
+    }
+
+    /// <summary>
+    /// Eigener Datenordner für einen Test, der gemeinsame (sprachbezogene) Datenbanken, Vorlagen oder Profile anlegt –
+    /// sonst tauchen sie in den Projekten der folgenden Tests auf (z. B. ein TM-Treffer, wo keiner sein soll).
+    /// </summary>
+    public static IDisposable OwnDataFolder()
+    {
+        var dir = Path.Combine(Home, "eigen-" + Guid.NewGuid().ToString("N")[..6]);
+        Directory.CreateDirectory(dir);
+        Environment.SetEnvironmentVariable("SENTENTIAM_HOME", dir);
+        return new RestoreHome();
+    }
+
+    private sealed class RestoreHome : IDisposable
+    {
+        public void Dispose()
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            Environment.SetEnvironmentVariable("SENTENTIAM_HOME", Home);
+        }
     }
 
     public static string ScreenshotDir
@@ -217,6 +254,20 @@ public class UiFlowTests
         Assert.Contains("screw", editor.SuggestionsFor("scr"));
         Shot(window, "06b-editor-tm");
 
+        // Quelle und Ziel untereinander (interlinear): Ziel unter der Quelle, über die volle Breite, weiter bearbeitbar
+        editor.Interlinear = true;
+        Dispatcher.UIThread.RunJobs();
+        var targetBox = window.GetVisualDescendants().OfType<SententiamConverte.Controls.SegmentTextBox>()
+            .First(b => !b.IsReadOnly && b.IsEffectivelyVisible);
+        var targetBorder = targetBox.FindAncestorOfType<Border>()!;
+        Assert.Equal(1, Grid.GetRow(targetBorder));
+        Assert.Equal(2, Grid.GetColumnSpan(targetBorder));
+        Assert.True(AppServices.Ui.EditorInterlinear);                         // bleibt gespeichert
+        Shot(window, "06c-editor-untereinander");
+        editor.Interlinear = false;
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(0, Grid.GetRow(targetBorder));
+
         // Fachquellen-Profil und Kontext-Option werden im Projekt gespeichert
         vm.ProjectProfile = "Recht";
         vm.ConfirmContextMatches = false;
@@ -245,7 +296,7 @@ public class UiFlowTests
         Shot(window, "08-wissen");
         vm.SelectedTab = 4;
         Shot(window, "08b-agenten");
-        vm.SelectedTab = 5;
+        vm.SelectedTab = MainViewModel.SettingsTab;
         Shot(window, "09-einstellungen");
         Assert.DoesNotContain("Fehler", vm.Status);
     }

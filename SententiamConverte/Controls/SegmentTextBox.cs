@@ -57,6 +57,16 @@ public sealed class SegmentTextBox : TextEditor
     private bool _updating;
     private readonly DispatcherTimer _spellTimer;
 
+    /// <summary>Die Markierung hat sich geändert (die Ansicht erklärt sie im Reiter Recherche).</summary>
+    public static readonly RoutedEvent<RoutedEventArgs> MarkedChangedEvent =
+        RoutedEvent.Register<SegmentTextBox, RoutedEventArgs>(nameof(MarkedChanged), RoutingStrategies.Bubble);
+
+    public event EventHandler<RoutedEventArgs>? MarkedChanged
+    {
+        add => AddHandler(MarkedChangedEvent, value);
+        remove => RemoveHandler(MarkedChangedEvent, value);
+    }
+
     public SegmentTextBox()
     {
         WordWrap = true;
@@ -80,6 +90,10 @@ public sealed class SegmentTextBox : TextEditor
         };
         TextArea.ContextRequested += OnContextRequested;
         AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
+        TextArea.SelectionChanged += (_, _) =>
+        {
+            if (!_updating) RaiseEvent(new RoutedEventArgs(MarkedChangedEvent, this));
+        };
     }
 
     // ---------- Texte wie bei einer TextBox ----------

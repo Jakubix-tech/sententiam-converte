@@ -5,6 +5,7 @@
 //
 // Ziele: win-x64, linux-x64, osx-arm64, osx-x64, android, server, erweiterung, sdk
 // Ergebnis: artifacts/<Version>/ mit den Paketen und SHA256SUMS.txt.
+// Windows: Installationsdatei (.msi, build/Installer, WiX Toolset) und zusätzlich die ZIP-Fassung zum Entpacken.
 // Linux- und macOS-Pakete sind .tar.gz, damit die Ausführungsrechte erhalten bleiben (auch wenn unter Windows gebaut).
 
 using System.Diagnostics;
@@ -55,11 +56,49 @@ string Windows()
 {
     var app = Publish("SententiamConverte.Desktop", "win-x64");
     AddDocs(app);
+    var msi = Installer(app);
+    Console.WriteLine($"→ {Path.GetFileName(msi)} ({new FileInfo(msi).Length / 1024.0 / 1024.0:0.0} MB)");
     File.WriteAllText(Path.Combine(app, "LIESMICH.txt"), ReadMe("Windows",
         "Entpacken und „SententiamConverte.Desktop.exe“ starten. Keine Installation nötig; Einstellungen liegen unter %LOCALAPPDATA%\\SententiamConverte.\n" +
         "Windows SmartScreen kann beim ersten Start warnen, weil das Programm nicht signiert ist: „Weitere Informationen“ → „Trotzdem ausführen“."),
         new UTF8Encoding(true));
     return Zip(app, $"SententiamConverte-{version}-win-x64.zip", "Sententiam converte");
+}
+
+/// <summary>
+/// Installationsdatei für Windows: installiert für den angemeldeten Benutzer (ohne Administratorrechte), mit Startmenü,
+/// Desktop-Verknüpfung, Deinstallation unter „Apps“; eine neuere Version ersetzt die vorige.
+/// </summary>
+string Installer(string app)
+{
+    var stage = Path.Combine(work, "installer");
+    if (Directory.Exists(stage)) Directory.Delete(stage, true);
+    Directory.CreateDirectory(stage);
+    var rtf = Path.Combine(stage, "Lizenz.rtf");
+    File.WriteAllText(rtf, Rtf(File.ReadAllText(Path.Combine(root, "LICENSE"))), Encoding.ASCII);
+    var project = Path.Combine(root, "build", "Installer", "SententiamConverte.Installer.wixproj");
+    Run("dotnet", ["build", project, "-c", "Release", "-o", Path.Combine(stage, "out"), $"-p:AppDir={app}", $"-p:LicenseRtf={rtf}"]);
+    var built = Directory.GetFiles(Path.Combine(stage, "out"), "*.msi", SearchOption.AllDirectories).Single();
+    var target = Path.Combine(output, $"SententiamConverte-{version}-win-x64.msi");
+    File.Copy(built, target, true);
+    return target;
+}
+
+/// <summary>Klartext als RTF (für die Lizenzseite des Installers); Umlaute als Unicode-Zeichen.</summary>
+static string Rtf(string text)
+{
+    var sb = new StringBuilder(@"{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fswiss Segoe UI;}}\viewkind4\uc1\pard\f0\fs17 ");
+    foreach (var c in text.Replace("\r\n", "\n"))
+        sb.Append(c switch
+        {
+            '\\' => @"\\",
+            '{' => @"\{",
+            '}' => @"\}",
+            '\n' => "\\par\n",
+            < (char)128 => c.ToString(),
+            _ => $"\\u{(short)c}?",
+        });
+    return sb.Append('}').ToString();
 }
 
 string Linux()

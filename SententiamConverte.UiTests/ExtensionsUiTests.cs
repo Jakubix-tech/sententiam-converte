@@ -42,7 +42,7 @@ public class ExtensionsUiTests
         var ext = vm.Extensions;
         platform.FilesToPick.Clear();
         platform.FilesToPick.Add(("Beispiel.Erweiterung.scext", File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Beispiel.Erweiterung.scext"))));
-        vm.SelectedTab = 6;
+        vm.SelectedTab = MainViewModel.ExtensionsTab;
         Dispatcher.UIThread.RunJobs();
         await Run(ext.InstallCommand);
         var row = Assert.Single(ext.Items, i => i.Id == "beispiel.erweiterung");

@@ -31,11 +31,32 @@ public static class Workflow
     public static List<TmMatch> Lookup(TranslationProject project, BilingualDocument doc, Segment segment, int? minScore = null, TmContext? context = null)
     {
         context ??= ContextOf(doc, segment);
-        return project.TmsFor(doc.TargetLanguage)
-            .SelectMany(tm => Safe(() => tm.Search(doc.SourceLanguage, doc.TargetLanguage, segment.Source, minScore ?? project.LookupMinScore, 10, context)))
+        // Datenschutz: im TM stehen Platzhalter statt geschützter Angaben – so gesucht, mit den Werten dieses Segments gefüllt
+        var masked = project.MasksTm;
+        var query = masked ? Privacy.TmPrivacy.Mask(segment.Source, project.Privacy) : segment.Source;
+        if (masked) context = MaskContext(context, project);
+        var matches = project.TmsFor(doc.TargetLanguage)
+            .SelectMany(tm => Safe(() => tm.Search(doc.SourceLanguage, doc.TargetLanguage, query, minScore ?? project.LookupMinScore, 10, context)))
             .OrderByDescending(m => m.Score).ThenBy(m => m.TmName == "Projekt-TM" ? 0 : 1).ThenByDescending(m => m.Unit.Modified)
             .Take(10).ToList();
+        return masked
+            ? matches.Select(m => m with
+            {
+                Unit = m.Unit with
+                {
+                    Source = Privacy.TmPrivacy.Fill(m.Unit.Source, segment.Source, project.Privacy),
+                    // Datum in der Schreibweise der Zielsprache (im TM stand nur [DATE_1])
+                    Target = Privacy.DateLocalizer.Localize(Privacy.TmPrivacy.Fill(m.Unit.Target, segment.Source, project.Privacy), segment.Source, doc.TargetLanguage),
+                },
+            }).ToList()
+            : matches;
     }
+
+    private static TmContext MaskContext(TmContext ctx, TranslationProject project) => ctx with
+    {
+        Previous = ctx.Previous == null ? null : Privacy.TmPrivacy.Mask(ctx.Previous, project.Privacy),
+        Next = ctx.Next == null ? null : Privacy.TmPrivacy.Mask(ctx.Next, project.Privacy),
+    };
 
     /// <summary>Setzt einen TM-Treffer ins Segment ein; abweichende Zahlen werden angepasst.</summary>
     public static void ApplyMatch(Segment segment, TmMatch match, string targetLanguage = "")
@@ -44,6 +65,7 @@ public static class Workflow
             ? Placeables.AdaptNumbers(segment.Source, match.Unit.Source, match.Unit.Target, targetLanguage)
             : match.Unit.Target;
         segment.Target = TagText.EnsureTags(segment.Source, target);
+        segment.Suggestion = segment.Target;
         segment.MatchPercent = match.Score;
         segment.Origin = TranslationOrigin.TranslationMemory;
         segment.Status = SegmentStatus.Draft;
@@ -57,6 +79,12 @@ public static class Workflow
     public static int Confirm(TranslationProject project, BilingualDocument doc, Segment segment, SegmentStatus status = SegmentStatus.Translated)
     {
         if (segment.Target.Trim().Length == 0) return 0;
+        // Aus Korrekturen lernen: Was hat der Übersetzer am Vorschlag geändert?
+        if (segment.Suggestion is { } suggestion)
+        {
+            CorrectionLearning.Record(doc.TargetLanguage, suggestion, segment.Target);
+            segment.Suggestion = null;
+        }
         // Änderungsverlauf: jede bestätigte Fassung, die sich von der letzten unterscheidet
         if (segment.History.LastOrDefault()?.Target != segment.Target)
             segment.History.Add(new SegmentRevision(DateTime.UtcNow, segment.Target, status, segment.Origin));
@@ -65,13 +93,18 @@ public static class Workflow
         if (segment.Origin == TranslationOrigin.None) segment.Origin = TranslationOrigin.Manual;
         // Mit Kontext speichern: so wird derselbe Satz später im gleichen Zusammenhang als 101 % erkannt
         var ctx = ContextOf(doc, segment);
-        project.ProjectTm.Add(doc.SourceLanguage, doc.TargetLanguage, segment.Source, segment.Target, segment.Origin.ToString(),
+        // Datenschutz: geschützte Angaben gehen nicht ins TM, auch nicht im Satzzusammenhang
+        var (tmSource, tmTarget) = project.MasksTm
+            ? Privacy.PrivacyScanner.MaskPair(segment.Source, segment.Target, project.Privacy)
+            : (segment.Source, segment.Target);
+        if (project.MasksTm) ctx = MaskContext(ctx, project);
+        project.ProjectTm.Add(doc.SourceLanguage, doc.TargetLanguage, tmSource, tmTarget, segment.Origin.ToString(),
             ctx.Structure, null, ctx.Previous, ctx.Next);
         // gemeinsame TMs (z. B. Teamserver) erhalten bestätigte Übersetzungen ebenfalls
         foreach (var shared in project.SharedTmsToWrite(doc.TargetLanguage))
             Safe(() =>
             {
-                shared.Add(doc.SourceLanguage, doc.TargetLanguage, segment.Source, segment.Target, segment.Origin.ToString(),
+                shared.Add(doc.SourceLanguage, doc.TargetLanguage, tmSource, tmTarget, segment.Origin.ToString(),
                     ctx.Structure, null, ctx.Previous, ctx.Next);
                 return new List<int>();
             });
@@ -106,6 +139,7 @@ public static class Workflow
             var best = Lookup(project, doc, s, project.PretranslateMinScore, ContextOf(doc, all, i)).FirstOrDefault();
             if (best == null) continue;
             ApplyMatch(s, best, doc.TargetLanguage);
+            if (project.AutoLocalize) s.Target = Tm.AutoLocalizer.Localize(s.Source, s.Target, doc.SourceLanguage, doc.TargetLanguage);
             applied++;
             if ((best.Score == 101 && project.ConfirmContextMatches) || (confirmExact && best.Score == 100))
             {
@@ -157,6 +191,19 @@ public static class Workflow
             foreach (var kb in project.KnowledgeFor(lang))
                 result.AddRange(Safe(() => kb.Search(lang, query, max)));
         return result.DistinctBy(e => (e.Title, e.Content)).Take(max + 3).ToList();
+    }
+
+    /// <summary>
+    /// Recherche-Dossiers des Projekts zu den Ausdrücken dieses Segments (gleiche Zielsprache, Empfehlung belegt). Für
+    /// viele Segmente die Dossiers einmal laden und als <paramref name="all"/> mitgeben.
+    /// </summary>
+    public static List<Agents.TermDossier> Research(TranslationProject project, BilingualDocument doc, Segment segment,
+        IReadOnlyList<Agents.TermDossier>? all = null)
+    {
+        // dazu belegte Einträge des Recherche-Gedächtnisses zum selben Thema, die das Projekt nicht selbst hat
+        var own = all ?? Agents.DossierStore.Load(project);
+        var remembered = Agents.ResearchMemory.ForTranslation(doc.SourceLanguage, doc.TargetLanguage, project.Topic, own);
+        return Agents.DossierStore.ForTranslation(remembered.Count == 0 ? own : own.Concat(remembered).ToList(), segment.Source, doc.TargetLanguage);
     }
 
     /// <summary>Eine nicht erreichbare Teamressource darf die Arbeit nicht aufhalten.</summary>

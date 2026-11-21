@@ -101,7 +101,7 @@ public sealed class ApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Unauthorized, (await Client(null).GetAsync("", ct)).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await Client("falsch").GetAsync("", ct)).StatusCode);
         var info = await Ok(Client(_reader).GetAsync("", ct));
-        Assert.Equal("2.0", (string?)info["version"]);
+        Assert.Equal("2.1", (string?)info["version"]);
         Assert.Contains(await Ok(Client(_reader).GetAsync("formats", ct)) as JsonArray ?? [], f => (string?)f!["id"] == "idml");
 
         // Leser dürfen nichts ändern

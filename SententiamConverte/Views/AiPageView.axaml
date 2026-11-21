@@ -1,0 +1,520 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="using:SententiamConverte.Services"
+             xmlns:vm="using:SententiamConverte.ViewModels"
+             xmlns:ai="using:SententiamConverte.Core.Ai"
+             xmlns:lm="using:SententiamConverte.Core.Ai.LocalMt"
+             xmlns:c="using:SententiamConverte.Controls"
+             x:Class="SententiamConverte.Views.AiPageView"
+             x:DataType="vm:SettingsViewModel">
+    <ScrollViewer>
+        <StackPanel Margin="16" Spacing="12" MaxWidth="1100" HorizontalAlignment="Left">
+            <TextBlock Text="{l:T 'KI einrichten'}" Classes="h1" />
+
+            <!-- Kostenlos: mehrere Modelle gleichzeitig -->
+            <Border Classes="card" DataContext="{Binding Setup}" x:DataType="vm:AiSetupViewModel">
+                <StackPanel Spacing="10">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <PathIcon Data="{StaticResource Ic.Cloud}" Width="22" Height="22" Foreground="{DynamicResource SystemAccentColor}" />
+                        <TextBlock Text="{l:T 'Kostenlos – mehrere Modelle gleichzeitig'}" Classes="h2" FontSize="18" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="{l:T 'Das Programm sucht alle kostenlosen Modelle, die ohne Konto nutzbar sind (OVHcloud, Kilo), dazu die eingebaute KI und Ihre schon eingerichteten kostenlosen Zugänge. Die angehakten Modelle arbeiten zusammen: Eine ganze Datei wird auf alle gleichzeitig verteilt, und ist eines ausgelastet oder fällt aus, übernimmt ein anderes. Kostenlose Online-Dienste sind nichts für vertrauliche Texte.'}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Classes="accent" Command="{Binding UseFreePoolCommand}" IsEnabled="{Binding !IsPoolBusy}">
+                            <TextBlock Text="{l:T 'Angehakte Modelle gleichzeitig verwenden'}" />
+                        </Button>
+                        <Button Content="{l:T 'Kostenlose Modelle suchen'}" Command="{Binding FindFreeModelsCommand}" IsEnabled="{Binding !IsPoolBusy}" />
+                        <ProgressBar IsIndeterminate="True" Width="80" IsVisible="{Binding IsPoolBusy}" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <SelectableTextBlock Text="{Binding PoolStatus, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" />
+                    <TextBlock Classes="muted" TextWrapping="Wrap" FontSize="12"
+                               Text="{l:T 'Weitere kostenlose Modelle mit Gratis-Schlüssel (NVIDIA, Groq, Google Gemini, Mistral, Cerebras, OpenRouter): unten unter „Kostenlos online“ den Dienst wählen, „Schlüssel holen“, Schlüssel einfügen und „Verbinden“ – danach stehen seine Modelle hier zur Wahl.'}" />
+                    <ItemsControl ItemsSource="{Binding PoolCandidates}" IsVisible="{Binding PoolCandidates.Count}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:PoolCandidateViewModel">
+                                <Grid ColumnDefinitions="Auto,170,*,Auto" Margin="0,1">
+                                    <CheckBox IsChecked="{Binding IsChecked}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Service, Converter={x:Static l:L.Text}}" VerticalAlignment="Center" Classes="muted" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Model}" VerticalAlignment="Center" FontWeight="SemiBold"
+                                               ToolTip.Tip="{Binding Note, Converter={x:Static l:L.Text}}" />
+                                    <TextBlock Grid.Column="3" Text="{Binding Result, Converter={x:Static l:L.Text}}" VerticalAlignment="Center" FontSize="12"
+                                               MaxWidth="420" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Result}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- KI einrichten: drei einfache Wege, je ein Klick zum Verwenden -->
+            <Border Classes="card" DataContext="{Binding Setup}" x:DataType="vm:AiSetupViewModel">
+                <StackPanel Spacing="12">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <PathIcon Data="{StaticResource Ic.Ai}" Width="22" Height="22" Foreground="{DynamicResource SystemAccentColor}" />
+                        <TextBlock Text="{l:T 'KI einrichten'}" Classes="h2" FontSize="18" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="{l:T 'Einen Weg wählen – das Programm richtet den Zugang ein, testet ihn und nutzt ihn für Übersetzung, Recherche und Bewertung. Kostenlose Wege haben Grenzen bei Menge und Datenschutz; für vertrauliche Texte ein lokales Modell verwenden.'}" />
+                    <WrapPanel>
+                        <!-- Eingebaute KI -->
+                        <Border Classes="card" Width="340" Margin="0,0,12,12" IsVisible="{Binding IsBuiltInSupported}">
+                            <StackPanel Spacing="8">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <PathIcon Data="{StaticResource Ic.Ai}" />
+                                    <TextBlock Text="{l:T 'Kostenlos auf diesem Rechner'}" Classes="h2" />
+                                </StackPanel>
+                                <TextBlock Classes="muted" TextWrapping="Wrap" FontSize="12.5"
+                                           Text="{l:T 'Eingebaute KI: ein offenes Sprachmodell (Gemma 4 oder EuroLLM, Apache-2.0) läuft direkt auf diesem Rechner – ohne Konto, ohne Schlüssel, ohne Tageslimit, und die Texte verlassen den Rechner nicht. Einmaliger Download; eine Grafikkarte wird genutzt, wenn vorhanden.'}" />
+                                <ComboBox ItemsSource="{Binding BuiltInModels}" SelectedItem="{Binding SelectedBuiltInModel}" HorizontalAlignment="Stretch">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="ai:BuiltInModel">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding Description, Converter={x:Static l:L.Text}}" FontSize="12" Classes="muted" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <TextBlock Text="{Binding BuiltInStatus, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontSize="12" />
+                                <Grid ColumnDefinitions="*,6,Auto">
+                                    <TextBlock Text="{Binding BuiltInFolder}" TextTrimming="CharacterEllipsis" FontSize="12" Classes="muted"
+                                               VerticalAlignment="Center" ToolTip.Tip="{Binding BuiltInFolder}" />
+                                    <Button Grid.Column="2" Content="{l:T 'Ordner …'}" Command="{Binding ChooseBuiltInFolderCommand}"
+                                            ToolTip.Tip="{l:T 'Speicherort für Laufzeit und Modelle, z. B. ein Laufwerk mit mehr Platz'}" />
+                                </Grid>
+                                <StackPanel Spacing="4" IsVisible="{Binding Download.IsRunning}">
+                                    <ProgressBar Value="{Binding Download.Fraction}" Maximum="1" />
+                                    <Grid ColumnDefinitions="*,6,Auto">
+                                        <TextBlock Text="{Binding Download.Text, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontSize="12" VerticalAlignment="Center" />
+                                        <Button Grid.Column="2" Content="{l:T 'Abbrechen'}" Command="{Binding CancelDownloadCommand}" />
+                                    </Grid>
+                                </StackPanel>
+                                <TextBlock Text="{Binding Download.Text, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontSize="12"
+                                           IsVisible="{Binding !Download.IsRunning}" />
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Button Content="{Binding BuiltInButton, Converter={x:Static l:L.Text}}" Classes="accent" Command="{Binding UseBuiltInCommand}"
+                                            IsEnabled="{Binding !Download.IsRunning}" />
+                                    <Button Content="{l:T 'Modell löschen'}" Command="{Binding RemoveBuiltInCommand}" IsVisible="{Binding IsSelectedInstalled}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- OpenCode -->
+                        <Border Classes="card" Width="340" Margin="0,0,12,12" VerticalAlignment="Stretch">
+                            <StackPanel Spacing="8">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <PathIcon Data="{StaticResource Ic.Globe}" />
+                                    <TextBlock Text="{l:T 'Kostenlos über OpenCode'}" Classes="h2" />
+                                </StackPanel>
+                                <TextBlock Classes="muted" TextWrapping="Wrap" FontSize="12.5"
+                                           Text="{l:T 'Nutzt die kostenlosen Modelle von OpenCode (mit Tageskontingent, Texte gehen an die Anbieter der Modelle). OpenCode wird dafür im Hintergrund gestartet; die Anfragen laufen über OpenCode selbst.'}" />
+                                <StackPanel Spacing="8" IsVisible="{Binding IsOpenCodeInstalled}">
+                                    <Button Content="{l:T 'Modelle laden'}" Command="{Binding LoadOpenCodeModelsCommand}" />
+                                    <ComboBox ItemsSource="{Binding OpenCodeModels}" SelectedItem="{Binding SelectedOpenCodeModel}" HorizontalAlignment="Stretch"
+                                              PlaceholderText="{l:T 'Modell wählen …'}">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate x:DataType="ai:OpenCodeModel">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <TextBlock Text="{Binding Name, Converter={x:Static l:L.Text}}" />
+                                                    <Border Background="#E3F4E8" CornerRadius="8" Padding="6,0" IsVisible="{Binding Free}">
+                                                        <TextBlock Text="{l:T 'kostenlos'}" Foreground="#1E6B3A" FontSize="11" VerticalAlignment="Center" />
+                                                    </Border>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <TextBlock Text="{Binding OpenCodeNote, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontSize="12" Classes="muted" />
+                                    <TextBlock Text="{Binding OpenCodeQuotaNote, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontSize="12"
+                                               Foreground="#B45309" IsVisible="{Binding OpenCodeQuotaNote.Length}" />
+                                    <Button Content="{l:T 'Verwenden'}" Classes="accent" Command="{Binding UseOpenCodeCommand}" />
+                                </StackPanel>
+                                <StackPanel Spacing="8" IsVisible="{Binding !IsOpenCodeInstalled}">
+                                    <TextBlock Text="{l:T 'OpenCode ist auf diesem Rechner noch nicht installiert. Das Programm kann es aus dem offiziellen Release laden (MIT-Lizenz, etwa 80 MB).'}"
+                                               TextWrapping="Wrap" />
+                                    <Button Content="{l:T 'OpenCode herunterladen'}" Classes="accent" Command="{Binding DownloadOpenCodeCommand}"
+                                            IsVisible="{Binding CanDownloadOpenCode}" IsEnabled="{Binding !Download.IsRunning}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Lokal -->
+                        <Border Classes="card" Width="340" Margin="0,0,12,12">
+                            <StackPanel Spacing="8">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <PathIcon Data="{StaticResource Ic.Desktop}" />
+                                    <TextBlock Text="{l:T 'Lokal auf diesem Rechner'}" Classes="h2" />
+                                </StackPanel>
+                                <TextBlock Classes="muted" TextWrapping="Wrap" FontSize="12.5"
+                                           Text="{l:T 'Ollama, LM Studio, llama.cpp und ähnliche Server werden automatisch gefunden. Kostenlos, ohne Konto – die Texte verlassen den Rechner nicht.'}" />
+                                <Button Content="{l:T 'Suchen'}" Command="{Binding DetectLocalCommand}" />
+                                <ComboBox ItemsSource="{Binding LocalServers}" SelectedItem="{Binding SelectedLocalServer}" HorizontalAlignment="Stretch"
+                                          PlaceholderText="{l:T 'Server wählen …'}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="ai:LocalAiServer">
+                                            <TextBlock Text="{Binding Name, Converter={x:Static l:L.Text}}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <ComboBox ItemsSource="{Binding LocalModels}" SelectedItem="{Binding SelectedLocalModel}" HorizontalAlignment="Stretch"
+                                          PlaceholderText="{l:T 'Modell wählen …'}" />
+                                <Button Content="{l:T 'Verwenden'}" Classes="accent" Command="{Binding UseLocalCommand}" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Kostenlose Cloud-Stufen -->
+                        <Border Classes="card" Width="340" Margin="0,0,12,12">
+                            <StackPanel Spacing="8">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <PathIcon Data="{StaticResource Ic.Cloud}" />
+                                    <TextBlock Text="{l:T 'Kostenlos online'}" Classes="h2" />
+                                </StackPanel>
+                                <ComboBox ItemsSource="{Binding Services}" SelectedItem="{Binding SelectedService}" HorizontalAlignment="Stretch">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="ai:FreeAiService">
+                                            <TextBlock Text="{Binding Name, Converter={x:Static l:L.Text}}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <TextBlock Text="{Binding SelectedService.Note, Converter={x:Static l:L.Text}}" Classes="muted" TextWrapping="Wrap" FontSize="12" />
+                                <Grid ColumnDefinitions="*,6,Auto">
+                                    <TextBox Text="{Binding ServiceKey}" PasswordChar="•" PlaceholderText="{Binding ServiceKeyHint, Converter={x:Static l:L.Text}}" />
+                                    <Button Grid.Column="2" Command="{Binding OpenKeyPageCommand}" ToolTip.Tip="{l:T 'Seite des Anbieters öffnen, um einen Schlüssel zu holen'}">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <PathIcon Data="{StaticResource Ic.Key}" Width="16" Height="16" />
+                                            <TextBlock Text="{l:T 'Schlüssel holen'}" />
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
+                                <Button Content="{l:T 'Verbinden'}" Command="{Binding ConnectServiceCommand}" />
+                                <ComboBox ItemsSource="{Binding ServiceModels}" SelectedItem="{Binding SelectedServiceModel}" HorizontalAlignment="Stretch"
+                                          PlaceholderText="{l:T 'Modell wählen …'}" />
+                                <Button Content="{l:T 'Verwenden'}" Classes="accent" Command="{Binding UseServiceCommand}" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Diktat: Spracherkennung -->
+                        <Border Classes="card" Width="340" Margin="0,0,12,12">
+                            <StackPanel Spacing="8">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="🎤" FontSize="16" />
+                                    <TextBlock Text="{l:T 'Diktat'}" Classes="h2" />
+                                </StackPanel>
+                                <TextBlock Classes="muted" TextWrapping="Wrap" FontSize="12"
+                                           Text="{l:T 'Ins Zielfeld sprechen statt tippen: Die Aufnahme wird von einer Spracherkennung (Whisper) in Text umgewandelt. Unter Windows geht auch die eingebaute Spracheingabe (Windows+H) in jedem Textfeld.'}" />
+                                <ComboBox ItemsSource="{Binding TranscriptionPresets}" SelectedItem="{Binding SelectedTranscription}" HorizontalAlignment="Stretch"
+                                          PlaceholderText="{l:T 'Dienst wählen …'}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="ai:TranscriptionPreset">
+                                            <TextBlock Text="{Binding Name, Converter={x:Static l:L.Text}}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <TextBlock Text="{Binding SelectedTranscription.Note, Converter={x:Static l:L.Text}}" Classes="muted" TextWrapping="Wrap" FontSize="12" />
+                                <TextBox Text="{Binding TranscriptionUrl}" PlaceholderText="https://…/v1" />
+                                <TextBox Text="{Binding TranscriptionModel}" PlaceholderText="{l:T 'Modell'}" />
+                                <Grid ColumnDefinitions="*,6,Auto">
+                                    <TextBox Text="{Binding TranscriptionKey}" PasswordChar="•" PlaceholderText="{l:T 'Schlüssel (bei lokal leer lassen)'}" />
+                                    <Button Grid.Column="2" Command="{Binding OpenTranscriptionKeyPageCommand}" ToolTip.Tip="{l:T 'Seite des Anbieters öffnen, um einen Schlüssel zu holen'}">
+                                        <PathIcon Data="{StaticResource Ic.Key}" Width="16" Height="16" />
+                                    </Button>
+                                </Grid>
+                                <Button Content="{l:T 'Für das Diktat verwenden'}" Classes="accent" Command="{Binding SaveTranscriptionCommand}" />
+                                <TextBlock Text="{Binding TranscriptionStatus, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontSize="12" />
+                                <TextBlock Text="{Binding RecorderHint, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontSize="12" Foreground="#B7791F"
+                                           IsVisible="{Binding RecorderHint.Length}" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Klassische maschinelle Übersetzung -->
+                        <Border Classes="card" Width="340" Margin="0,0,12,12">
+                            <StackPanel Spacing="8">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <PathIcon Data="{StaticResource Ic.Cloud}" />
+                                    <TextBlock Text="{l:T 'Maschinelle Übersetzung'}" Classes="h2" />
+                                </StackPanel>
+                                <TextBlock Classes="muted" TextWrapping="Wrap" FontSize="12"
+                                           Text="{l:T 'Schnell und günstig, ohne Anweisungen: nur zum Übersetzen. Recherche, Prüfung und Agenten nutzen weiter das gewählte Sprachmodell.'}" />
+                                <ComboBox ItemsSource="{Binding MtServices}" SelectedItem="{Binding SelectedMt}" HorizontalAlignment="Stretch">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="ai:MtService">
+                                            <TextBlock Text="{Binding Name, Converter={x:Static l:L.Text}}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <TextBlock Text="{Binding SelectedMt.Note, Converter={x:Static l:L.Text}}" Classes="muted" TextWrapping="Wrap" FontSize="12" />
+                                <!-- Offline: je Sprachrichtung ein Modell laden -->
+                                <StackPanel Spacing="6" IsVisible="{Binding IsLocalMt}">
+                                    <Grid ColumnDefinitions="Auto,6,*" RowDefinitions="Auto,4,Auto">
+                                        <TextBlock Text="{l:T 'Von'}" VerticalAlignment="Center" />
+                                        <c:LanguagePicker Grid.Column="2" Value="{Binding MtFrom}" />
+                                        <TextBlock Grid.Row="2" Text="{l:T 'Nach'}" VerticalAlignment="Center" />
+                                        <c:LanguagePicker Grid.Row="2" Grid.Column="2" Value="{Binding MtTo}" />
+                                    </Grid>
+                                    <TextBlock Text="{Binding LocalMtStatus, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontSize="12" />
+                                    <StackPanel Spacing="4" IsVisible="{Binding Download.IsRunning}">
+                                        <ProgressBar Value="{Binding Download.Fraction}" Maximum="1" />
+                                        <Grid ColumnDefinitions="*,6,Auto">
+                                            <TextBlock Text="{Binding Download.Text, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontSize="12" VerticalAlignment="Center" />
+                                            <Button Grid.Column="2" Content="{l:T 'Abbrechen'}" Command="{Binding CancelDownloadCommand}" />
+                                        </Grid>
+                                    </StackPanel>
+                                    <Button Content="{l:T 'Modell herunterladen'}" Command="{Binding DownloadLocalMtCommand}"
+                                            IsVisible="{Binding CanDownloadLocalMt}" IsEnabled="{Binding !Download.IsRunning}" />
+                                    <TextBlock Text="{l:T 'Geladene Modelle'}" FontWeight="SemiBold" FontSize="12" IsVisible="{Binding HasLocalMtInstalled}" />
+                                    <ItemsControl ItemsSource="{Binding LocalMtInstalled}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="lm:LocalMtModel">
+                                                <Grid ColumnDefinitions="*,6,Auto" Margin="0,1">
+                                                    <TextBlock VerticalAlignment="Center" FontSize="12" TextTrimming="CharacterEllipsis">
+                                                        <Run Text="{Binding Id}" />
+                                                        <Run Text="{Binding SizeText}" Foreground="Gray" />
+                                                    </TextBlock>
+                                                    <Button Grid.Column="2" Content="{l:T 'Entfernen'}" FontSize="12" Padding="8,2"
+                                                            Command="{Binding $parent[ItemsControl].((vm:AiSetupViewModel)DataContext).RemoveLocalMtCommand}"
+                                                            CommandParameter="{Binding}" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Text="{Binding LocalMtFolder}" TextTrimming="CharacterEllipsis" FontSize="11" Classes="muted"
+                                               ToolTip.Tip="{l:T 'Speicherort: neben der eingebauten KI (dort mit „Ordner …“ änderbar)'}" />
+                                </StackPanel>
+                                <Grid ColumnDefinitions="*,6,Auto" IsVisible="{Binding SelectedMt.NeedsKey}">
+                                    <TextBox Text="{Binding MtKey}" PasswordChar="•" PlaceholderText="{l:T 'Schlüssel einfügen'}" />
+                                    <Button Grid.Column="2" Command="{Binding OpenMtKeyPageCommand}" ToolTip.Tip="{l:T 'Seite des Anbieters öffnen, um einen Schlüssel zu holen'}">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <PathIcon Data="{StaticResource Ic.Key}" Width="16" Height="16" />
+                                            <TextBlock Text="{l:T 'Schlüssel holen'}" />
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
+                                <TextBox Text="{Binding MtRegion}" IsVisible="{Binding SelectedMt.HasRegion}" PlaceholderText="{l:T 'Region, z. B. westeurope'}" />
+                                <TextBox Text="{Binding MtUrl}" IsVisible="{Binding SelectedMt.NeedsUrl}" PlaceholderText="http://localhost:5000" />
+                                <Button Content="{l:T 'Zum Übersetzen verwenden'}" Classes="accent" Command="{Binding UseMtCommand}" />
+                            </StackPanel>
+                        </Border>
+                    </WrapPanel>
+                    <CheckBox Content="{l:T 'Für alle Aufgaben verwenden (Übersetzen, Recherche, Bewertung)'}" IsChecked="{Binding UseForAll}" />
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <ProgressBar IsIndeterminate="True" Width="80" IsVisible="{Binding IsBusy}" VerticalAlignment="Center" />
+                        <SelectableTextBlock Text="{Binding Result, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="980" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Expander Header="{l:T 'Erweitert: KI-Zugänge von Hand bearbeiten'}" HorizontalAlignment="Stretch">
+                <StackPanel Spacing="12">
+                <TextBlock TextWrapping="Wrap" Classes="muted"
+                           Text="{l:T 'Beliebig viele Zugänge: Claude über die Anthropic-API oder jeder Server mit OpenAI-Schnittstelle – lokal (Strata/llama.cpp, Ollama, LM Studio, vLLM) oder in der Cloud. API-Schlüssel als „env:NAME“ werden aus der Umgebungsvariablen gelesen und nicht in der Datei gespeichert.'}" />
+
+                <Grid ColumnDefinitions="260,16,*">
+                    <StackPanel Spacing="6">
+                        <ListBox ItemsSource="{Binding Providers}" SelectedItem="{Binding Selected}" Height="220">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ProviderViewModel">
+                                    <TextBlock Text="{Binding Name}" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <ComboBox ItemsSource="{Binding Presets}" SelectedItem="{Binding SelectedPreset}" PlaceholderText="{l:T 'Vorlage wählen …'}" HorizontalAlignment="Stretch">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="ai:AiProviderConfig">
+                                    <TextBlock Text="{Binding Name}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Button Content="{l:T 'Hinzufügen'}" Command="{Binding AddFromPresetCommand}" />
+                            <Button Content="{l:T 'Entfernen'}" Command="{Binding RemoveSelectedCommand}" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" Spacing="6" DataContext="{Binding Selected}" x:DataType="vm:ProviderViewModel">
+                        <TextBlock Text="{l:T 'Name'}" />
+                        <TextBox Text="{Binding Name}" />
+                        <TextBlock Text="{l:T 'Art'}" />
+                        <ComboBox ItemsSource="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).KindNames}"
+                                  SelectedIndex="{Binding KindIndex}" HorizontalAlignment="Stretch" />
+                        <TextBlock Text="{l:T 'Adresse (Basis-URL)'}" />
+                        <TextBox Text="{Binding BaseUrl}" PlaceholderText="{l:T 'http://localhost:8080/v1'}" />
+                        <TextBlock Text="{l:T 'API-Schlüssel (leer bei lokalen Servern, oder env:VARIABLE)'}" />
+                        <TextBox Text="{Binding ApiKey}" PasswordChar="•" />
+                        <TextBlock Text="{Binding PrivacyNote, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontStyle="Italic" Opacity="0.85" />
+                        <TextBlock Text="{l:T 'Modell'}" />
+                        <TextBox Text="{Binding Model}" />
+                        <Grid ColumnDefinitions="*,8,*,8,*">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="{l:T 'Temperatur (leer = Standard)'}" />
+                                <TextBox Text="{Binding Temperature}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Spacing="4">
+                                <TextBlock Text="{l:T 'Max. Antwort-Tokens'}" />
+                                <NumericUpDown Value="{Binding MaxTokens}" Minimum="256" Maximum="128000" Increment="1024" FormatString="0" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="4" Spacing="4">
+                                <TextBlock Text="{l:T 'Zeichen pro Webseite'}" />
+                                <NumericUpDown Value="{Binding MaxCharsPerPage}" Minimum="1000" Maximum="50000" Increment="1000" FormatString="0" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Grid>
+
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="{l:T 'Gewählten Zugang testen'}" Command="{Binding TestSelectedCommand}" />
+                    <ProgressBar IsIndeterminate="True" Width="100" IsVisible="{Binding IsTesting}" />
+                </StackPanel>
+                </StackPanel>
+            </Expander>
+
+            <!-- Grammatikprüfung -->
+            <Border Classes="card">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="{l:T 'Grammatikprüfung'}" Classes="h2" />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="{l:T 'Im Editor unter „Meldungen“ → „Grammatik prüfen“: Fall, Kongruenz, Verbformen, Rechtschreibung und Zeichensetzung aller Übersetzungen. LanguageTool ist freie Software; ein eigener Server (Java oder Docker, Anleitung im Handbuch) hält die Texte im Haus. Die öffentliche Schnittstelle erlaubt 20 Anfragen und 75 KB je Minute und ist nicht für automatische Massenprüfungen gedacht – das Programm nutzt sie nur auf Knopfdruck und hält die Grenzen ein.'}" />
+                    <ComboBox ItemsSource="{Binding GrammarEngineNames}" SelectedIndex="{Binding GrammarEngineIndex}" HorizontalAlignment="Stretch" />
+                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding GrammarUsesServer}">
+                        <TextBlock Text="{l:T 'Adresse des Servers'}" VerticalAlignment="Center" />
+                        <TextBox Text="{Binding GrammarServerUrl}" Width="320" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Datenausgang: was den Rechner verlässt -->
+            <Border Classes="card" DataContext="{Binding Outbound}" x:DataType="vm:OutboundViewModel">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="{l:T 'Datenausgang – was den Rechner verlässt'}" Classes="h2" />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="{l:T 'Alles, was an KI, maschinelle Übersetzung, Spracherkennung, Suche und Online-Quellen geht, steht hier mit dem genauen Inhalt – so, wie es gesendet wird (geschützte Angaben schon als Platzhalter). Das Protokoll bleibt im Arbeitsspeicher und ist nach einem Neustart leer. Lokale KI auf diesem Rechner wird nur festgehalten, nie gefragt.'}" />
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="{l:T 'Vor dem Senden'}" VerticalAlignment="Center" FontWeight="SemiBold" />
+                        <ComboBox ItemsSource="{Binding ModeNames}" SelectedIndex="{Binding ModeIndex}" MinWidth="320" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
+                    <WrapPanel Orientation="Horizontal">
+                        <CheckBox Content="{l:T 'Nur, was den Rechner verlassen hat'}" IsChecked="{Binding OnlyOnline}" Margin="0,0,12,6" />
+                        <Button Content="{l:T 'Dienst des Eintrags sperren'}" Command="{Binding BlockSelectedCommand}" Margin="0,0,8,6" />
+                        <Button Content="{l:T 'Protokoll leeren'}" Command="{Binding ClearLogCommand}" Margin="0,0,8,6" />
+                    </WrapPanel>
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                        <ListBox ItemsSource="{Binding Visible}" SelectedItem="{Binding Selected}" Height="260">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:OutboundRow">
+                                    <StackPanel Spacing="1">
+                                        <TextBlock FontWeight="SemiBold" Text="{Binding Service}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Classes="muted" FontSize="12">
+                                            <Run Text="{Binding Time}" /><Run Text=" · " /><Run Text="{Binding KindName}" /><Run Text=" · " /><Run Text="{Binding Size}" /><Run Text=" · " /><Run Text="{Binding DecisionName}" />
+                                        </TextBlock>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <TextBox Grid.Column="1" Height="260" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"
+                                 FontFamily="Consolas,Menlo,monospace" FontSize="12"
+                                 Text="{Binding Selected.Entry.Content, FallbackValue=''}" Watermark="{l:T 'Eintrag wählen – hier steht der genaue Inhalt.'}" />
+                    </Grid>
+                    <TextBlock Text="{l:T 'Gesperrte Dienste (bekommen nie etwas)'}" FontWeight="SemiBold" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <ComboBox ItemsSource="{Binding Blocked}" SelectedItem="{Binding SelectedBlocked}" MinWidth="280" PlaceholderText="{l:T 'keine'}" />
+                        <Button Content="{l:T 'Wieder erlauben'}" Command="{Binding UnblockCommand}" />
+                    </StackPanel>
+                    <TextBlock Text="{l:T 'Ablaufprotokoll'}" FontWeight="SemiBold" />
+                    <TextBlock Classes="muted" TextWrapping="Wrap" FontSize="12"
+                               Text="{l:T 'Jeder Schritt des Programms und jede Anfrage an eine Schnittstelle samt Antwort und Dauer – als Datei im Datenordner, eine je Tag, 14 Tage aufgehoben. Bleibt auf diesem Rechner; Schlüssel stehen nicht darin, wohl aber die Texte. Zum Nachvollziehen und für die Fehlersuche.'}" />
+                    <WrapPanel Orientation="Horizontal">
+                        <CheckBox Content="{l:T 'Ablaufprotokoll schreiben'}" IsChecked="{Binding ActivityLogEnabled}" Margin="0,0,12,6" />
+                        <Button Content="{l:T 'Ordner öffnen'}" Command="{Binding OpenActivityLogCommand}" Margin="0,0,8,6" />
+                        <Button Content="{l:T 'Protokolle löschen'}" Command="{Binding DeleteActivityLogCommand}" Margin="0,0,8,6" />
+                    </WrapPanel>
+                    <TextBlock Text="{Binding ActivityLogFolder}" FontSize="11" Classes="muted" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding ActivityLogStatus, Converter={x:Static l:L.Text}}" FontSize="12" IsVisible="{Binding ActivityLogStatus.Length}" />
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="{l:T 'Wer macht was'}" Classes="h2" />
+                    <Grid ColumnDefinitions="220,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="6">
+                        <TextBlock Text="{l:T 'Übersetzen im Editor'}" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding Providers}" SelectedItem="{Binding TranslateProvider}" MinWidth="280" />
+                        <TextBlock Grid.Row="1" Text="{l:T 'Recherche &amp; Usus-Prüfung'}" VerticalAlignment="Center" />
+                        <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Providers}" SelectedItem="{Binding ResearchProvider}" MinWidth="280" />
+                        <TextBlock Grid.Row="2" Text="{l:T 'Bewertung'}" VerticalAlignment="Center" />
+                        <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding Providers}" SelectedItem="{Binding EvaluateProvider}" MinWidth="280" />
+                        <TextBlock Grid.Row="3" Text="{l:T 'Sprache der Begründungen'}" VerticalAlignment="Center" />
+                        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding ExplanationLanguage}" Width="200" HorizontalAlignment="Left" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="{l:T 'Websuche für die Agenten'}" Classes="h2" />
+                    <TextBlock TextWrapping="Wrap" Classes="muted"
+                               Text="{l:T 'Lokale Modelle können nicht selbst suchen; die Suche übernimmt dieser Dienst. Es werden nur offizielle Schnittstellen benutzt. Beim Lesen von Webseiten beachtet das Programm robots.txt und Nutzungsvorbehalte für Text und Data Mining (§ 44b UrhG) und übernimmt nur kurze Belegzitate. Für eine eigene SearXNG-Instanz gelten die Bedingungen der dort eingebundenen Suchmaschinen.'}" />
+                    <TextBlock TextWrapping="Wrap" FontSize="12"
+                               Text="{l:T 'Wie ein Mensch, der in verschiedenen Quellen nachschlägt: Alle angekreuzten Dienste werden gleichzeitig gefragt, die Treffer gemischt, doppelte Seiten nur einmal genommen. Fällt einer aus, suchen die anderen weiter.'}" />
+                    <ItemsControl ItemsSource="{Binding SearchSources}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SearchSourceRow">
+                                <StackPanel Spacing="4" Margin="0,0,0,6">
+                                    <CheckBox Content="{Binding Name}" IsChecked="{Binding Enabled}" />
+                                    <TextBox Text="{Binding BaseUrl}" PlaceholderText="{l:T 'SearXNG-Adresse, z. B. http://localhost:8888'}" IsVisible="{Binding ShowUrl}" Margin="28,0,0,0" />
+                                    <TextBox Text="{Binding ApiKey}" PlaceholderText="{l:T 'API-Schlüssel oder env:VARIABLE'}" PasswordChar="•" IsVisible="{Binding ShowKey}" Margin="28,0,0,0" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ShowKey}" Margin="28,0,0,0">
+                                        <Button Content="{l:T 'Schlüssel holen'}" Command="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).GetSearchKeyCommand}" CommandParameter="{Binding}" />
+                                        <TextBlock Text="{Binding KeyHint}" TextWrapping="Wrap" VerticalAlignment="Center" Classes="muted" MaxWidth="640" FontSize="12" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ShowClaude}" Margin="28,0,0,0">
+                                        <TextBlock Text="{l:T 'Claude-Zugang für Claude-Websuche:'}" VerticalAlignment="Center" />
+                                        <ComboBox ItemsSource="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).Providers}"
+                                                  SelectedItem="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).SearchClaudeProvider}" MinWidth="240" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Kostenlose Websuche auf diesem Rechner: SearXNG in Docker, mit einem Klick eingerichtet -->
+                    <Border Padding="12" CornerRadius="6" BorderThickness="1" BorderBrush="{DynamicResource CardBorder}" IsVisible="{Binding LocalSearchSupported}">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="{l:T 'Kostenlose Websuche auf diesem Rechner (SearXNG)'}" FontWeight="SemiBold" />
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Classes="muted"
+                                       Text="{l:T 'Ein Klick richtet alles ein: Das Programm prüft, ob Docker installiert ist und läuft, installiert es sonst aus der offiziellen Quelle (Windows; nur für diesen Benutzer), richtet die Metasuche SearXNG ein (nur von diesem Rechner erreichbar) und stellt die Websuche darauf um. Startet bei Bedarf von selbst. SearXNG fragt Suchmaschinen wie Google, Bing oder DuckDuckGo ab – deren Bedingungen gelten, und sie können Anfragen zeitweise ablehnen.'}" />
+                            <TextBlock TextWrapping="Wrap" FontSize="12" IsVisible="{Binding DockerMissing}"
+                                       Text="{l:T 'Docker ist nicht installiert. Mit „Docker installieren“ lädt das Programm Docker Desktop (etwa 600 MB, braucht etwa 6 GB) und stimmt dabei in deinem Namen der Docker-Lizenz zu: kostenlos für Privatleute, Ausbildung und Firmen unter 250 Mitarbeitern und 10 Mio. $ Umsatz; größere Firmen brauchen ein Abo. Voraussetzung ist WSL 2 (fehlt es, einmalig mit Administratorrechten „wsl --install“).'}" />
+                            <Grid ColumnDefinitions="Auto,*,6,Auto" IsVisible="{Binding DockerMissing}">
+                                <TextBlock Text="{l:T 'Docker-Ordner:'}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12" />
+                                <TextBlock Grid.Column="1" Text="{Binding DockerFolder}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" FontSize="12" Classes="muted" />
+                                <Button Grid.Column="3" Content="{l:T 'Ordner …'}" Command="{Binding ChooseDockerFolderCommand}"
+                                        ToolTip.Tip="{l:T 'Wohin Docker Programm und Daten legt – am besten ein Laufwerk mit viel Platz, nicht das Systemlaufwerk'}" />
+                            </Grid>
+                            <WrapPanel>
+                                <Button Content="{Binding SetUpLocalSearchText}" Classes="accent" Command="{Binding SetUpLocalSearchCommand}"
+                                        IsEnabled="{Binding !IsLocalSearchBusy}" Margin="0,0,8,4" />
+                                <Button Content="{l:T 'Abbrechen'}" Command="{Binding CancelLocalSearchCommand}" IsVisible="{Binding IsLocalSearchBusy}" Margin="0,0,8,4" />
+                                <Button Content="{l:T 'Anhalten'}" Command="{Binding StopLocalSearchCommand}" IsVisible="{Binding LocalSearchRunning}" Margin="0,0,8,4" />
+                                <Button Content="{l:T 'Entfernen'}" Command="{Binding RemoveLocalSearchCommand}" IsVisible="{Binding LocalSearchSetUp}" Margin="0,0,8,4"
+                                        ToolTip.Tip="{l:T 'Container und Abbild entfernen; Docker bleibt installiert'}" />
+                                <Button Content="{l:T 'Zustand prüfen'}" Command="{Binding RefreshLocalSearchCommand}" Margin="0,0,8,4" />
+                                <Button Content="{l:T 'Docker neu installieren'}" Command="{Binding ReinstallDockerCommand}" IsVisible="{Binding DockerNeedsRepair}" Margin="0,0,8,4"
+                                        ToolTip.Tip="{l:T 'Docker startet nicht – noch einmal aus der offiziellen Quelle installieren (etwa 600 MB) und weiter einrichten'}" />
+                                <Button Content="{l:T 'Docker-Anleitung'}" Command="{Binding OpenDockerInfoCommand}" IsVisible="{Binding !CanInstallDocker}" Margin="0,0,8,4" />
+                            </WrapPanel>
+                            <ProgressBar Value="{Binding LocalSearchProgress}" Maximum="1" IsVisible="{Binding HasLocalSearchProgress}" />
+                            <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsLocalSearchBusy}" />
+                            <SelectableTextBlock Text="{Binding LocalSearchStatus, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontSize="12" />
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+                        <Button Content="{l:T 'Speichern'}" Command="{Binding SaveCommand}" Classes="accent" />
+                        <Button Content="{l:T 'Websuche testen'}" Command="{Binding TestSearchCommand}" />
+                    </StackPanel>
+                    <SelectableTextBlock Text="{Binding TestResult, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

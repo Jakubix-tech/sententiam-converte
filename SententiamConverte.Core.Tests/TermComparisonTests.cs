@@ -67,8 +67,9 @@ public class TermComparisonTests
         Assert.True(r.UsedSpecialistSites);
         Assert.DoesNotContain(r.Evidence, e => e.Url.Contains("andere.example"));      // fremde Seite herausgefiltert
 
-        // erfundenes Zitat verworfen, echte Belege nummeriert
-        Assert.Equal(2, r.Evidence.Count);
+        // erfundenes Zitat verworfen, echte Belege nummeriert; „solicitor“ findet das Programm selbst auf der Seite
+        Assert.Equal(3, r.Evidence.Count);
+        Assert.Equal(("solicitor", "Fundstelle auf der Seite"), (r.Evidence[2].Term, r.Evidence[2].Note));
         Assert.DoesNotContain(r.Evidence, e => e.Quote.Contains("Erfundenes"));
         var barrister = r.Candidates.First(c => c.Term == "barrister");
         Assert.Equal(Equivalence.Partial, barrister.Equivalence);
@@ -98,13 +99,40 @@ public class TermComparisonTests
         Assert.Contains("legislation.gov.uk", entry.SourceUrl);
     }
 
+    /// <summary>Dossier der Recherche: mit welchem Modell und welcher Suche, Belege nummeriert und mit wörtlichem Zitat.</summary>
+    [Fact]
+    public async Task DossierRecordsModelSearchAndQuotedEvidence()
+    {
+        var ctx = new AgentContext { Model = new Model(), Search = new Search(), Fetcher = new Fetcher() };
+        var item = new ResearchItem { Expression = "Rechtsanwalt", Context = "Der Kläger wird vor dem Landgericht durch seinen Rechtsanwalt vertreten." };
+        var d = await new DocumentResearch(ctx).ResearchAsync(item, "de-DE", "en-GB", "Zivilprozess", SourceProfile.Defaults().First(p => p.Name == "Recht"),
+            ct: TestContext.Current.CancellationToken);
+
+        Assert.Equal(("Skript", "x"), (d.Model, d.Search));
+        Assert.Equal([1, 2, 3], d.Sources.Select(s => s.Number));                         // 3: vom Programm auf der Seite gefunden
+        var first = d.Sources[0];
+        Assert.Equal(("de-DE", "Rechtsanwalt", "Der Rechtsanwalt ist ein unabhängiges Organ der Rechtspflege."), (first.Language, first.Term, first.Quote));
+        Assert.Contains("gesetze-im-internet.de", first.Url);
+        Assert.Equal([1, 2], d.Candidates.First(c => c.Term == "barrister").Evidence);
+        Assert.Empty(d.Candidates.First(c => c.Term == "solicitor").Evidence);
+
+        using var dir = new TempDir();
+        using var kb = new KnowledgeBase(dir.File("w.sckb"));
+        DossierStore.ToKnowledge(d, kb, "Recht", null);
+        Assert.Contains("Belege: [1] BRAO (https://www.gesetze-im-internet.de/brao/__1.html) „Der Rechtsanwalt ist ein unabhängiges Organ", Assert.Single(kb.All()).Content);
+
+        // ältere Dossiers ohne diese Angaben lassen sich weiter lesen
+        var old = System.Text.Json.JsonSerializer.Deserialize<TermDossier>("""{"Expression":"x","Sources":[{"Language":"de","Title":"t","Url":"https://a.example"}]}""")!;
+        Assert.Equal((null, null, 0, null), (old.Model, old.Search, old.Sources[0].Number, old.Sources[0].Quote));
+    }
+
     [Fact]
     public void ProfilesRoundTripAsText()
     {
         var recht = SourceProfile.Defaults().First(p => p.Name == "Recht");
         var parsed = SourceProfile.ParseText(recht.ToText());
         Assert.Equal(recht.Languages.Count, parsed.Count);
-        Assert.Equal(["curia.europa.eu"], recht.SitesFor("xx").ToList());
+        Assert.Equal(["curia.europa.eu", "eur-lex.europa.eu"], recht.SitesFor("xx").ToList());     // EUR-Lex wird über CELLAR gelesen
         Assert.DoesNotContain("isap.sejm.gov.pl", recht.SitesFor("pl-PL"));          // untersagt das Lesen per robots.txt
         Assert.Equal("polnisches Recht (Kodeks cywilny, k.p.c., k.k.)", recht.SystemFor("pl-PL"));
         Assert.Equal("beispiel.de", SourceProfile.CleanDomain("https://www.Beispiel.de/pfad"));

@@ -2,11 +2,85 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:l="using:SententiamConverte.Services"
              xmlns:vm="using:SententiamConverte.ViewModels"
+             xmlns:c="using:SententiamConverte.Controls"
              xmlns:res="using:SententiamConverte.Core.Resources"
+             xmlns:views="using:SententiamConverte.Views"
              x:Class="SententiamConverte.Views.ResourcesView"
              x:DataType="vm:ResourcesViewModel">
+    <Panel>
+    <views:AlignmentView DataContext="{Binding Alignment}" IsVisible="{Binding IsOpen}" />
+    <views:ImportTranslationsView DataContext="{Binding ImportTranslations}" IsVisible="{Binding IsOpen}" />
     <ScrollViewer>
+        <ScrollViewer.IsVisible>
+            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                <Binding Path="!Alignment.IsOpen" />
+                <Binding Path="!ImportTranslations.IsOpen" />
+            </MultiBinding>
+        </ScrollViewer.IsVisible>
         <StackPanel Margin="16" Spacing="12" MaxWidth="1100" HorizontalAlignment="Left">
+            <!-- Datenbanken: Empfehlungen und Übersicht -->
+            <Border Classes="card">
+                <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <PathIcon Data="{StaticResource Nav.Resources}" />
+                        <TextBlock Text="{l:T 'Datenbanken: Empfehlungen und Übersicht'}" Classes="h2" />
+                    </StackPanel>
+                    <TextBlock TextWrapping="Wrap" Classes="muted" FontSize="12"
+                               Text="{l:T 'Translation Memory (TM): ganze Sätze mit Übersetzung zum Wiederverwenden. Terminologie: Fachbegriffe, die immer gleich übersetzt werden. Wissensdatenbank: Stilregeln, Fachwissen und Rechercheergebnisse für die KI. Gemeinsame Datenbanken liegen alle im Ordner unten und gelten für alle Projekte mit ihren Sprachen.'}" />
+                    <StackPanel Spacing="6" IsVisible="{Binding HasRecommendations}">
+                        <TextBlock Text="{l:T 'Empfohlen für dieses Projekt'}" FontWeight="SemiBold" />
+                        <ItemsControl ItemsSource="{Binding Recommendations}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:RecommendationRow">
+                                    <Grid ColumnDefinitions="*,Auto" Margin="0,3">
+                                        <StackPanel Spacing="1">
+                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Reason}" TextWrapping="Wrap" FontSize="12" />
+                                            <TextBlock Text="{Binding Path}" FontSize="11" Classes="muted" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Path}" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Content="{l:T 'Anlegen'}" VerticalAlignment="Center" Margin="8,0,0,0"
+                                                Command="{Binding $parent[UserControl].((vm:ResourcesViewModel)DataContext).CreateRecommendedCommand}" CommandParameter="{Binding}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Button Content="{l:T 'Alle empfohlenen anlegen'}" Command="{Binding CreateAllRecommendedCommand}" Classes="accent" />
+                    </StackPanel>
+                    <CheckBox Content="{l:T 'Beim Öffnen eines Projekts fehlende gemeinsame Datenbanken automatisch anlegen'}" IsChecked="{Binding AutoCreateDatabases}" />
+                    <WrapPanel>
+                        <TextBlock Text="{l:T 'Alle Datenbanken'}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,4" />
+                        <Button Content="{l:T 'Aktualisieren'}" Command="{Binding RefreshDatabasesCommand}" Margin="0,0,8,4" />
+                        <Button Content="{l:T 'Ordner öffnen'}" Command="{Binding OpenDatabaseFolderCommand}" Margin="0,0,8,4" />
+                        <TextBlock Text="{Binding DatabaseFolder}" FontSize="11" Classes="muted" VerticalAlignment="Center" Margin="0,0,8,4" />
+                    </WrapPanel>
+                    <ListBox ItemsSource="{Binding Databases}" SelectedItem="{Binding SelectedDatabase}" MaxHeight="260">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:DatabaseRow">
+                                <Grid ColumnDefinitions="150,*,230,80">
+                                    <TextBlock Text="{Binding Kind}" VerticalAlignment="Center" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Path}" FontSize="11" Classes="muted" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Path}" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="2" Text="{Binding Origin}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" Classes="muted" />
+                                    <TextBlock Grid.Column="3" Text="{Binding Entries}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <WrapPanel>
+                        <Button Content="{l:T 'In diesem Projekt verwenden'}" Command="{Binding UseInProjectCommand}" Margin="0,0,8,4"
+                                ToolTip.Tip="{l:T 'Datenbanken anderer Projekte werden nur gelesen; geschrieben wird weiter in deren Projekt.'}" />
+                        <Button Content="{l:T 'Für alle Projekte mit diesen Sprachen freigeben'}" Command="{Binding ShareForLanguagesCommand}" Margin="0,0,8,4" />
+                        <TextBlock Text="{l:T 'Zusammenführen in:'}" VerticalAlignment="Center" Margin="8,0,6,4" />
+                        <ComboBox ItemsSource="{Binding MergeTargets}" SelectedItem="{Binding MergeTarget}" MinWidth="220" Margin="0,0,8,4" />
+                        <Button Content="{l:T 'Zusammenführen'}" Command="{Binding MergeDatabasesCommand}" Margin="0,0,8,4"
+                                ToolTip.Tip="{l:T 'Übernimmt alle Einträge der gewählten Datenbank in die Zieldatenbank gleichen Typs; die Quelle bleibt unverändert, Doppeltes wird übersprungen.'}" />
+                    </WrapPanel>
+                    <SelectableTextBlock Text="{Binding DatabaseInfo, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
             <TextBlock Text="{l:T 'Angebundene Ressourcen'}" Classes="h2" />
             <TextBlock TextWrapping="Wrap" Classes="muted" FontSize="12"
                        Text="{l:T 'Zusätzlich zu Projekt-TM, Projekt-Terminologie und Projekt-Wissen lassen sich weitere Datenbanken anbinden – lokale Dateien oder gemeinsame Ressourcen auf einem Teamserver, wahlweise nur für bestimmte Sprachen. „Schreibt zurück“: bestätigte Übersetzungen und neue Begriffe landen auch dort, damit das ganze Team davon profitiert.'}" />
@@ -14,10 +88,10 @@
             <ItemsControl ItemsSource="{Binding Attached}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:AttachedRow">
-                        <Grid ColumnDefinitions="170,*,180,130,Auto" Margin="0,2">
+                        <Grid ColumnDefinitions="160,*,330,110,Auto" Margin="0,2">
                             <TextBlock Text="{Binding Kind, Converter={x:Static l:L.Text}}" VerticalAlignment="Center" />
                             <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Grid.Column="2" Text="{Binding Languages}" VerticalAlignment="Center" Classes="muted" />
+                            <TextBlock Grid.Column="2" Text="{Binding Languages}" VerticalAlignment="Center" Classes="muted" TextWrapping="Wrap" Margin="0,0,8,0" />
                             <TextBlock Grid.Column="3" Text="{Binding WriteBack}" VerticalAlignment="Center" Classes="muted" />
                             <Button Grid.Column="4" Content="{l:T 'Lösen'}" Padding="6,2"
                                     Command="{Binding $parent[UserControl].((vm:ResourcesViewModel)DataContext).DetachCommand}" CommandParameter="{Binding}" />
@@ -30,8 +104,10 @@
                     <TextBlock Text="{l:T 'Ressource anbinden'}" FontWeight="SemiBold" />
                     <WrapPanel>
                         <ComboBox ItemsSource="{Binding KindNames}" SelectedIndex="{Binding AttachKind}" Width="190" Margin="0,0,8,4" />
-                        <TextBox Text="{Binding AttachLanguages}" PlaceholderText="{l:T 'Sprachen (leer = alle), z. B. pl-PL'}" Width="240" Margin="0,0,8,4" />
+                        <c:LanguagePicker Value="{Binding AttachLanguages}" Multiple="True" Placeholder="{l:T 'Sprachen (leer = alle)'}" MinWidth="240" Margin="0,0,8,4" />
                         <CheckBox Content="{l:T 'schreibt zurück'}" IsChecked="{Binding AttachWriteBack}" Margin="0,0,8,4" />
+                        <CheckBox Content="{l:T 'für alle Projekte mit diesen Sprachen'}" IsChecked="{Binding AttachForLanguages}" Margin="0,0,8,4"
+                                  ToolTip.Tip="{l:T 'Nicht nur für dieses Projekt: Die Datenbank gilt dann in jedem Projekt mit diesen Sprachen und für die Agenten auch ohne Projekt. Ohne Sprachangabe gelten die Sprachen dieses Projekts.'}" />
                     </WrapPanel>
                     <WrapPanel>
                         <TextBlock Text="{l:T 'Teamserver:'}" VerticalAlignment="Center" Margin="0,0,6,4" />
@@ -56,25 +132,43 @@
                         <TextBlock Text="{l:T 'Freie Sprachdaten herunterladen'}" Classes="h2" />
                     </StackPanel>
                     <TextBlock TextWrapping="Wrap" Classes="muted" FontSize="12"
-                               Text="{l:T 'Frei verfügbare Translation Memories (OPUS-Archiv: u. a. EU-Übersetzungsspeicher DGT, Europarl, EU-Recht, Arzneimittel, Verwaltung, Software) und die EU-Terminologie IATE. Das Programm lädt den gewählten Datensatz aus der offiziellen Quelle, übernimmt nur das Sprachpaar des Projekts und bindet ihn an. Die Lizenz des Datensatzes gilt – meist mit Pflicht zur Quellenangabe.'}" />
+                               Text="{l:T 'Frei verfügbare Translation Memories (OPUS-Archiv: u. a. EU-Übersetzungsspeicher DGT, Europarl, EU-Recht, Arzneimittel, Verwaltung, Software) und die EU-Terminologie IATE. Das Programm lädt den gewählten Datensatz aus der offiziellen Quelle, übernimmt nur das gewählte Sprachpaar und bindet ihn an. Die Lizenz des Datensatzes gilt – meist mit Pflicht zur Quellenangabe.'}" />
+                    <TextBlock TextWrapping="Wrap" FontSize="12"
+                               Text="{l:T 'So geht es: 1. Sprachen wählen und „Suchen“. 2. Mit den Filtern eingrenzen. 3. Datensatz anklicken (Lizenz und Platzbedarf stehen darunter, „Info“ öffnet die Seite des Datensatzes). 4. „Herunterladen und anbinden“ – danach erscheinen die Einträge im Editor als TM-Treffer bzw. Fachbegriffe.'}" />
                     <WrapPanel>
-                        <TextBlock Text="{l:T 'Zielsprache:'}" VerticalAlignment="Center" Margin="0,0,6,4" />
-                        <ComboBox ItemsSource="{Binding DataTargetLanguages}" SelectedItem="{Binding DataTargetLanguage}" MinWidth="110" Margin="0,0,8,4" />
-                        <Button Content="{l:T 'Suchen'}" Command="{Binding SearchDataSetsCommand}" Margin="0,0,8,4" />
+                        <TextBlock Text="{l:T 'Von'}" VerticalAlignment="Center" Margin="0,0,6,4" />
+                        <c:LanguagePicker Value="{Binding DataSourceLanguage}" Width="230" Margin="0,0,8,4" />
+                        <TextBlock Text="{l:T 'nach'}" VerticalAlignment="Center" Margin="0,0,6,4" />
+                        <c:LanguagePicker Value="{Binding DataTargetLanguage}" Width="230" Margin="0,0,8,4" />
+                        <Button Content="{l:T 'Suchen'}" Command="{Binding SearchDataSetsCommand}" Classes="accent" Margin="0,0,8,4" VerticalAlignment="Top" />
+                    </WrapPanel>
+                    <WrapPanel IsVisible="{Binding HasDataSets}">
+                        <TextBox Text="{Binding DataFilterText}" PlaceholderText="{l:T 'Filtern nach Name oder Beschreibung …'}" Width="240" Margin="0,0,8,4" />
+                        <ComboBox ItemsSource="{Binding DataKindNames}" SelectedIndex="{Binding DataKindIndex}" MinWidth="150" Margin="0,0,8,4" />
+                        <ComboBox ItemsSource="{Binding DataCategoryNames}" SelectedIndex="{Binding DataCategoryIndex}" MinWidth="190" Margin="0,0,8,4" />
+                        <ComboBox ItemsSource="{Binding DataSortNames}" SelectedIndex="{Binding DataSortIndex}" MinWidth="160" Margin="0,0,8,4" />
+                        <CheckBox Content="{l:T 'nur beruflich nutzbare Lizenzen'}" IsChecked="{Binding DataCommercialOnly}" Margin="0,0,8,4"
+                                  ToolTip.Tip="{l:T 'Blendet Datensätze aus, die nur für Forschung oder nicht kommerziell freigegeben sind oder deren Lizenz unklar ist'}" />
                         <CheckBox Content="{l:T 'Alle anzeigen (auch sehr große oder eingeschränkt nutzbare)'}" IsChecked="{Binding ShowAllDataSets}" Margin="0,0,8,4" />
                     </WrapPanel>
-                    <ListBox ItemsSource="{Binding DataSets}" SelectedItem="{Binding SelectedDataSet}" MaxHeight="280"
+                    <TextBlock Text="{Binding DataCountText, Converter={x:Static l:L.Text}}" FontSize="12" Classes="muted" IsVisible="{Binding HasDataSets}" />
+                    <ListBox ItemsSource="{Binding DataSets}" SelectedItem="{Binding SelectedDataSet}" MaxHeight="320"
                              IsVisible="{Binding DataSets.Count}">
                         <ListBox.ItemTemplate>
                             <DataTemplate x:DataType="res:LanguageDataSet">
-                                <Grid ColumnDefinitions="*,150,120,80">
+                                <Grid ColumnDefinitions="*,170,110,80,Auto">
                                     <StackPanel>
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
                                         <TextBlock Text="{Binding Description, Converter={x:Static l:L.Text}}" FontSize="12" Classes="muted" TextWrapping="Wrap" />
+                                        <TextBlock FontSize="11" Classes="muted" TextWrapping="Wrap">
+                                            <Run Text="{Binding Category, Converter={x:Static l:L.Text}}" /><Run Text=" · " /><Run Text="{Binding License, Converter={x:Static l:L.Text}}" />
+                                        </TextBlock>
                                     </StackPanel>
                                     <TextBlock Grid.Column="1" Text="{Binding KindText, Converter={x:Static l:L.Text}}" VerticalAlignment="Center" FontSize="12" />
                                     <TextBlock Grid.Column="2" Text="{Binding UnitsText}" VerticalAlignment="Center" FontSize="12" HorizontalAlignment="Right" />
                                     <TextBlock Grid.Column="3" Text="{Binding SizeText}" VerticalAlignment="Center" FontSize="12" HorizontalAlignment="Right" />
+                                    <Button Grid.Column="4" Content="{l:T 'Info'}" Padding="6,2" Margin="8,0,0,0" VerticalAlignment="Center"
+                                            Command="{Binding $parent[UserControl].((vm:ResourcesViewModel)DataContext).OpenDataSetInfoCommand}" CommandParameter="{Binding}" />
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -95,8 +189,83 @@
                     <StackPanel Orientation="Horizontal" Spacing="10">
                         <Button Content="{l:T 'Herunterladen und anbinden'}" Classes="accent" Command="{Binding InstallDataSetCommand}"
                                 IsEnabled="{Binding !Download.IsRunning}" />
+                        <CheckBox Content="{l:T 'für alle Projekte mit diesen Sprachen'}" IsChecked="{Binding DataForLanguages}"
+                                  ToolTip.Tip="{l:T 'Sonst nur für das offene Projekt. Ohne offenes Projekt gilt der Datensatz immer für die Sprachen.'}" />
                         <SelectableTextBlock Text="{Binding DataStatus, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" VerticalAlignment="Center" FontSize="12" />
                     </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Eigene Fachtexte: Ordner mit PDFs und Dokumenten, lokal durchsuchbar für die Recherche -->
+            <Border Classes="card">
+                <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <PathIcon Data="{StaticResource Ic.Document}" />
+                        <TextBlock Text="{l:T 'Eigene Fachtexte'}" Classes="h2" />
+                    </StackPanel>
+                    <TextBlock TextWrapping="Wrap" Classes="muted" FontSize="12"
+                               Text="{l:T 'Ordner mit PDFs, Word- und Writer-Dateien, Texten oder HTML – etwa Normen, Handbücher, Datenblätter, Gesetzestexte oder frühere Übersetzungen. Das Programm liest sie selbst und legt einen Suchindex an; nichts verlässt den Rechner. Die Recherche sucht darin zuerst, belegt mit Datei, Seite und Stand und zählt, wie oft jede mögliche Benennung in deinen Texten vorkommt. Neue und geänderte Dateien werden beim nächsten Einlesen übernommen. Gescannte PDFs brauchen vorher eine Texterkennung (OCR).'}" />
+                    <ItemsControl ItemsSource="{Binding LibraryFolders}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <Grid ColumnDefinitions="*,6,Auto" Margin="0,0,0,4">
+                                    <TextBlock Text="{Binding}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                    <Button Grid.Column="2" Content="✕" Padding="6,2" ToolTip.Tip="{l:T 'Ordner entfernen (die Dateien bleiben, nur der Index vergisst sie)'}"
+                                            Command="{Binding $parent[UserControl].((vm:ResourcesViewModel)DataContext).RemoveLibraryFolderCommand}" CommandParameter="{Binding}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <WrapPanel>
+                        <Button Content="{l:T 'Ordner hinzufügen …'}" Classes="accent" Command="{Binding AddLibraryFolderCommand}" Margin="0,0,8,4" />
+                        <Button Content="{l:T 'Jetzt einlesen'}" Command="{Binding ScanLibraryCommand}" IsEnabled="{Binding HasLibraryFolders}" Margin="0,0,8,4"
+                                ToolTip.Tip="{l:T 'Liest neue und geänderte Dateien, entfernt verschwundene'}" />
+                        <Button Content="{l:T 'Abbrechen'}" Command="{Binding CancelLibraryScanCommand}" IsVisible="{Binding IsScanningLibrary}" Margin="0,0,8,4" />
+                        <CheckBox Content="{l:T 'Auszüge auch an Online-KI geben'}" IsChecked="{Binding LibraryAllowOnline}" Margin="0,0,8,4"
+                                  ToolTip.Tip="{l:T 'Sonst bekommt nur KI auf diesem Rechner Belegstellen aus den eigenen Fachtexten – die Texte können vertraulich sein'}" />
+                    </WrapPanel>
+                    <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsScanningLibrary}" />
+                    <SelectableTextBlock Text="{Binding LibraryStatus, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontSize="12" />
+                    <TextBlock Text="{Binding LibrarySummary}" TextWrapping="Wrap" FontSize="12" Classes="muted" />
+                    <Grid ColumnDefinitions="Auto,*,6,Auto">
+                        <TextBlock Text="{l:T 'Suchindex:'}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12" />
+                        <TextBlock Grid.Column="1" Text="{Binding LibraryIndexFolder}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" FontSize="12" Classes="muted" />
+                        <Button Grid.Column="3" Content="{l:T 'Ordner …'}" Command="{Binding ChooseLibraryIndexFolderCommand}"
+                                ToolTip.Tip="{l:T 'Wohin der Suchindex kommt (er wird dorthin verschoben) – am besten ein Laufwerk mit viel Platz'}" />
+                    </Grid>
+                    <Expander Header="{l:T 'Eingelesene Dateien'}" HorizontalAlignment="Stretch" IsVisible="{Binding LibraryFiles.Count}">
+                        <ListBox ItemsSource="{Binding LibraryFiles}" MaxHeight="300">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:LibraryFileRow">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Info}" FontSize="12" Classes="muted" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding Folder}" FontSize="11" Classes="muted" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Expander>
+                    <Grid ColumnDefinitions="*,6,Auto" IsVisible="{Binding LibraryFiles.Count}">
+                        <TextBox Text="{Binding LibraryQuery}" PlaceholderText="{l:T 'Probesuche: Wort oder Wortfolge in den eigenen Fachtexten …'}">
+                            <TextBox.KeyBindings>
+                                <KeyBinding Gesture="Enter" Command="{Binding SearchLibraryCommand}" />
+                            </TextBox.KeyBindings>
+                        </TextBox>
+                        <Button Grid.Column="2" Content="{l:T 'Suchen'}" Command="{Binding SearchLibraryCommand}" />
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding LibraryHits}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="res:LibraryHit">
+                                <StackPanel Margin="0,0,0,6">
+                                    <Button Content="{Binding Label}" Padding="2,0" HorizontalContentAlignment="Left" FontSize="12"
+                                            Command="{Binding $parent[UserControl].((vm:ResourcesViewModel)DataContext).OpenLibraryHitCommand}" CommandParameter="{Binding}" />
+                                    <TextBlock Text="{Binding Quote}" TextWrapping="Wrap" FontSize="12" />
+                                    <TextBlock Text="{Binding Version, Converter={x:Static l:L.Text}}" FontSize="11" Classes="muted" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
             </Border>
 
@@ -111,8 +280,39 @@
                         ToolTip.Tip="{l:T 'Ordner mit .sctm/.sctb-Dateien (z. B. ein Haupt-TM, das mehrere Projekte nutzen)'}" />
             </WrapPanel>
 
-            <Expander Header="{l:T 'TM-Einträge bearbeiten'}" HorizontalAlignment="Stretch">
+            <Expander Header="{l:T 'TM-Einträge bearbeiten und pflegen'}" HorizontalAlignment="Stretch">
                 <StackPanel Spacing="6">
+                    <WrapPanel>
+                        <TextBlock Text="{l:T 'TM:'}" VerticalAlignment="Center" Margin="0,0,6,4" />
+                        <ComboBox ItemsSource="{Binding MaintTms}" SelectedItem="{Binding MaintTm}" MinWidth="240" Margin="0,0,6,4" />
+                    </WrapPanel>
+                    <Border Padding="10" CornerRadius="6" BorderThickness="1" BorderBrush="{DynamicResource CardBorder}">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="{l:T 'Suchen und Ersetzen in allen Einträgen'}" FontWeight="SemiBold" />
+                            <Grid ColumnDefinitions="*,8,*">
+                                <TextBox Text="{Binding FindText}" PlaceholderText="{l:T 'Suchen'}" />
+                                <TextBox Grid.Column="2" Text="{Binding ReplaceText}" PlaceholderText="{l:T 'Ersetzen durch'}" />
+                            </Grid>
+                            <WrapPanel>
+                                <CheckBox Content="{l:T 'in der Quelle'}" IsChecked="{Binding ReplaceInSource}" Margin="0,0,12,4" />
+                                <CheckBox Content="{l:T 'in der Übersetzung'}" IsChecked="{Binding ReplaceInTarget}" Margin="0,0,12,4" />
+                                <CheckBox Content="{l:T 'Groß/klein beachten'}" IsChecked="{Binding ReplaceMatchCase}" Margin="0,0,12,4" />
+                                <CheckBox Content="{l:T 'ganze Wörter'}" IsChecked="{Binding ReplaceWholeWords}" Margin="0,0,12,4" />
+                                <CheckBox Content="{l:T 'regulärer Ausdruck'}" IsChecked="{Binding ReplaceRegex}" Margin="0,0,12,4" />
+                                <Button Content="{l:T 'Vorschau'}" Command="{Binding PreviewReplaceCommand}" Margin="0,0,6,4" />
+                                <Button Content="{l:T 'Alle ersetzen'}" Command="{Binding ReplaceAllCommand}" Classes="accent" Margin="0,0,6,4" />
+                            </WrapPanel>
+                            <TextBlock Text="{l:T 'Bereinigen'}" FontWeight="SemiBold" Margin="0,4,0,0" />
+                            <WrapPanel>
+                                <CheckBox Content="{l:T 'Dubletten'}" IsChecked="{Binding CleanDuplicates}" Margin="0,0,12,4" />
+                                <CheckBox Content="{l:T 'ohne Übersetzung'}" IsChecked="{Binding CleanEmpty}" Margin="0,0,12,4" />
+                                <CheckBox Content="{l:T 'Ziel = Quelle'}" IsChecked="{Binding CleanIdentical}" Margin="0,0,12,4" />
+                                <Button Content="{l:T 'Bereinigen'}" Command="{Binding CleanTmCommand}" Margin="0,0,16,4" />
+                                <Button Content="{l:T 'Uneinheitliche Übersetzungen zeigen'}" Command="{Binding ShowInconsistentCommand}" Margin="0,0,6,4" />
+                            </WrapPanel>
+                            <SelectableTextBlock Text="{Binding TmCareInfo, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
                     <TextBox Text="{Binding TmFilter}" PlaceholderText="{l:T 'Filtern nach Text in Quelle oder Ziel …'}" />
                     <ItemsControl ItemsSource="{Binding TmRows}">
                         <ItemsControl.ItemTemplate>
@@ -141,33 +341,17 @@
                 </StackPanel>
             </Expander>
 
-            <Expander Header="{l:T 'Alignment: alte Übersetzungen ins TM übernehmen'}" HorizontalAlignment="Stretch">
-                <StackPanel Spacing="6">
+            <Border Classes="card">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="{l:T 'Alte Übersetzungen übernehmen (Alignment)'}" Classes="h2" />
                     <TextBlock TextWrapping="Wrap" Classes="muted" FontSize="12"
-                               Text="{l:T 'Ausgangstext und vorhandene Übersetzung wählen. Die Sätze werden nach Länge und Zahlen einander zugeordnet; unsichere Paare sind nicht vorausgewählt.'}" />
+                               Text="{l:T 'Original und vorhandene Übersetzung wählen – das Programm ordnet die Dateien und Sätze einander zu, übernimmt sie ins TM und schlägt Fachbegriffe vor. Im Alignment-Editor geht es auch von Hand: Paare verbinden und teilen, Sätze verschieben, Text bearbeiten und neu segmentieren, bestätigen. Die Formatierung wird als Tags übernommen.'}" />
                     <WrapPanel>
-                        <Button Content="{l:T 'Ausgangstext …'}" Command="{Binding PickAlignSourceCommand}" Margin="0,0,6,4" />
-                        <TextBlock Text="{Binding AlignSourceName}" VerticalAlignment="Center" Margin="0,0,16,4" />
-                        <Button Content="{l:T 'Übersetzung …'}" Command="{Binding PickAlignTargetCommand}" Margin="0,0,6,4" />
-                        <TextBlock Text="{Binding AlignTargetName}" VerticalAlignment="Center" Margin="0,0,16,4" />
-                        <TextBox Text="{Binding AlignTargetLanguage}" Width="100" PlaceholderText="{l:T 'Sprache'}" Margin="0,0,6,4" />
-                        <Button Content="{l:T 'Ausrichten'}" Command="{Binding RunAlignmentCommand}" Classes="accent" Margin="0,0,6,4" />
-                        <Button Content="{l:T 'Markierte ins TM'}" Command="{Binding ImportAlignmentCommand}" Margin="0,0,6,4" />
+                        <Button Content="{l:T 'Übersetzte Dateien übernehmen …'}" Command="{Binding ImportTranslations.OpenCommand}" Classes="accent" Margin="0,0,8,4" />
+                        <Button Content="{l:T 'Alignment-Editor (von Hand)'}" Command="{Binding Alignment.OpenCommand}" Margin="0,0,8,4" />
                     </WrapPanel>
-                    <ItemsControl ItemsSource="{Binding AlignRows}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:AlignRowViewModel">
-                                <Grid ColumnDefinitions="Auto,*,8,*,60" Margin="0,2">
-                                    <CheckBox IsChecked="{Binding Accepted}" IsEnabled="{Binding IsComplete}" VerticalAlignment="Top" />
-                                    <TextBlock Grid.Column="1" Text="{Binding SourceText}" TextWrapping="Wrap" />
-                                    <TextBlock Grid.Column="3" Text="{Binding TargetText}" TextWrapping="Wrap" />
-                                    <TextBlock Grid.Column="4" Text="{Binding Confidence}" HorizontalAlignment="Right" Classes="muted" />
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
                 </StackPanel>
-            </Expander>
+            </Border>
 
             <TextBlock Text="{l:T 'Terminologie'}" Classes="h2" Margin="0,10,0,0" />
             <ItemsControl ItemsSource="{Binding TermbaseInfo}" />
@@ -176,13 +360,50 @@
                 <Button Content="{l:T 'TBX exportieren …'}" Command="{Binding ExportTbxCommand}" Margin="0,0,8,8" />
             </WrapPanel>
 
+            <!-- Fachbegriffe aus den Projektdateien -->
+            <Border Classes="card" DataContext="{Binding Harvest}" x:DataType="vm:TermHarvestViewModel">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="{l:T 'Fachbegriffe aus den Projektdateien gewinnen'}" Classes="h2" />
+                    <TextBlock TextWrapping="Wrap" Classes="muted" FontSize="12"
+                               Text="{l:T 'Vor dem Übersetzen: wiederkehrende Begriffe und Wortgruppen der Ausgangstexte finden. Mit KI werden daraus die Fachbegriffe ausgewählt und mit der üblichen Übersetzung vorgeschlagen – prüfen, berichtigen, übernehmen. So übersetzen alle Beteiligten und die KI von Anfang an einheitlich.'}" />
+                    <WrapPanel>
+                        <TextBlock Text="{l:T 'Zielsprache:'}" VerticalAlignment="Center" Margin="0,0,6,4" />
+                        <ComboBox ItemsSource="{Binding TargetLanguages}" SelectedItem="{Binding TargetLanguage}" MinWidth="110" Margin="0,0,12,4" />
+                        <CheckBox Content="{l:T 'KI wählt aus und schlägt Übersetzungen vor'}" IsChecked="{Binding UseAi}" IsEnabled="{Binding AiReady}" Margin="0,0,12,4" />
+                        <Button Content="{l:T 'Begriffe suchen'}" Command="{Binding FindCommand}" Classes="accent" Margin="0,0,6,4" />
+                        <Button Content="{l:T 'Abbrechen'}" Command="{Binding CancelCommand}" IsVisible="{Binding IsBusy}" Margin="0,0,6,4" />
+                        <ProgressBar IsIndeterminate="True" Width="80" IsVisible="{Binding IsBusy}" VerticalAlignment="Center" />
+                    </WrapPanel>
+                    <SelectableTextBlock Text="{Binding Info, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" />
+                    <ItemsControl ItemsSource="{Binding Terms}" MaxHeight="420">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:TermSuggestionRow">
+                                <Grid ColumnDefinitions="Auto,220,240,50,*" Margin="0,0,0,4">
+                                    <CheckBox IsChecked="{Binding Selected}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Source}" VerticalAlignment="Center" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                    <TextBox Grid.Column="2" Text="{Binding Target}" Margin="6,0" PlaceholderText="{l:T 'Übersetzung'}" />
+                                    <TextBlock Grid.Column="3" Text="{Binding Count}" VerticalAlignment="Center" HorizontalAlignment="Right" Classes="muted" />
+                                    <TextBlock Grid.Column="4" Text="{Binding Example}" VerticalAlignment="Center" FontSize="12" Classes="muted" TextWrapping="Wrap" Margin="10,0,0,0" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <WrapPanel IsVisible="{Binding HasTerms}">
+                        <RadioButton GroupName="ernte" IsChecked="{Binding ToShared}" Content="{l:T 'in die gemeinsame Terminologie des Sprachpaars'}" Margin="0,0,12,4" />
+                        <RadioButton GroupName="ernte" Content="{l:T 'nur ins Projekt'}" Margin="0,0,12,4" />
+                        <Button Content="{l:T 'Alle / keine'}" Command="{Binding SelectAllCommand}" Margin="0,0,8,4" />
+                        <Button Content="{l:T 'Ausgewählte in die Terminologie'}" Command="{Binding AddTermsCommand}" Classes="accent" Margin="0,0,8,4" />
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
             <Border Padding="12" CornerRadius="6" BorderThickness="1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
                 <StackPanel Spacing="6">
                     <TextBlock Text="{l:T 'Neuer Eintrag'}" FontWeight="SemiBold" />
-                    <Grid ColumnDefinitions="*,8,*,8,110">
+                    <Grid ColumnDefinitions="*,8,*,8,220">
                         <TextBox Text="{Binding NewSourceTerm}" PlaceholderText="{l:T 'Ausgangsbegriff'}" />
                         <TextBox Grid.Column="2" Text="{Binding NewTargetTerm}" PlaceholderText="{l:T 'Zielbegriff'}" />
-                        <TextBox Grid.Column="4" Text="{Binding NewTargetLanguage}" PlaceholderText="{l:T 'Sprache'}" />
+                        <c:LanguagePicker Grid.Column="4" Value="{Binding NewTargetLanguage}" />
                     </Grid>
                     <TextBox Text="{Binding NewDefinition}" PlaceholderText="{l:T 'Definition (optional)'}" />
                     <StackPanel Orientation="Horizontal" Spacing="12">
@@ -212,4 +433,5 @@
             </ItemsControl>
         </StackPanel>
     </ScrollViewer>
+    </Panel>
 </UserControl>

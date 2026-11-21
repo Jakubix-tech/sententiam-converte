@@ -1,0 +1,120 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="using:SententiamConverte.Services"
+             xmlns:vm="using:SententiamConverte.ViewModels"
+             xmlns:c="using:SententiamConverte.Controls"
+             x:Class="SententiamConverte.Views.ImportTranslationsView"
+             x:DataType="vm:ImportTranslationsViewModel">
+    <ScrollViewer>
+        <StackPanel Margin="16" Spacing="12" MaxWidth="1100" HorizontalAlignment="Left">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <Button Content="{l:T '← Zurück'}" Command="{Binding CloseCommand}" />
+                <TextBlock Text="{l:T 'Alte Übersetzungen übernehmen'}" Classes="h1" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock TextWrapping="Wrap" Classes="muted"
+                       Text="{l:T 'Sie haben Texte schon übersetzt – Original und Übersetzung als getrennte Dateien? Das Programm ordnet die Sätze einander zu und übernimmt sie ins TM; die KI schlägt auf Wunsch auch Fachbegriffe für die Terminologie vor. So nützen alte Übersetzungen sofort in jedem neuen Projekt.'}" />
+
+            <!-- 1. Dateien -->
+            <Border Classes="card">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="{l:T '1. Dateien wählen'}" Classes="h2" />
+                    <TextBlock TextWrapping="Wrap" FontSize="12" Classes="muted"
+                               Text="{l:T 'Alle Dateien auf einmal wählen, auch mehrere Paare. Zugeordnet wird über den Dateinamen (z. B. Vertrag_DE.docx und Vertrag_EN.docx), die erkannte Sprache und gemeinsame Zahlen. Zweisprachige Dateien (XLIFF) enthalten beides und gehen direkt.'}" />
+                    <WrapPanel>
+                        <TextBlock Text="{l:T 'Ausgangssprache:'}" VerticalAlignment="Center" Margin="0,0,6,4" />
+                        <c:LanguagePicker Value="{Binding SourceLanguage}" Width="230" Margin="0,0,12,4" />
+                        <TextBlock Text="{l:T 'Zielsprachen:'}" VerticalAlignment="Center" Margin="0,0,6,4" />
+                        <c:LanguagePicker Value="{Binding TargetLanguages}" Multiple="True" MinWidth="260" Margin="0,0,12,4" />
+                        <Button Content="{l:T 'Dateien wählen …'}" Command="{Binding PickFilesCommand}" Classes="accent" Margin="0,0,8,4" />
+                        <Button Content="{l:T 'Neu zuordnen'}" Command="{Binding RepairCommand}" IsVisible="{Binding HasPairs}" Margin="0,0,8,4" />
+                        <Button Content="{l:T 'Liste leeren'}" Command="{Binding ClearCommand}" IsVisible="{Binding HasPairs}" Margin="0,0,8,4" />
+                    </WrapPanel>
+                    <ItemsControl ItemsSource="{Binding Pairs}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:FilePairRow">
+                                <Border Padding="8" Margin="0,0,0,6" CornerRadius="6" BorderThickness="1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+                                    <Grid ColumnDefinitions="*,Auto,*,Auto" RowDefinitions="Auto,Auto">
+                                        <StackPanel Spacing="2">
+                                            <TextBlock Text="{l:T 'Original'}" FontSize="11" Classes="muted" />
+                                            <TextBlock Text="{Binding SourceName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            <c:LanguagePicker Value="{Binding SourceLanguage}" Width="230" HorizontalAlignment="Left" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Content="⇄" Command="{Binding $parent[ItemsControl].((vm:ImportTranslationsViewModel)DataContext).SwapCommand}"
+                                                CommandParameter="{Binding}" IsVisible="{Binding CanSwap}" VerticalAlignment="Center" Margin="10,0"
+                                                ToolTip.Tip="{l:T 'Original und Übersetzung tauschen'}" />
+                                        <StackPanel Grid.Column="2" Spacing="2">
+                                            <TextBlock Text="{l:T 'Übersetzung'}" FontSize="11" Classes="muted" />
+                                            <TextBlock Text="{Binding TargetName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            <c:LanguagePicker Value="{Binding TargetLanguage}" Width="230" HorizontalAlignment="Left" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="10,0,0,0">
+                                            <Button Content="{l:T 'Prüfen'}" IsVisible="{Binding HasDoubts}"
+                                                    Command="{Binding $parent[ItemsControl].((vm:ImportTranslationsViewModel)DataContext).ReviewCommand}" CommandParameter="{Binding}"
+                                                    ToolTip.Tip="{l:T 'Unsichere Paare im Alignment-Editor ansehen, berichtigen und ins TM übernehmen'}" />
+                                            <Button Content="✕" Command="{Binding $parent[ItemsControl].((vm:ImportTranslationsViewModel)DataContext).RemoveCommand}" CommandParameter="{Binding}"
+                                                    ToolTip.Tip="{l:T 'Aus der Liste nehmen'}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="1" Grid.ColumnSpan="4" Orientation="Horizontal" Spacing="12" Margin="0,6,0,0">
+                                            <TextBlock Text="{Binding How}" FontSize="12" Classes="muted" />
+                                            <TextBlock Text="{Binding Result, Converter={x:Static l:L.Text}}" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="{Binding Unpaired, Converter={x:Static l:L.Text}}" IsVisible="{Binding Unpaired.Length}" TextWrapping="Wrap" Foreground="#9A5B00" />
+                </StackPanel>
+            </Border>
+
+            <!-- 2. Wohin -->
+            <Border Classes="card" IsVisible="{Binding HasPairs}">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="{l:T '2. Wohin und wie'}" Classes="h2" />
+                    <RadioButton GroupName="ziel" IsChecked="{Binding ToShared}"
+                                 Content="{l:T 'In die gemeinsame TM und Terminologie des Sprachpaars (empfohlen – gilt in allen Projekten, wird bei Bedarf angelegt)'}" />
+                    <RadioButton GroupName="ziel" IsChecked="{Binding ToProject}" IsEnabled="{Binding HasProject}"
+                                 Content="{l:T 'Nur in dieses Projekt (Projekt-TM und Projekt-Terminologie)'}" />
+                    <CheckBox Content="{l:T 'KI prüft die Zuordnung und richtet Unsicheres neu aus'}" IsChecked="{Binding UseAi}" IsEnabled="{Binding AiReady}" />
+                    <CheckBox Content="{l:T 'Fachbegriffe vorschlagen (KI)'}" IsChecked="{Binding SuggestTerms}" IsEnabled="{Binding AiReady}" />
+                    <CheckBox Content="{l:T 'Formatierung als Tags übernehmen'}" IsChecked="{Binding KeepTags}" />
+                    <TextBlock Text="{Binding AiNote}" TextWrapping="Wrap" FontSize="12" Classes="muted" />
+                    <TextBlock Text="{Binding PrivacyNote}" IsVisible="{Binding PrivacyNote.Length}" TextWrapping="Wrap" FontSize="12" />
+                </StackPanel>
+            </Border>
+
+            <!-- 3. Übernehmen -->
+            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasPairs}">
+                <Button Content="{l:T '3. Übernehmen'}" Command="{Binding RunCommand}" Classes="accent" FontWeight="SemiBold" />
+                <Button Content="{l:T 'Abbrechen'}" Command="{Binding CancelCommand}" IsVisible="{Binding IsBusy}" />
+                <ProgressBar IsIndeterminate="True" Width="100" IsVisible="{Binding IsBusy}" VerticalAlignment="Center" />
+            </StackPanel>
+            <SelectableTextBlock Text="{Binding Info, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" />
+
+            <!-- Fachbegriffe -->
+            <Border Classes="card" IsVisible="{Binding TermInfo.Length}">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="{l:T 'Vorgeschlagene Fachbegriffe'}" Classes="h2" />
+                    <SelectableTextBlock Text="{Binding TermInfo, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" />
+                    <ItemsControl ItemsSource="{Binding Terms}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:TermSuggestionRow">
+                                <Grid ColumnDefinitions="Auto,200,240,50,*" Margin="0,0,0,4">
+                                    <CheckBox IsChecked="{Binding Selected}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Source}" VerticalAlignment="Center" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                    <TextBox Grid.Column="2" Text="{Binding Target}" Margin="6,0" />
+                                    <TextBlock Grid.Column="3" Text="{Binding Count}" VerticalAlignment="Center" HorizontalAlignment="Right" Classes="muted" />
+                                    <TextBlock Grid.Column="4" Text="{Binding Example}" VerticalAlignment="Center" FontSize="12" Classes="muted" TextWrapping="Wrap" Margin="10,0,0,0" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <WrapPanel IsVisible="{Binding HasTerms}">
+                        <Button Content="{l:T 'Alle / keine'}" Command="{Binding SelectAllTermsCommand}" Margin="0,0,8,0" />
+                        <Button Content="{l:T 'Ausgewählte in die Terminologie'}" Command="{Binding AddTermsCommand}" Classes="accent" />
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -36,9 +36,9 @@ everyone who currently has the project open in the program at the next synchroni
 | Method | Path | Effect |
 |---|---|---|
 | GET | `/projects` | All projects |
-| POST | `/projects` | Create: `{ name, sourceLanguage, targetLanguages[], topic }` |
+| POST | `/projects` | Create: `{ name, sourceLanguage, targetLanguages[], topic, template }` (with `template`: settings of a project template) |
 | GET | `/projects/{project}` | Project with files and resources |
-| PATCH | `/projects/{project}` | `{ topic, pretranslateMinScore, confirmContextMatches, sourceProfile }` |
+| PATCH | `/projects/{project}` | `{ topic, pretranslateMinScore, confirmContextMatches, sourceProfile, autoLocalize, client }` |
 | POST | `/projects/{project}/resources` | Attach a TM, termbase or knowledge base: `{ kind, location, server, languages[], writeBack }` |
 | DELETE | `/projects/{project}/resources?kind=&location=&server=` | Detach a resource |
 | GET | `/projects/{project}/files` | File list |
@@ -128,7 +128,7 @@ Status values for terms: `Preferred`, `Admitted`, `Forbidden`. Kinds of knowledg
 | POST | `/agents/knowledge` | `{ project, topic, languages[], focus, pagesPerLanguage, knowledgeBase, sourceProfile }` |
 | POST | `/agents/compare` | Term comparison: `{ term, sourceLanguage, targetLanguage, context, topic, sourceProfile, candidates[], project, saveToTermbase, saveToKnowledge }` |
 
-The agents use the AI settings of the host (desktop: Settings → AI; team server:
+The agents use the AI settings of the host (desktop: “Set up AI” page; team server:
 `<daten>/ki-einstellungen.json`, where `<daten>` is the `--daten` folder, in the same format as `ai-settings.json`). Depending on the scope, they can run for
 several minutes; clients should set an appropriate timeout.
 
@@ -142,6 +142,64 @@ several minutes; clients should set an appropriate timeout.
 If a command changes the document (`documentChanged: true`), the document is saved and all participants are notified.
 On the team server, the administrator installs extensions on the command line:
 `SententiamConverte.Server erweiterung installieren <file.scext>` and `erweiterung ein <id>`.
+
+## Review and error scoring (since 2.1)
+
+File path prefix: `/projects/{project}/files/{file}/{lang}`, segment: `…/segments/{id}`
+
+| Method | Path | Effect |
+|---|---|---|
+| GET | `…/{lang}/review` | review file (Word table) for reviewers (Base64) |
+| POST | `…/{lang}/review` | import a corrected review file: `{ file: { name, base64 }, markUnchangedReviewed }` |
+| POST | `…/segments/{id}/accept-change` | accept the reviewer's change |
+| POST | `…/segments/{id}/reject-change` | reject the change – the previous version applies again |
+| POST | `…/segments/{id}/errors` | record an error: `{ category, severity, note }` (`Minor`, `Major`, `Critical`, `Neutral`) |
+| DELETE | `…/segments/{id}/errors/{index}` | remove a recorded error |
+| GET | `…/{lang}/evaluation` | error scoring of the file: words, errors, penalty points, score, passed |
+| GET | `…/{lang}/evaluation/report` | evaluation report as Word |
+| GET | `/projects/{project}/evaluation?language=` | error scoring of the project |
+| PUT | `/projects/{project}/evaluation-settings` | `{ minorPoints, majorPoints, criticalPoints, passScore }` |
+
+## Numbers, pseudo-translation, quote, templates (since 2.1)
+
+| Method | Path | Effect |
+|---|---|---|
+| POST | `/projects/{project}/localize-numbers` | numbers and dates in the target language form; answer: changed segments |
+| GET | `/projects/{project}/files/{file}/{lang}/pseudo` | target file with pseudo-translation (project unchanged) |
+| GET | `/projects/{project}/quote` | quote: per target language units, weighted, amount; net, VAT, total |
+| PUT | `/projects/{project}/quote` | set prices (`{ currency, unit, price, minimumFee, vatPercent, weights }`) and calculate |
+| GET | `/projects/{project}/quote/document` | quote as Word |
+| GET | `/templates` | project templates |
+| POST | `/projects/{project}/template?name=` | save the project as a template |
+| GET | `/qa-profiles` | QA profiles |
+| POST | `/projects/{project}/qa-profile?name=` | save the QA settings as a profile |
+| PUT | `/projects/{project}/qa-profile?name=` | apply a QA profile to the project |
+
+## TM maintenance, terms, existing translations, privacy (since 2.1)
+
+| Method | Path | Effect |
+|---|---|---|
+| POST | `/projects/{project}/tm/replace` | `{ find, replace, inSource, inTarget, matchCase, regex, wholeWords, preview }` – answer `{ count, changes[] }` |
+| POST | `/projects/{project}/tm/clean` | `{ duplicates, emptyTargets, identical }` |
+| GET | `/projects/{project}/tm/inconsistent` | identical source, different translations |
+| POST | `/projects/{project}/terms/extract` | terms from the project files: `{ language, useAi, max }` |
+| POST | `/projects/{project}/import-translations` | existing translations: `{ files: [{ name, base64 }], sourceLanguage, targetLanguages[], shared, useAi, suggestTerms, keepTags }` |
+| PUT | `/projects/{project}/privacy` | privacy settings |
+| GET | `/projects/{project}/privacy/detected` | what would be protected in the files |
+
+## Team, automation, language data, dictation (since 2.1)
+
+| Method | Path | Effect |
+|---|---|---|
+| GET | `/projects/{project}/workflow` | workflow step of every file and target language |
+| PUT | `/projects/{project}/files/{file}/{lang}/workflow` | administrators: `{ step, translator, reviewer, approver }`; whoever's turn it is: `{ advance: true }` |
+| POST | `/projects/{project}/process-folder` | process an inbox folder once (admin): `{ folder, pretranslate, aiTranslate, exportTargets, outputFolder }` |
+| GET | `/language-data?sourceLanguage=&targetLanguage=` | free language data (OPUS, IATE) for a language pair |
+| POST | `/projects/{project}/language-data` | download and attach a dataset (admin): `{ id, sourceLanguage, targetLanguage, forLanguages }` |
+| POST | `/transcribe` | recording to text: `{ audio: { name, base64 }, language }` |
+
+**Workflow steps apply here too:** if a file has responsible persons assigned, only whoever's turn it is can change it
+through the interface (otherwise `403` with a reason); pre-translation skips such files. Administrators always may.
 
 ## .NET SDK
 

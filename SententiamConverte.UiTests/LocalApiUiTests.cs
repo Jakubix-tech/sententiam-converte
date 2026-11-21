@@ -96,7 +96,7 @@ public class LocalApiUiTests
             var project = JsonNode.Parse(await Pump(Task.Run(() => http.GetStringAsync("projects/Skriptprojekt"))))!;
             Assert.Equal(vm.Files.Count, project["files"]!.AsArray().Count);
 
-            vm.SelectedTab = 5;
+            vm.SelectedTab = MainViewModel.SettingsTab;
             Dispatcher.UIThread.RunJobs();
             window.GetVisualDescendants().OfType<TextBlock>().First(t => t.Text == "Schnittstelle (API)").GetVisualParent<Control>()!.BringIntoView();
             Dispatcher.UIThread.RunJobs();

@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SententiamConverte.Core.Ai;
 using SententiamConverte.Core.Knowledge;
 using SententiamConverte.Core.Qa;
+using SententiamConverte.Core.Projects;
 using SententiamConverte.Core.Remote;
 using SententiamConverte.Core.Resources;
 using SententiamConverte.Core.Sdk;
@@ -55,7 +56,7 @@ public static class SententiamApi
             return await next(ctx);
         });
         // Jede Anfrage arbeitet im Namen des angemeldeten Benutzers (z. B. als Autor neuer Wissenseinträge)
-        ISententiam S(HttpContext h) => service.ForUser((h.Items["apiUser"] as ApiUser)?.Name);
+        ISententiam S(HttpContext h) => h.Items["apiUser"] is ApiUser u ? service.ForUser(u.Name, u.IsAdmin) : service;
 
         // ---------- Allgemein ----------
         api.MapGet("/", (HttpContext h, CancellationToken ct) => Call(() => S(h).InfoAsync(ct))).WithSummary("Übersicht über die Schnittstelle");
@@ -221,6 +222,100 @@ public static class SententiamApi
             .WithSummary("Wissens-Agent: Wissensdatenbank aus Online-Quellen füllen");
         ag.MapPost("/compare", (HttpContext h, CompareRequest r, CancellationToken ct) => Call(() => S(h).CompareTermAsync(r, ct)))
             .WithSummary("Begriffsvergleich: Bedeutung im Kontext, Fachseiten beider Sprachen, begründete Empfehlung");
+
+        // ---------- Lektorat und Fehlerbewertung ----------
+        var fl = pr.MapGroup("/{project}/files/{file}/{lang}");
+        fl.MapGet("/review", (HttpContext h, string project, string file, string lang, CancellationToken ct) =>
+                Call(() => S(h).ReviewFileAsync(project, file, lang, ct)))
+            .WithSummary("Prüfdatei (Word-Tabelle) für das Lektorat: { name, base64 }");
+        fl.MapPost("/review", (HttpContext h, string project, string file, string lang, ReviewImportDto r, CancellationToken ct) =>
+                Call(() => S(h).ImportReviewAsync(project, file, lang, r, ct)))
+            .WithSummary("Korrigierte Prüfdatei einlesen");
+        fl.MapGet("/evaluation", (HttpContext h, string project, string file, string lang, CancellationToken ct) =>
+                Call(() => S(h).EvaluationAsync(project, file, lang, ct)))
+            .WithSummary("Fehlerbewertung einer Datei");
+        fl.MapGet("/evaluation/report", (HttpContext h, string project, string file, string lang, CancellationToken ct) =>
+                Call(() => S(h).EvaluationReportAsync(project, file, lang, ct)))
+            .WithSummary("Bewertungsbericht als Word: { name, base64 }");
+        fl.MapGet("/pseudo", (HttpContext h, string project, string file, string lang, CancellationToken ct) =>
+                Call(() => S(h).PseudoTranslationAsync(project, file, lang, ct)))
+            .WithSummary("Zieldatei mit Pseudoübersetzung (das Projekt bleibt unverändert)");
+        fl.MapPut("/workflow", (HttpContext h, string project, string file, string lang, WorkflowUpdate u, CancellationToken ct) =>
+                Call(() => S(h).SetWorkflowAsync(project, file, lang, u, ct)))
+            .WithSummary("Arbeitsschritt setzen (Verwaltung) oder abgeben ({ advance: true }, wer an der Reihe ist)");
+        seg.MapPost("/accept-change", (HttpContext h, string project, string file, string lang, int id, CancellationToken ct) =>
+                Call(() => S(h).AcceptChangeAsync(project, file, lang, id, ct)))
+            .WithSummary("Änderung des Prüfers annehmen");
+        seg.MapPost("/reject-change", (HttpContext h, string project, string file, string lang, int id, CancellationToken ct) =>
+                Call(() => S(h).RejectChangeAsync(project, file, lang, id, ct)))
+            .WithSummary("Änderung des Prüfers ablehnen (vorige Fassung gilt wieder)");
+        seg.MapPost("/errors", (HttpContext h, string project, string file, string lang, int id, LqaErrorDto e, CancellationToken ct) =>
+                Call(() => S(h).AddErrorAsync(project, file, lang, id, e, ct)))
+            .WithSummary("Fehler erfassen (Kategorie, Schwere, Anmerkung)");
+        seg.MapDelete("/errors/{index:int}", (HttpContext h, string project, string file, string lang, int id, int index, CancellationToken ct) =>
+                Call(() => S(h).RemoveErrorAsync(project, file, lang, id, index, ct)))
+            .WithSummary("Erfassten Fehler entfernen");
+        pr.MapGet("/{project}/evaluation", (HttpContext h, string project, string? language, CancellationToken ct) =>
+                Call(() => S(h).EvaluationAsync(project, null, language, ct)))
+            .WithSummary("Fehlerbewertung des ganzen Projekts");
+        pr.MapPut("/{project}/evaluation-settings", (HttpContext h, string project, LqaSettings l, CancellationToken ct) =>
+                Call(() => S(h).SetLqaSettingsAsync(project, l, ct)))
+            .WithSummary("Strafpunkte und Bestehensgrenze setzen");
+
+        // ---------- Zahlen, Angebot, Vorlagen, QA-Profile ----------
+        pr.MapPost("/{project}/localize-numbers", (HttpContext h, string project, CancellationToken ct) => Call(() => S(h).LocalizeNumbersAsync(project, ct)))
+            .WithSummary("Zahlen und Datum in die Schreibweise der Zielsprache bringen");
+        pr.MapGet("/{project}/quote", (HttpContext h, string project, CancellationToken ct) => Call(() => S(h).QuoteAsync(project, null, ct)))
+            .WithSummary("Angebot aus der Analyse");
+        pr.MapPut("/{project}/quote", (HttpContext h, string project, Core.Analysis.RateSettings r, CancellationToken ct) =>
+                Call(() => S(h).QuoteAsync(project, r, ct)))
+            .WithSummary("Preise setzen und Angebot berechnen");
+        pr.MapGet("/{project}/quote/document", (HttpContext h, string project, CancellationToken ct) => Call(() => S(h).QuoteDocumentAsync(project, ct)))
+            .WithSummary("Angebot als Word: { name, base64 }");
+        api.MapGet("/templates", (HttpContext h, CancellationToken ct) => Call(() => S(h).TemplatesAsync(ct))).WithSummary("Projektvorlagen");
+        pr.MapPost("/{project}/template", (HttpContext h, string project, string name, CancellationToken ct) =>
+                Call(() => S(h).SaveTemplateAsync(project, name, ct)))
+            .WithSummary("Projekt als Vorlage speichern");
+        api.MapGet("/qa-profiles", (HttpContext h, CancellationToken ct) => Call(() => S(h).QaProfilesAsync(ct))).WithSummary("QA-Profile");
+        pr.MapPost("/{project}/qa-profile", (HttpContext h, string project, string name, CancellationToken ct) =>
+                Call(() => S(h).SaveQaProfileAsync(project, name, ct)))
+            .WithSummary("QA-Einstellungen des Projekts als Profil speichern");
+        pr.MapPut("/{project}/qa-profile", (HttpContext h, string project, string name, CancellationToken ct) =>
+                Call(() => S(h).ApplyQaProfileAsync(project, name, ct)))
+            .WithSummary("QA-Profil ins Projekt übernehmen");
+
+        // ---------- TM-Pflege, Fachbegriffe, alte Übersetzungen ----------
+        pr.MapPost("/{project}/tm/replace", (HttpContext h, string project, TmReplaceDto r, CancellationToken ct) => Call(() => S(h).ReplaceInTmAsync(project, r, ct)))
+            .WithSummary("Suchen und Ersetzen im Projekt-TM (auch Vorschau)");
+        pr.MapPost("/{project}/tm/clean", (HttpContext h, string project, TmCleanDto r, CancellationToken ct) => Call(() => S(h).CleanTmAsync(project, r, ct)))
+            .WithSummary("Projekt-TM bereinigen");
+        pr.MapGet("/{project}/tm/inconsistent", (HttpContext h, string project, CancellationToken ct) => Call(() => S(h).InconsistentTmAsync(project, ct)))
+            .WithSummary("Uneinheitliche Übersetzungen im Projekt-TM");
+        pr.MapPost("/{project}/terms/extract", (HttpContext h, string project, ExtractTermsDto r, CancellationToken ct) => Call(() => S(h).ExtractTermsAsync(project, r, ct)))
+            .WithSummary("Fachbegriffe aus den Projektdateien gewinnen");
+        pr.MapPost("/{project}/import-translations", (HttpContext h, string project, ImportTranslationsDto r, CancellationToken ct) =>
+                Call(() => S(h).ImportTranslationsAsync(project, r, ct)))
+            .WithSummary("Alte Übersetzungen zuordnen, ausrichten und ins TM übernehmen");
+
+        // ---------- Datenschutz, Team, Automatisierung, Sprachdaten, Diktat ----------
+        pr.MapPut("/{project}/privacy", (HttpContext h, string project, Core.Privacy.PrivacySettings ps, CancellationToken ct) =>
+                Call(() => S(h).SetPrivacyAsync(project, ps, ct)))
+            .WithSummary("Datenschutz-Einstellungen setzen");
+        pr.MapGet("/{project}/privacy/detected", (HttpContext h, string project, CancellationToken ct) => Call(() => S(h).DetectSensitiveAsync(project, ct)))
+            .WithSummary("Was in den Dateien geschützt würde");
+        pr.MapGet("/{project}/workflow", (HttpContext h, string project, CancellationToken ct) => Call(() => S(h).WorkflowAsync(project, ct)))
+            .WithSummary("Arbeitsschritte aller Dateien");
+        pr.MapPost("/{project}/process-folder", async (HttpContext h, string project, WatchRunDto r, CancellationToken ct) =>
+                Admin(h) ?? await Call(() => S(h).ProcessFolderAsync(project, r, ct)))
+            .WithSummary("Eingangsordner einmal verarbeiten (nur Admin)");
+        api.MapGet("/language-data", (HttpContext h, string sourceLanguage, string targetLanguage, CancellationToken ct) =>
+                Call(() => S(h).LanguageDataAsync(sourceLanguage, targetLanguage, ct)))
+            .WithSummary("Freie Sprachdaten für ein Sprachpaar");
+        pr.MapPost("/{project}/language-data", async (HttpContext h, string project, LanguageDataInstallDto r, CancellationToken ct) =>
+                Admin(h) ?? await Call(() => S(h).InstallLanguageDataAsync(project, r, ct)))
+            .WithSummary("Freien Sprachdatensatz laden und anbinden (nur Admin)");
+        api.MapPost("/transcribe", (HttpContext h, TranscribeDto r, CancellationToken ct) => Call(() => S(h).TranscribeAsync(r, ct)))
+            .WithSummary("Aufnahme (WAV) in Text umwandeln");
 
         // ---------- Erweiterungen ----------
         api.MapGet("/extensions", (HttpContext h, CancellationToken ct) => Call(() => S(h).ExtensionsAsync(ct)))

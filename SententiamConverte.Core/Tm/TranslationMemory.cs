@@ -294,6 +294,22 @@ public sealed class TranslationMemory : ITranslationMemory
     /// <summary>Eintrag bearbeiten (TM-Pflege).</summary>
     public void Update(long id, string source, string target)
     {
+        // Wird der Eintrag einem vorhandenen gleich (z. B. nach Suchen und Ersetzen), beide zusammenführen:
+        // die Satzzusammenhänge gehen auf den vorhandenen über, die Nutzung wird addiert
+        var same = Scalar("""
+            SELECT b.id FROM tu a JOIN tu b ON b.src_p = a.src_p AND b.tgt_p = a.tgt_p AND b.source = $s AND b.target = $t AND b.id <> a.id
+            WHERE a.id = $id LIMIT 1
+            """, ("$s", source), ("$t", target), ("$id", id));
+        if (same is { } keep)
+        {
+            Run("INSERT OR IGNORE INTO tu_context(tu_id, prev, next, structure, added) SELECT $k, prev, next, structure, added FROM tu_context WHERE tu_id = $id",
+                ("$k", keep), ("$id", id));
+            Run("UPDATE tu SET usage_count = usage_count + (SELECT usage_count FROM tu WHERE id = $id), modified = $m WHERE id = $k",
+                ("$k", keep), ("$id", id), ("$m", DateTime.UtcNow.ToString("o")));
+            Run("DELETE FROM tu WHERE id = $id", ("$id", id));
+            _total = -1;
+            return;
+        }
         using var cmd = _db.CreateCommand();
         cmd.CommandText = """
             UPDATE tu SET source=$s, target=$t, source_plain=$spl, target_plain=$tpl, source_norm=$n, modified=$m WHERE id=$id
@@ -575,6 +591,23 @@ public sealed class TranslationMemory : ITranslationMemory
         cmd.Parameters.AddWithValue("$tp", Languages.Primary(tgtLang));
         cmd.Parameters.AddWithValue("$max", max);
         return Read(cmd).ToList();
+    }
+
+    /// <summary>In wie vielen Einträgen steht die Wendung (Wörter in dieser Reihenfolge) in dieser Sprache – Quelle oder Ziel?</summary>
+    public long PhraseCount(string language, string phrase)
+    {
+        var words = FuzzyMatcher.Words(phrase).ToList();
+        if (words.Count == 0) return 0;
+        var quoted = Quote(string.Join(" ", words));                  // FTS5-Phrase: die Wörter direkt hintereinander
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = """
+            SELECT (SELECT count(*) FROM tu_fts JOIN tu ON tu.id = tu_fts.rowid WHERE tu_fts MATCH $qs AND tu.src_p = $lang)
+                 + (SELECT count(*) FROM tu_fts JOIN tu ON tu.id = tu_fts.rowid WHERE tu_fts MATCH $qt AND tu.tgt_p = $lang)
+            """;
+        cmd.Parameters.AddWithValue("$qs", "source_plain : " + quoted);
+        cmd.Parameters.AddWithValue("$qt", "target_plain : " + quoted);
+        cmd.Parameters.AddWithValue("$lang", Languages.Primary(language));
+        return (long)(cmd.ExecuteScalar() ?? 0L);
     }
 
     public IEnumerable<TmUnit> All()

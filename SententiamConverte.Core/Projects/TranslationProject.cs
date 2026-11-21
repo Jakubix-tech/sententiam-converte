@@ -24,9 +24,26 @@ public sealed class ProjectFile
 
     /// <summary>Pfad der Datei im Projektpaket (für das Rückgabepaket).</summary>
     public string? PackagePath { get; set; }
+
+    /// <summary>Steckbrief je Zielsprache (Thema, Anrede, Sprecher …), sobald die KI das Dokument gelesen hat.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, DocumentBrief>? Briefs { get; set; }
 }
 
 /// <summary>Verbindung einer Arbeitskopie mit einem gemeinsamen Projekt auf dem Teamserver.</summary>
+/// <summary>Arbeitsschritt einer Datei in einer Zielsprache (Teamserver).</summary>
+public sealed class WorkflowEntry
+{
+    public string FileId { get; set; } = "";
+    public string Language { get; set; } = "";
+    public Remote.WorkflowStep Step { get; set; }
+    public string? Translator { get; set; }
+    public string? Reviewer { get; set; }
+    public string? Approver { get; set; }
+
+    public Remote.FileStep ToStep() => new(Language, Step, Translator, Reviewer, Approver);
+}
+
 public sealed class SharedLink
 {
     public string Server { get; set; } = "";
@@ -35,6 +52,13 @@ public sealed class SharedLink
 
 /// <summary>Ergebnis eines Abgleichs mit dem Teamserver.</summary>
 public sealed record SyncResult(List<int> ChangedSegments, List<SegmentLock> Locks, List<string> Conflicts, bool Reloaded);
+
+/// <summary>Kurzansicht eines Projekts, ohne es zu öffnen (<see cref="TranslationProject.Peek"/>).</summary>
+public sealed record ProjectSummary(string Folder, string Name, string SourceLanguage, IReadOnlyList<string> TargetLanguages, bool IsShared)
+{
+    /// <summary>„de-DE → en-GB, pl-PL“</summary>
+    public string Languages => TargetLanguages.Count == 0 ? SourceLanguage : $"{SourceLanguage} → {string.Join(", ", TargetLanguages)}";
+}
 
 /// <summary>
 /// Ein Übersetzungsprojekt: ein Ordner mit project.json, den Originaldateien,
@@ -71,7 +95,26 @@ public sealed class TranslationProject : IDisposable
 
     /// <summary>Kontexttreffer (101 %) beim Vorübersetzen gleich bestätigen.</summary>
     public bool ConfirmContextMatches { get; set; } = true;
+
+    /// <summary>Zahlen und Datum aus TM-Treffern und KI-Übersetzungen automatisch in die Schreibweise der Zielsprache bringen.</summary>
+    public bool AutoLocalize { get; set; } = true;
     public QaSettings Qa { get; set; } = new();
+
+    /// <summary>Preise für den Kostenvoranschlag aus der Analyse.</summary>
+    public Analysis.RateSettings Rates { get; set; } = new();
+
+    /// <summary>Fehlerbewertung im Lektorat: Strafpunkte und Bestehensgrenze.</summary>
+    public Qa.LqaSettings Lqa { get; set; } = new();
+
+    /// <summary>Datenschutz: geschützte Angaben (Namen, Datum, Aktenzeichen …) nur als Platzhalter an Online-KI und ins TM.</summary>
+    public Privacy.PrivacySettings Privacy { get; set; } = new();
+
+    /// <summary>Ob ins TM nur die Fassung mit Platzhaltern geschrieben wird.</summary>
+    [JsonIgnore] public bool MasksTm => Privacy.Enabled && Privacy.KeepOutOfTm;
+
+    /// <summary>Teamserver: Arbeitsschritte und Zuweisungen je Datei und Zielsprache (nur auf dem Server gepflegt).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<WorkflowEntry>? Workflow { get; set; }
 
     /// <summary>Gesetzt, wenn dies die Arbeitskopie eines gemeinsamen Projekts auf dem Teamserver ist.</summary>
     public SharedLink? Shared { get; set; }
@@ -83,7 +126,7 @@ public sealed class TranslationProject : IDisposable
     {
         public long Version;
         public Dictionary<int, long> SegmentVersions = new();
-        public Dictionary<int, (string Target, SegmentStatus Status, string? Comment)> Known = new();
+        public Dictionary<int, (string Target, SegmentStatus Status, string? Comment, string Review)> Known = new();
     }
 
     [JsonIgnore] public bool IsShared => Shared != null;
@@ -92,6 +135,9 @@ public sealed class TranslationProject : IDisposable
     [JsonIgnore] public List<ITranslationMemory> Tms { get; } = new();
     [JsonIgnore] public List<ITermbase> Termbases { get; } = new();
     [JsonIgnore] public List<IKnowledgeBase> KnowledgeBases { get; } = new();
+
+    /// <summary>Sprachbezogene Ressourcen, die für die Sprachen dieses Projekts gelten (nicht in der Projektdatei).</summary>
+    [JsonIgnore] public List<ResourceRef> LanguageRefs { get; } = new();
 
     /// <summary>Ressourcen, die beim Öffnen nicht erreichbar waren (z. B. Server offline).</summary>
     [JsonIgnore] public List<string> ResourceErrors { get; } = new();
@@ -143,6 +189,31 @@ public sealed class TranslationProject : IDisposable
         return p;
     }
 
+    /// <summary>
+    /// Name, Sprachen und Team-Kennung eines Projekts, ohne es zu öffnen (für die Liste zum Umschalten) – liest nur
+    /// project.json, bindet nichts an und schreibt nichts. Null, wenn dort kein lesbares Projekt liegt.
+    /// </summary>
+    public static ProjectSummary? Peek(string folder)
+    {
+        try
+        {
+            var path = Path.Combine(folder, FileName);
+            if (!File.Exists(path)) return null;
+            using var json = JsonDocument.Parse(File.ReadAllText(path), new JsonDocumentOptions { AllowTrailingCommas = true });
+            var root = json.RootElement;
+            JsonElement? Get(string name) => root.ValueKind == JsonValueKind.Object
+                ? root.EnumerateObject().Where(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)).Select(p => (JsonElement?)p.Value).FirstOrDefault()
+                : null;
+            var name = Get(nameof(Name)) is { ValueKind: JsonValueKind.String } n ? n.GetString() ?? "" : "";
+            var source = Get(nameof(SourceLanguage)) is { ValueKind: JsonValueKind.String } s ? s.GetString() ?? "" : "";
+            var targets = Get(nameof(TargetLanguages)) is { ValueKind: JsonValueKind.Array } t
+                ? t.EnumerateArray().Where(e => e.ValueKind == JsonValueKind.String).Select(e => e.GetString()!).ToList() : [];
+            var shared = Get(nameof(Shared)) is { ValueKind: JsonValueKind.Object };
+            return new ProjectSummary(folder, name.Trim().Length > 0 ? name.Trim() : Path.GetFileName(Path.TrimEndingDirectorySeparator(folder)), source, targets, shared);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { return null; }
+    }
+
     public static TranslationProject Open(string folderOrFile)
     {
         var folder = File.Exists(folderOrFile) ? Path.GetDirectoryName(folderOrFile)! : folderOrFile;
@@ -167,6 +238,13 @@ public sealed class TranslationProject : IDisposable
 
         var servers = Servers();
         foreach (var r in Resources) OpenRef(r, servers);
+        // sprachbezogene Ressourcen: gelten für alle Projekte mit diesen Sprachen
+        foreach (var r in LanguageResources.For(SourceLanguage, TargetLanguages))
+            if (!Resources.Any(x => LanguageResources.Same(x, r)))
+            {
+                LanguageRefs.Add(r);
+                OpenRef(r, servers);
+            }
         if (Shared != null)
         {
             try
@@ -201,6 +279,14 @@ public sealed class TranslationProject : IDisposable
     private SharedProjectClient SharedClient =>
         _sharedClient ?? throw new RemoteException("Der Teamserver ist nicht erreichbar.");
 
+    /// <summary>Teamserver: Dateien mit ihren Arbeitsschritten, die Benutzer und wer man selbst ist.</summary>
+    public (List<SharedFileInfo> Files, List<TeamUser> Users, WhoAmI Me) TeamWorkflow() =>
+        (SharedClient.Get(Shared!.Project).Files, SharedClient.Users(), SharedClient.Me());
+
+    /// <summary>Teamserver: Arbeitsschritt einer Datei ändern bzw. abgeben.</summary>
+    public FileStep SetTeamStep(string fileId, string language, WorkflowUpdate update) =>
+        SharedClient.SetWorkflow(Shared!.Project, fileId, language, update);
+
     /// <summary>Dateiliste vom Server übernehmen.</summary>
     public void SyncFilesFromServer()
     {
@@ -226,7 +312,7 @@ public sealed class TranslationProject : IDisposable
             {
                 Version = sd.Version,
                 SegmentVersions = sd.SegmentVersions,
-                Known = sd.Document.Segments.ToDictionary(x => x.Id, x => (x.Target, x.Status, x.Comment)),
+                Known = sd.Document.Segments.ToDictionary(x => x.Id, State),
             };
             WriteCache(file, sd.Document);
             return sd.Document;
@@ -238,6 +324,13 @@ public sealed class TranslationProject : IDisposable
         }
     }
 
+    /// <summary>Lektoratsstand eines Segments zum Vergleichen (offene Änderung und erfasste Fehler).</summary>
+    private static string ReviewKey(Segment s) =>
+        (s.ReviewBaseline ?? "") + "\u0001" + (s.Errors is { Count: > 0 } e ? JsonSerializer.Serialize(e) : "");
+
+    /// <summary>Was zuletzt mit dem Server übereinstimmte (zum Erkennen eigener Änderungen).</summary>
+    private static (string Target, SegmentStatus Status, string? Comment, string Review) State(Segment s) => (s.Target, s.Status, s.Comment, ReviewKey(s));
+
     /// <summary>Lokale Änderungen an den Server schicken. Konflikte: die Serverfassung gilt, die eigene kommt in den Verlauf.</summary>
     private List<string> PushShared(ProjectFile file, BilingualDocument doc)
     {
@@ -246,12 +339,23 @@ public sealed class TranslationProject : IDisposable
         foreach (var seg in doc.Segments)
         {
             st.Known.TryGetValue(seg.Id, out var known);
-            if (known == (seg.Target, seg.Status, seg.Comment)) continue;
-            var result = SharedClient.Update(Shared!.Project, file.Id, doc.TargetLanguage, seg.Id,
-                new SegmentUpdate(seg.Target, seg.Status, seg.Origin, seg.MatchPercent, seg.Comment, st.SegmentVersions.GetValueOrDefault(seg.Id)));
+            if (known == State(seg)) continue;
+            SegmentUpdateResult result;
+            try
+            {
+                result = SharedClient.Update(Shared!.Project, file.Id, doc.TargetLanguage, seg.Id,
+                    new SegmentUpdate(seg.Target, seg.Status, seg.Origin, seg.MatchPercent, seg.Comment, st.SegmentVersions.GetValueOrDefault(seg.Id),
+                        seg.ReviewBaseline ?? "", seg.Errors ?? []));
+            }
+            catch (RemoteException ex)
+            {
+                // z. B. nicht an der Reihe (Arbeitsschritte): melden statt abbrechen
+                conflicts.Add($"Segment {seg.Id}: {ex.Message}");
+                continue;
+            }
             if (result.Accepted)
             {
-                st.Known[seg.Id] = (seg.Target, seg.Status, seg.Comment);
+                st.Known[seg.Id] = State(seg);
                 st.SegmentVersions[seg.Id] = result.Version;
             }
             else if (result.Current is { } cur)
@@ -265,7 +369,7 @@ public sealed class TranslationProject : IDisposable
     private static void ApplyRemote(Segment seg, SegmentChange c, SharedState st, List<string> conflicts)
     {
         st.Known.TryGetValue(seg.Id, out var known);
-        var localEdited = known != (seg.Target, seg.Status, seg.Comment);
+        var localEdited = known != State(seg);
         if (localEdited && seg.Target != c.Target && seg.Target.Length > 0)
         {
             // eigene Fassung nicht verlieren
@@ -277,7 +381,10 @@ public sealed class TranslationProject : IDisposable
         seg.Origin = c.Origin;
         seg.MatchPercent = c.MatchPercent;
         seg.Comment = c.Comment;
-        st.Known[seg.Id] = (c.Target, c.Status, c.Comment);
+        // Lektorat vom Server (ältere Server liefern nichts – dann bleibt der eigene Stand)
+        if (c.ReviewBaseline != null) seg.ReviewBaseline = c.ReviewBaseline.Length == 0 ? null : c.ReviewBaseline;
+        if (c.Errors != null) seg.Errors = c.Errors.Count == 0 ? null : c.Errors;
+        st.Known[seg.Id] = State(seg);
         st.SegmentVersions[seg.Id] = c.Version;
     }
 
@@ -297,9 +404,11 @@ public sealed class TranslationProject : IDisposable
         {
             var seg = doc.Segments.FirstOrDefault(x => x.Id == c.SegmentId);
             if (seg == null) continue;
-            if ((seg.Target, seg.Status, seg.Comment) == (c.Target, c.Status, c.Comment))
+            var remoteReview = c.ReviewBaseline == null && c.Errors == null ? ReviewKey(seg)
+                : ReviewKey(new Segment { ReviewBaseline = c.ReviewBaseline is { Length: > 0 } b ? b : null, Errors = c.Errors is { Count: > 0 } e ? e : null });
+            if ((seg.Target, seg.Status, seg.Comment, ReviewKey(seg)) == (c.Target, c.Status, c.Comment, remoteReview))
             {
-                st.Known[seg.Id] = (c.Target, c.Status, c.Comment);
+                st.Known[seg.Id] = State(seg);
                 st.SegmentVersions[seg.Id] = Math.Max(st.SegmentVersions.GetValueOrDefault(seg.Id), c.Version);
                 continue;
             }
@@ -359,8 +468,36 @@ public sealed class TranslationProject : IDisposable
         Save();
     }
 
+    /// <summary>
+    /// Bindet eine Ressource an die Sprachen statt an das Projekt: Sie gilt dann in jedem Projekt mit diesen Sprachen.
+    /// Ohne Sprachangabe gilt sie für die Sprachen dieses Projekts.
+    /// </summary>
+    public void AttachForLanguages(ResourceRef r)
+    {
+        if (r.Languages.Count == 0) r.Languages = new[] { SourceLanguage }.Concat(TargetLanguages).Distinct().ToList();
+        LanguageResources.Add(r);
+        if (Resources.Any(x => LanguageResources.Same(x, r)) || LanguageRefs.Any(x => LanguageResources.Same(x, r))) return;
+        LanguageRefs.Add(r);
+        OpenRef(r, Servers());
+    }
+
+    /// <summary>
+    /// Eigene Verbindungen zu allen Datenbanken des Projekts (samt sprachbezogenen) – für Agenten, die weiterlaufen
+    /// sollen, auch wenn das Projekt inzwischen geschlossen wird.
+    /// </summary>
+    public AgentResources OpenForAgent()
+    {
+        var res = new AgentResources();
+        res.Add(new KnowledgeBase(Path.Combine(Folder, "wissen", "projekt.sckb"), "Projekt-Wissen"));
+        res.Add(new Termbase(Path.Combine(Folder, "terminologie", "projekt.sctb"), "Projekt-Terminologie"));
+        res.Add(new TranslationMemory(Path.Combine(Folder, "tm", "projekt.sctm"), "Projekt-TM"));
+        res.Open(Resources.Concat(LanguageRefs), Servers());
+        return res;
+    }
+
     public void Detach(ResourceRef r)
     {
+        if (LanguageRefs.Remove(r)) LanguageResources.Remove(r);
         Resources.Remove(r);
         foreach (var (res, rf) in _refs.Where(kv => kv.Value == r).ToList())
         {
@@ -375,6 +512,18 @@ public sealed class TranslationProject : IDisposable
 
     public void AttachTm(string path) => Attach(new ResourceRef { Kind = ResourceKind.Tm, Location = path });
     public void AttachTermbase(string path) => Attach(new ResourceRef { Kind = ResourceKind.Termbase, Location = path });
+
+    /// <summary>Steckbrief einer Datei für eine Zielsprache (null, solange die KI das Dokument nicht gelesen hat).</summary>
+    public DocumentBrief? Brief(ProjectFile file, string targetLanguage) =>
+        file.Briefs?.GetValueOrDefault(targetLanguage);
+
+    public void SetBrief(ProjectFile file, string targetLanguage, DocumentBrief? brief)
+    {
+        if (brief == null) file.Briefs?.Remove(targetLanguage);
+        else (file.Briefs ??= new())[targetLanguage] = brief;
+        if (file.Briefs is { Count: 0 }) file.Briefs = null;
+        Save();
+    }
 
     public void Save() =>
         File.WriteAllText(Path.Combine(Folder, FileName), JsonSerializer.Serialize(this, Json));
@@ -472,6 +621,28 @@ public sealed class TranslationProject : IDisposable
         }
         using var original = File.OpenRead(OriginalPath(file));
         FileFilters.ById(file.FilterId).Write(doc, original, output);
+    }
+
+    /// <summary>
+    /// Anonymisierte Fassung zum Weitergeben: Ausgangsdatei (<paramref name="source"/>) oder Zieldatei, geschützte Angaben
+    /// einheitlich durch Platzhalter ersetzt. Ergebnis: Zahl der ersetzten Angaben.
+    /// </summary>
+    public int ExportAnonymized(ProjectFile file, string targetLanguage, bool source, Stream output)
+    {
+        var path = OriginalPath(file);
+        if (!File.Exists(path)) throw new InvalidOperationException("Die Ausgangsdatei liegt nicht in diesem Projekt vor.");
+        var doc = LoadDocument(file, targetLanguage);
+        var (anonymous, replaced) = SententiamConverte.Core.Privacy.Anonymizer.Anonymize(doc, Privacy, source);
+        using var original = File.OpenRead(path);
+        FileFilters.ById(file.FilterId).Write(anonymous, original, output);
+        return replaced;
+    }
+
+    /// <summary>Dateiname der anonymisierten Fassung („vertrag_anonymisiert.docx“, „vertrag_en-GB_anonymisiert.docx“).</summary>
+    public string AnonymizedFileName(ProjectFile file, string targetLanguage, bool source)
+    {
+        var name = source ? file.OriginalName : TargetFileName(file, targetLanguage);
+        return Path.GetFileNameWithoutExtension(name) + "_anonymisiert" + Path.GetExtension(name);
     }
 
     public string TargetFileName(ProjectFile file, string targetLanguage) =>

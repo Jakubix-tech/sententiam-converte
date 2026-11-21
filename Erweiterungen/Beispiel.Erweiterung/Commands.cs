@@ -101,7 +101,7 @@ public sealed class AlternativeCommand : IExtensionCommand
     {
         var s = context.Segment ?? throw new InvalidOperationException("Bitte im Editor ein Segment wählen.");
         var doc = context.Document ?? throw new InvalidOperationException("Bitte zuerst ein Dokument öffnen.");
-        var model = context.ChatModel ?? throw new InvalidOperationException("Kein KI-Zugang eingerichtet (Einstellungen → KI).");
+        var model = context.ChatModel ?? throw new InvalidOperationException("Kein KI-Zugang eingerichtet (Seite „KI einrichten“).");
         var style = context.Arguments.TryGetValue("stil", out var st) && st.Trim().Length > 0 ? st.Trim() : "natürlich und gut lesbar";
         context.Log?.Report($"Frage {model.DisplayName} …");
         var answer = await model.AskAsync(

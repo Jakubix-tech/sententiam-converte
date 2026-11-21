@@ -16,7 +16,7 @@ namespace SententiamConverte.Core.Tests;
 
 public sealed class TempDir : IDisposable
 {
-    public string Path { get; } = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "sc-test-" + Guid.NewGuid().ToString("N")[..8]);
+    public string Path { get; } = System.IO.Path.Combine(TestEnvironment.Root, "tmp-" + Guid.NewGuid().ToString("N")[..8]);
     public TempDir() => Directory.CreateDirectory(Path);
     public string File(string name) => System.IO.Path.Combine(Path, name);
     public void Dispose()
@@ -284,6 +284,12 @@ public class AiHelperTests
             Task.FromResult(answers[Math.Min(_i++, answers.Length - 1)]);
     }
 
+    private sealed class NoPages : IPageFetcher
+    {
+        public string? LastSkipReason => "nicht erreichbar";
+        public Task<string?> FetchTextAsync(string url, int maxChars, CancellationToken ct = default) => Task.FromResult<string?>(null);
+    }
+
     private sealed class FakeSearch : ISearchProvider
     {
         public string Name => "fake";
@@ -300,10 +306,13 @@ public class AiHelperTests
         {
             Model = new FakeModel("{\"variants\": [\"Drehkraft prüfen\"]}", "{\"verdict\": \"common\", \"recommended\": \"Drehmoment prüfen\", \"explanation\": \"Belegt.\"}"),
             Search = new FakeSearch(),
+            Fetcher = new NoPages(),
         };
         var r = await new UsageCheckAgent(ctx).RunAsync("Drehmoment prüfen", "de-DE");
         Assert.Equal(UsageVerdict.Common, r.Verdict);
         Assert.Equal(2, r.Evidence[0].ExactHits);
         Assert.Equal(0, r.Evidence[1].ExactHits);
+        Assert.Equal([1, 2], r.Evidence[0].Examples.Select(e => e.Number));          // Belege durchnummeriert
+        Assert.False(r.Evidence[0].Examples[0].Verified);                              // Seite nicht lesbar: nur der Ausschnitt
     }
 }

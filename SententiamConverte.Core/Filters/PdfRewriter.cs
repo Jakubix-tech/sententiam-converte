@@ -8,6 +8,7 @@ using UglyToad.PdfPig;
 using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.Core;
 using UglyToad.PdfPig.Graphics.Operations;
+using UglyToad.PdfPig.Graphics.Operations.SpecialGraphicsState;
 using UglyToad.PdfPig.Graphics.Operations.TextShowing;
 using UglyToad.PdfPig.Writer;
 
@@ -31,6 +32,9 @@ public static class PdfRewriter
     /// <summary>Kleinste Schrift im Verhältnis zum Original, bevor Text über seinen Platz hinausläuft.</summary>
     private const double MinScale = 0.72;
 
+    /// <summary>Grenzen des Abgleichs der Ersatzschrift an die Originalschrift (siehe <see cref="Calibrate"/>).</summary>
+    private const double MinFit = 0.8, MaxFit = 1.1;
+
     public static void Write(BilingualDocument document, Stream original, Stream output)
     {
         using var buffer = FileFilters.Buffer(original);
@@ -45,6 +49,7 @@ public static class PdfRewriter
             .GroupBy(x => x.Unit!.Page)
             .ToDictionary(g => g.Key, g => g.Select(x => (x.Paragraph, Unit: x.Unit!)).ToList());
 
+        var fit = Calibrate(byPage.Values.SelectMany(x => x), fonts);
         foreach (var page in source.GetPages())
         {
             var pb = builder.AddPage(source, page.Number);
@@ -52,7 +57,7 @@ public static class PdfRewriter
             var removed = RemoveText(pb, page);
             var flow = new PageFlow(page, items.Select(x => x.Unit).ToList());
             foreach (var (paragraph, unit) in items.OrderByDescending(x => x.Unit.Top).ThenBy(x => x.Unit.Left))
-                Render(pb, fonts, paragraph, unit, flow, cover: unit.Cover || !removed);
+                Render(pb, fonts, paragraph, unit, flow, cover: unit.Cover || !removed, fit: Fit(fit, unit));
         }
         output.Write(builder.Build());
     }
@@ -78,15 +83,18 @@ public static class PdfRewriter
     private static PdfUnit? UnitOf(Paragraph p) =>
         p.TagData.TryGetValue(0, out var d) && d.StartsWith("pdf:") ? JsonSerializer.Deserialize<PdfUnit>(d[4..]) : null;
 
-    /// <summary>Den übernommenen Seiteninhalt durch dieselben Befehle ohne Textausgabe ersetzen.</summary>
+    /// <summary>
+    /// Den übernommenen Seiteninhalt durch dieselben Befehle ohne Textausgabe ersetzen – eingeschlossen in einen eigenen
+    /// Grafikzustand (q … Q). Manche Erzeuger (z. B. „Microsoft: Print To PDF“) setzen am Anfang eine gespiegelte
+    /// Umrechnung (0.75 0 0 -0.75 0 842 cm), ohne sie wieder aufzuheben; ohne Einschluss stünde der neue Text auf dem Kopf.
+    /// </summary>
     private static bool RemoveText(PdfPageBuilder pb, Page page)
     {
         if (StreamsField?.GetValue(pb) is not IList streams || DefaultStreamType == null || CurrentField == null) return false;
         try
         {
-            var ops = page.Operations
-                .Where(o => o is not (ShowText or ShowTextsWithPositioning or MoveToNextLineShowText or MoveToNextLineShowTextWithSpacing))
-                .ToList();
+            var ops = Isolated(page.Operations
+                .Where(o => o is not (ShowText or ShowTextsWithPositioning or MoveToNextLineShowText or MoveToNextLineShowTextWithSpacing)));
             var stream = Activator.CreateInstance(DefaultStreamType, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance, null,
                 [new List<IGraphicsStateOperation>(ops)], null);
             if (stream == null) return false;
@@ -101,6 +109,22 @@ public static class PdfRewriter
         }
     }
 
+    /// <summary>Befehle in q … Q einschließen; offen gebliebene q des Originals werden mit geschlossen.</summary>
+    internal static List<IGraphicsStateOperation> Isolated(IEnumerable<IGraphicsStateOperation> operations)
+    {
+        var ops = new List<IGraphicsStateOperation> { Push.Value };
+        var depth = 1;
+        foreach (var op in operations)
+        {
+            if (op is Pop && depth == 1) continue;                               // überzähliges Q würde unseren Einschluss aufheben
+            ops.Add(op);
+            if (op is Push) depth++;
+            else if (op is Pop) depth--;
+        }
+        for (; depth > 0; depth--) ops.Add(Pop.Value);
+        return ops;
+    }
+
     // ---------- Absatz setzen ----------
 
     /// <summary>Ein Stück Text in einer Schrift; ein Wort besteht aus einem oder mehreren Stücken (z. B. fett + Doppelpunkt).</summary>
@@ -111,7 +135,48 @@ public static class PdfRewriter
 
     private sealed record WordBox(WordItem Word, double Width);
 
-    private static void Render(PdfPageBuilder pb, Fonts fonts, Paragraph paragraph, PdfUnit u, PageFlow flow, bool cover)
+    /// <summary>
+    /// Die Ersatzschrift (Noto) läuft bei gleicher Punktgröße oft breiter als die Originalschrift (z. B. Calibri, Arial
+    /// Narrow): Die Übersetzung wirkte dann größer und bräche anders um als das Original. Deshalb wird gemessen, wie breit
+    /// das Original einzeilige Absätze setzt und wie breit derselbe Ausgangstext in der Ersatzschrift wäre; das Verhältnis
+    /// (Median je Schriftschnitt) gleicht die Schriftgröße an – die Zeilenabstände bleiben die des Originals.
+    /// </summary>
+    private static Dictionary<(bool Serif, bool Bold, bool Italic), double> Calibrate(IEnumerable<(Paragraph Paragraph, PdfUnit Unit)> items, Fonts fonts)
+    {
+        var ratios = new List<((bool, bool, bool) Key, double Ratio)>();
+        foreach (var (p, u) in items)
+        {
+            if (u.Lines != 1 || u.Cover) continue;
+            var source = p.JoinSource();
+            if (TagText.StripTags(source).Trim().Length < 12) continue;
+            var natural = NaturalWidth(Words(source, p.TagData, u, fonts), u.Size, fonts, u);
+            var original = u.Align == "R" ? u.Right - u.Left : u.Right - u.TextX;
+            if (natural > 0 && original > 0) ratios.Add(((u.Serif, u.Bold, u.Italic), original / natural));
+        }
+        static double Median(IEnumerable<double> values)
+        {
+            var sorted = values.Order().ToList();
+            return sorted[sorted.Count / 2];
+        }
+        var result = new Dictionary<(bool Serif, bool Bold, bool Italic), double>();
+        if (ratios.Count < 3) return result;                                // zu wenig zum Messen: Punktgröße wie im Original
+        result[default] = Math.Clamp(Median(ratios.Select(r => r.Ratio)), MinFit, MaxFit);
+        foreach (var g in ratios.GroupBy(r => r.Key).Where(g => g.Count() >= 3))
+            result[g.Key] = Math.Clamp(Median(g.Select(r => r.Ratio)), MinFit, MaxFit);
+        return result;
+    }
+
+    private static double Fit(Dictionary<(bool Serif, bool Bold, bool Italic), double> fit, PdfUnit u) =>
+        fit.TryGetValue((u.Serif, u.Bold, u.Italic), out var f) ? f : fit.GetValueOrDefault(default, 1.0);
+
+    /// <summary>Breite eines Textes in einer Zeile, wie er gesetzt würde.</summary>
+    private static double NaturalWidth(List<WordItem> words, double size, Fonts fonts, PdfUnit u)
+    {
+        var space = fonts.SpaceWidth(u.Serif, u.Bold, u.Italic, size);
+        return words.Sum(w => w.Pieces.Sum(p => fonts.Width(p.Text, u.Serif, p.Bold, p.Italic, size))) + words.Skip(1).Sum(w => w.Spaces) * space;
+    }
+
+    private static void Render(PdfPageBuilder pb, Fonts fonts, Paragraph paragraph, PdfUnit u, PageFlow flow, bool cover, double fit = 1.0)
     {
         var words = Words(paragraph.JoinTarget(), paragraph.TagData, u, fonts);
         if (words.Count == 0) return;
@@ -121,17 +186,19 @@ public static class PdfRewriter
 
         // Mehr Zeilen als im Original: zuerst Platz darunter nutzen bzw. den Text darunter verschieben,
         // erst wenn das nicht reicht, die Schrift schrittweise verkleinern
-        var size = u.Size;
+        // Größe wie die Originalschrift wirkt (abgeglichen), Zeilenabstand wie im Original
+        var nominal = u.Size * fit;
+        var size = nominal;
         var lines = Wrap(words, size, maxWidth, fonts, u);
         var room = flow.Room(u);
-        while (Extra(lines.Count, size, u) > room && size > u.Size * MinScale)
+        while (Extra(lines.Count, size, nominal, u) > room && size > nominal * MinScale)
         {
-            size = Math.Max(u.Size * MinScale, size - 0.25);
+            size = Math.Max(nominal * MinScale, size - 0.25);
             lines = Wrap(words, size, maxWidth, fonts, u);
         }
-        flow.Grow(u, Extra(lines.Count, size, u));
+        flow.Grow(u, Extra(lines.Count, size, nominal, u));
 
-        var step = u.LineHeight * size / u.Size;
+        var step = u.LineHeight * size / nominal;
         var baseline = u.Baseline - flow.Shift(u);
         var space = fonts.SpaceWidth(u.Serif, u.Bold, u.Italic, size);
         var widths = lines.Select(line => line.Sum(w => w.Width) + line.Skip(1).Sum(w => w.Word.Spaces) * space).ToList();
@@ -179,8 +246,8 @@ public static class PdfRewriter
     }
 
     /// <summary>Zusätzliche Höhe gegenüber dem Original (in Punkt).</summary>
-    private static double Extra(int lines, double size, PdfUnit u) =>
-        Math.Max(0, (lines - 1) * u.LineHeight * size / u.Size - (u.Lines - 1) * u.LineHeight);
+    private static double Extra(int lines, double size, double nominal, PdfUnit u) =>
+        Math.Max(0, (lines - 1) * u.LineHeight * size / nominal - (u.Lines - 1) * u.LineHeight);
 
     private static void SetColor(PdfPageBuilder pb, double[] c) =>
         pb.SetTextAndFillColor((byte)Math.Round(c[0] * 255), (byte)Math.Round(c[1] * 255), (byte)Math.Round(c[2] * 255));

@@ -1,0 +1,126 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="using:SententiamConverte.Services"
+             xmlns:vm="using:SententiamConverte.ViewModels"
+             xmlns:c="using:SententiamConverte.Controls"
+             x:Class="SententiamConverte.Views.GettingStartedPanel"
+             x:DataType="vm:GettingStartedViewModel">
+    <UserControl.Styles>
+        <Style Selector="Border.step">
+            <Setter Property="Padding" Value="12" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}" />
+        </Style>
+        <Style Selector="TextBlock.num">
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Width" Value="34" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+        </Style>
+    </UserControl.Styles>
+    <Border Classes="card">
+        <StackPanel Spacing="10">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="{l:T 'Erste Schritte'}" Classes="h2" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding Progress, Converter={x:Static l:L.Text}}" Classes="muted" VerticalAlignment="Center" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="{l:T 'Ausblenden'}" Command="{Binding HideCommand}"
+                        ToolTip.Tip="{l:T 'Wieder anzeigen: Knopf „Erste Schritte“ oben im Reiter Projekt'}" />
+            </Grid>
+
+            <!-- 1. KI -->
+            <Border Classes="step">
+                <Grid ColumnDefinitions="Auto,*">
+                    <TextBlock Classes="num" Text="1" />
+                    <StackPanel Grid.Column="1" Spacing="6">
+                        <TextBlock Text="{l:T 'KI wählen'}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding AiStatus, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontSize="13" />
+                        <WrapPanel>
+                            <Button Content="{l:T 'Kostenlose Online-KI einrichten (ein Klick)'}" Command="{Binding UseFreeAiCommand}" Classes="accent" Margin="0,0,8,4"
+                                    IsVisible="{Binding !AiDone}" IsEnabled="{Binding !AiBusy}" />
+                            <Button Content="{l:T 'Andere KI wählen (offline, eigener Schlüssel …)'}" Command="{Binding OpenAiPageCommand}" Margin="0,0,8,4" />
+                            <ProgressBar IsIndeterminate="True" Width="80" IsVisible="{Binding AiBusy}" VerticalAlignment="Center" />
+                        </WrapPanel>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- 2. Projekt -->
+            <Border Classes="step">
+                <Grid ColumnDefinitions="Auto,*">
+                    <TextBlock Classes="num" Text="2" />
+                    <StackPanel Grid.Column="1" Spacing="6">
+                        <TextBlock Text="{l:T 'Projekt anlegen: Sprachen und Dateien'}" FontWeight="SemiBold" />
+                        <StackPanel Spacing="6" IsVisible="{Binding ProjectDone}">
+                            <TextBlock Text="{Binding ProjectStatus, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" />
+                            <Button Content="{l:T 'Weitere Dateien hinzufügen …'}" Command="{Binding AddFilesCommand}" HorizontalAlignment="Left" />
+                        </StackPanel>
+                        <StackPanel Spacing="6" IsVisible="{Binding !ProjectDone}">
+                            <WrapPanel>
+                                <Button Content="{l:T 'Dateien wählen …'}" Command="{Binding PickFilesCommand}" Margin="0,0,8,4" />
+                                <ItemsControl ItemsSource="{Binding FileNames}" VerticalAlignment="Center">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="x:String">
+                                            <TextBlock Text="{Binding}" Margin="0,0,12,0" FontSize="12" VerticalAlignment="Center" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </WrapPanel>
+                            <Grid ColumnDefinitions="*,10,*,10,*">
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="{l:T 'Name'}" FontSize="12" />
+                                    <TextBox Text="{Binding Name}" PlaceholderText="{l:T 'z. B. Betriebsanleitung Pumpe P-200'}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="2">
+                                    <TextBlock Text="{l:T 'Ausgangssprache'}" FontSize="12" />
+                                    <c:LanguagePicker Value="{Binding Source}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="4" Spacing="2">
+                                    <TextBlock Text="{l:T 'Zielsprachen'}" FontSize="12" />
+                                    <c:LanguagePicker Value="{Binding Targets}" Multiple="True" />
+                                </StackPanel>
+                            </Grid>
+                            <TextBox Text="{Binding Topic}" PlaceholderText="{l:T 'Fachgebiet (freiwillig), z. B. Mietrecht – hilft der KI und den Agenten'}" />
+                            <CheckBox IsChecked="{Binding Confidential}"
+                                      Content="{l:T 'Vertraulich (Namen, Datum, Aktenzeichen … nur als Platzhalter an eine Online-KI und ins TM)'}" />
+                            <CheckBox IsChecked="{Binding CreateDatabases}"
+                                      Content="{l:T 'Gemeinsame TM, Terminologie und Wissensdatenbank für das Sprachpaar anlegen (empfohlen – gelten auch in späteren Projekten)'}" />
+                            <Button Content="{l:T 'Projekt anlegen'}" Command="{Binding CreateProjectCommand}" Classes="accent" HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- 3. alte Übersetzungen -->
+            <Border Classes="step">
+                <Grid ColumnDefinitions="Auto,*">
+                    <TextBlock Classes="num" Text="3" />
+                    <StackPanel Grid.Column="1" Spacing="6">
+                        <TextBlock Text="{l:T 'Alte Übersetzungen nutzen (freiwillig)'}" FontWeight="SemiBold" />
+                        <TextBlock TextWrapping="Wrap" FontSize="13"
+                                   Text="{l:T 'Haben Sie ähnliche Texte schon übersetzt? Original und Übersetzung wählen – sie kommen ins TM, und die KI schlägt Fachbegriffe vor. Dann erscheinen frühere Lösungen gleich als Treffer.'}" />
+                        <Button Content="{l:T 'Alte Übersetzungen übernehmen …'}" Command="{Binding ImportOldCommand}" HorizontalAlignment="Left" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- 4. übersetzen -->
+            <Border Classes="step">
+                <Grid ColumnDefinitions="Auto,*">
+                    <TextBlock Classes="num" Text="4" />
+                    <StackPanel Grid.Column="1" Spacing="6">
+                        <TextBlock Text="{l:T 'Übersetzen'}" FontWeight="SemiBold" />
+                        <TextBlock TextWrapping="Wrap" FontSize="13"
+                                   Text="{l:T 'Im Editor steht links der Ausgangstext, rechts Ihre Übersetzung. „KI übersetzen“ schlägt den aktuellen Satz vor, „Leere per KI“ füllt alle leeren Sätze als Entwurf. Strg+Eingabe bestätigt den Satz, schreibt ihn ins TM und springt weiter. Die fertige Datei entsteht im Reiter Projekt mit „Zieldatei“ – das Layout des Originals bleibt erhalten.'}" />
+                        <Button Content="{l:T 'Erste Datei im Editor öffnen'}" Command="{Binding TranslateCommand}" IsEnabled="{Binding CanTranslate}" Classes="accent" HorizontalAlignment="Left" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </StackPanel>
+    </Border>
+</UserControl>

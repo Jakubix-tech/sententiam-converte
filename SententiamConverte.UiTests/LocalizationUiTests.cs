@@ -79,9 +79,58 @@ public class LocalizationUiTests
             Dispatcher.UIThread.RunJobs();
             Assert.DoesNotContain(vm.Help.Chapters, c => c.Title == "Tastenkürzel");
             window.CaptureRenderedFrame()?.Save(Path.Combine(TestSetup.ScreenshotDir, "23-englisch-hilfe.png"));
-            vm.SelectedTab = 5;
+            vm.SelectedTab = MainViewModel.SettingsTab;
             Dispatcher.UIThread.RunJobs();
             window.CaptureRenderedFrame()?.Save(Path.Combine(TestSetup.ScreenshotDir, "24-englisch-einstellungen.png"));
+        }
+        finally
+        {
+            L.SetLanguage("de");
+        }
+    }
+
+    [Fact]
+    public void EveryEnglishTextHasAPolishTranslation()
+    {
+        var en = L.Table("en");
+        var pl = L.Table("pl");
+        Assert.Empty(en.Keys.Except(pl.Keys));                                                // Lücken wären englisch, aber es gibt keine
+        Assert.Empty(pl.Where(kv => Placeholders(kv.Key) != Placeholders(kv.Value)).Select(kv => kv.Key));
+        Assert.DoesNotContain(pl.Values, v => Regex.IsMatch(v, @"trados|\bsdl\b|multiterm", RegexOptions.IgnoreCase));
+    }
+
+    [AvaloniaFact]
+    public void TheUserInterfaceSpeaksPolish()
+    {
+        L.SetLanguage("pl");
+        try
+        {
+            Assert.Equal("pl", L.Language);
+            Assert.Equal("en", L.DocumentLanguage);                                           // Handbuch und Dokumente englisch
+            var saved = L.T("Gespeichert.");
+            Assert.NotEqual("Gespeichert.", saved);
+            Assert.NotEqual(L.Table("en")["Gespeichert."], saved);
+            var created = L.T("Projekt „Vertrag 7“ angelegt. Jetzt Dateien hinzufügen.");
+            Assert.Contains("Vertrag 7", created);
+            Assert.DoesNotContain("angelegt", created);
+            Assert.Equal("niemiecki (Niemcy)", Controls.LanguageOption.For("de-DE").Name);   // Sprachnamen polnisch
+
+            var vm = new MainViewModel();
+            var window = new MainWindow { DataContext = vm, Width = 1400, Height = 900 };
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            var headers = window.GetVisualDescendants().OfType<TabItem>().Select(t => t.Header as string).ToList();
+            Assert.Contains(L.Table("pl")["Einstellungen"], headers);
+            Assert.DoesNotContain("Einstellungen", headers);
+            Assert.DoesNotContain("Settings", headers);
+            Assert.Contains("Polski", vm.Settings.UiLanguageNames);
+
+            vm.SelectedTab = MainViewModel.SettingsTab;
+            Dispatcher.UIThread.RunJobs();
+            window.CaptureRenderedFrame()?.Save(Path.Combine(TestSetup.ScreenshotDir, "25-polnisch-einstellungen.png"));
+            vm.SelectedTab = MainViewModel.HelpTab;
+            Dispatcher.UIThread.RunJobs();
+            Assert.DoesNotContain(vm.Help.Chapters, c => c.Title == "Tastenkürzel");           // englisches Handbuch
         }
         finally
         {

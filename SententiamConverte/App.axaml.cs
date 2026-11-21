@@ -47,7 +47,26 @@ public partial class App : Application
             };
         }
 
+        StartActivityLog();
         _ = Services.AppServices.StartupAsync();
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private static bool _logStarted;
+
+    /// <summary>Ablaufprotokoll: Programmstart mit Fassung und System, alte Protokolle aufräumen, Abstürze festhalten.</summary>
+    private static void StartActivityLog()
+    {
+        if (_logStarted) return;
+        _logStarted = true;
+        _ = Services.AppServices.Ai;                                       // Einstellungen laden (Protokoll ein/aus)
+        Core.Diagnostics.ActivityLog.Cleanup();
+        Core.Diagnostics.ActivityLog.Write("Programm", "gestartet", null,
+            $"Sententiam converte {typeof(App).Assembly.GetName().Version?.ToString(3)}, {System.Runtime.InteropServices.RuntimeInformation.OSDescription}, " +
+            $"Oberfläche {Services.L.Language}");
+        System.AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            Core.Diagnostics.ActivityLog.Write("Programm", "Absturz", null, e.ExceptionObject.ToString());
+        System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (_, e) =>
+            Core.Diagnostics.ActivityLog.Write("Programm", "Fehler im Hintergrund", null, e.Exception.ToString());
     }
 }

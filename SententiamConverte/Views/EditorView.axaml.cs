@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -26,14 +27,41 @@ public partial class EditorView : UserControl
         InitializeComponent();
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
         SizeChanged += (_, e) => ApplyLayout(e.NewSize.Width < 900);
+        AddHandler(SegmentTextBox.MarkedChangedEvent, OnMarkedChanged);
+    }
+
+    /// <summary>
+    /// Markierung in Quelle oder Ziel: im Reiter Recherche erklären lassen (Bedeutung, Grammatik, Sprachwissenschaft).
+    /// Hebt der Nutzer die Markierung im Feld auf, gilt wieder die gewohnte Ansicht; beim Wegklicken bleibt die Erklärung.
+    /// </summary>
+    private void OnMarkedChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_vm == null || e.Source is not SegmentTextBox box || box.DataContext is not SegmentViewModel seg) return;
+        var text = box.SelectedText;
+        if (string.IsNullOrWhiteSpace(text) && !box.TextArea.IsFocused) return;
+        _vm.MarkText(seg, inTarget: box.SourceText != null, text ?? "");
     }
 
     protected override void OnDataContextChanged(System.EventArgs e)
     {
         base.OnDataContextChanged(e);
-        if (_vm != null) _vm.FocusRequested -= FocusSegment;
+        if (_vm != null)
+        {
+            _vm.FocusRequested -= FocusSegment;
+            _vm.InsertIntoTarget = null;
+        }
         _vm = DataContext as EditorViewModel;
-        if (_vm != null) _vm.FocusRequested += FocusSegment;
+        if (_vm != null)
+        {
+            _vm.FocusRequested += FocusSegment;
+            _vm.InsertIntoTarget = InsertIntoTarget;
+        }
+    }
+
+    /// <summary>Markierte Segmente (Strg/Umschalt+Klick) für „Ausgewählte per KI“ weitergeben.</summary>
+    private void OnSegmentSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_vm != null) _vm.MarkedSegments = SegmentList.SelectedItems?.OfType<SegmentViewModel>().ToList() ?? [];
     }
 
     /// <summary>Schmale Bildschirme (Telefon): Seitenleiste unter die Segmentliste.</summary>
@@ -165,6 +193,25 @@ public partial class EditorView : UserControl
     private void OnUnderlineClick(object? sender, RoutedEventArgs e) => Format(TextFormat.Underline);
     private void OnInsertTagClick(object? sender, RoutedEventArgs e) => InsertNextMissingTag();
 
+    private async void OnDictateClick(object? sender, RoutedEventArgs e) => await DictateAsync();
+
+    /// <summary>Diktat ein/aus; der erkannte Text kommt an die Schreibmarke des Zielfelds.</summary>
+    private async Task DictateAsync()
+    {
+        if (_vm == null) return;
+        var segment = _vm.Selected;
+        var box = ActiveTarget();
+        var text = await _vm.ToggleDictationAsync();
+        if (string.IsNullOrWhiteSpace(text) || segment == null) return;
+        if (box != null && _vm.Selected == segment)
+        {
+            var before = box.CaretOffset > 0 ? box.Document.GetCharAt(box.CaretOffset - 1) : ' ';
+            box.InsertAtCaret((char.IsWhiteSpace(before) ? "" : " ") + text);
+            box.TextArea.Focus();
+        }
+        else segment.Target = (segment.Target.TrimEnd() + " " + text).Trim();
+    }
+
     /// <summary>Formatierung aus der Quelle übernehmen; ohne passendes Tag-Paar ein kurzer Hinweis.</summary>
     private void Format(TextFormat format)
     {
@@ -178,6 +225,37 @@ public partial class EditorView : UserControl
 
     private void OnClarifyTermClick(object? sender, RoutedEventArgs e) => ClarifySelectedTerm();
 
+    private void OnResearchSelectionClick(object? sender, RoutedEventArgs e) => ResearchSelection();
+
+    /// <summary>Markiertes Wort, markierten Satz oder das ganze Segment recherchieren bzw. das Dossier dazu zeigen.</summary>
+    private void ResearchSelection()
+    {
+        if (_vm?.Selected == null) return;
+        var text = SelectedSourceText() ?? SelectedTargetText() ?? TagText.StripTags(_vm.Selected.Source);
+        _ = _vm.ShowOrResearchAsync(text);
+    }
+
+    /// <summary>Text an der Schreibmarke des Zielfelds einsetzen (sonst ans Ende der Übersetzung).</summary>
+    private void InsertIntoTarget(string text)
+    {
+        if (_vm?.Selected is not { } segment) return;
+        if (ActiveTarget() is { } box)
+        {
+            var before = box.CaretOffset > 0 ? box.Document.GetCharAt(box.CaretOffset - 1) : ' ';
+            box.InsertAtCaret((char.IsWhiteSpace(before) ? "" : " ") + text);
+            box.TextArea.Focus();
+        }
+        else segment.Target = (segment.Target.TrimEnd() + " " + text).Trim();
+    }
+
+    private void OnProtectClick(object? sender, RoutedEventArgs e)
+    {
+        if (_vm == null) return;
+        var text = SelectedSourceText() ?? SelectedTargetText();
+        if (text == null) { _vm.AiResult = "Bitte zuerst den zu schützenden Text markieren (Name, Firma, Ort …)."; _vm.SidePanelTab = 7; return; }
+        _vm.Protect(text);
+    }
+
     private void ClarifySelectedTerm()
     {
         if (_vm == null) return;
@@ -185,15 +263,16 @@ public partial class EditorView : UserControl
         if (term == null)
         {
             _vm.AiResult = "Bitte zuerst den Begriff im Quelltext markieren.";
-            _vm.SidePanelTab = 6;
+            _vm.SidePanelTab = 7;
             return;
         }
         _ = _vm.ClarifyTermAsync(term);
     }
 
-    private void OnQaDoubleTapped(object? sender, TappedEventArgs e)
+    /// <summary>Klick auf eine Meldung: zum Segment springen.</summary>
+    private void OnMessageTapped(object? sender, TappedEventArgs e)
     {
-        if (QaList.SelectedItem is QaRow row) _vm?.GoToSegmentCommand.Execute(row);
+        if (QaList.SelectedItem is MessageRow row) _vm?.GoToMessageCommand.Execute(row);
     }
 
     private (SegmentTextBox? Source, SegmentTextBox? Target) RowControls(SegmentViewModel seg)
@@ -279,11 +358,22 @@ public partial class EditorView : UserControl
             case Key.G when ctrl && shift:
                 InsertNextMissingTag();
                 break;
+            case Key.D when ctrl && shift:
+                _ = DictateAsync();
+                break;
             case Key.B when ctrl && shift:
                 ClarifySelectedTerm();
                 break;
+            case Key.R when ctrl && shift:
+                ResearchSelection();
+                break;
             case Key.U when ctrl && shift:
-                _ = _vm.CheckUsageAsync(SelectedTargetText() ?? TagText.StripTags(_vm.Selected?.Target ?? ""));
+                // markierter Zieltext: nur dieser Ausdruck; sonst die ganze Übersetzung Wendung für Wendung
+                if (SelectedTargetText() is { } marked) _ = _vm.CheckUsageAsync(marked);
+                else _vm.CheckTranslationOnWebCommand.Execute(null);
+                break;
+            case Key.L when ctrl && shift:
+                if ((SelectedSourceText() ?? SelectedTargetText()) is { } term) _vm.LookUp(term, SelectedSourceText() == null);
                 break;
             case Key.F3:
                 var text = SelectedSourceText() ?? SelectedTargetText();

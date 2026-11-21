@@ -26,7 +26,7 @@ public sealed record DownloadProgress(string What, long Done, long Total)
 }
 
 /// <summary>
-/// Eingebaute KI: ein offenes Sprachmodell (Gemma 4, Apache-2.0) läuft mit der Laufzeit llama.cpp (MIT) auf diesem
+/// Eingebaute KI: ein offenes Sprachmodell (Gemma 4 oder EuroLLM, Apache-2.0) läuft mit der Laufzeit llama.cpp (MIT) auf diesem
 /// Rechner – kostenlos, ohne Anmeldung, ohne Tageslimit, und kein Text verlässt den Rechner. Laufzeit und Modell
 /// werden erst auf Wunsch aus den offiziellen Quellen geladen (GitHub-Release von llama.cpp, Hugging Face) und
 /// über ihre SHA-256-Prüfsumme geprüft. Grafikkarten werden genutzt, wenn vorhanden (Vulkan/Metal), sonst der Prozessor.
@@ -43,6 +43,14 @@ public static class BuiltInAi
             "gemma-4-E2B-it-Q4_0.gguf", 2841481184, "8e30dff3ac4c8434c49a7036fa15564bdbb6044e42bf04550bf1a096ad7e6a52"),
         new("gemma-4-e4b", "Gemma 4 E4B", "bessere Übersetzungen, braucht mehr Rechenleistung", "ggml-org/gemma-4-E4B-it-GGUF", "a69f018d7678a2b9f5e705f8903d6fb29b9b25dc",
             "gemma-4-E4B-it-Q4_0.gguf", 4590807392, "a555b900214b477d8880e7832e0b8925e139b0159640036b09fe472b6f2097f2"),
+        // gemessen am 9.11.2026 (16 Sätze, 4 Richtungen): chrF 79,6 gegenüber 76,9 (E4B) und 74,7 (EuroLLM), etwa dreimal so lange wie E4B
+        new("gemma-4-12b", "Gemma 4 12B", "die genauesten Übersetzungen – braucht eine Grafikkarte mit mindestens 10 GB", "ggml-org/gemma-4-12B-it-GGUF",
+            "790d826c6ec7dc8aa0ab23af33e5b8313140a231",
+            "gemma-4-12B-it-Q4_0.gguf", 7219673216, "3712b9bd32cae83a22f67ee7a4466d8d7a4f21646ac8a07d19bf9418e8767a70"),
+        // EuroLLM (Universitäten und Forschungseinrichtungen der EU, Apache-2.0): für alle EU-Sprachen trainiert, auch auf Übersetzen
+        new("eurollm-9b", "EuroLLM 9B", "europäisches Modell für alle 24 EU-Sprachen – braucht eine Grafikkarte mit mindestens 8 GB",
+            "mradermacher/EuroLLM-9B-Instruct-2512-i1-GGUF", "a8ec4d8d1315ee8986827f2d3819190609aa5101",
+            "EuroLLM-9B-Instruct-2512.i1-Q4_K_M.gguf", 5582839200, "52aa3f77fa731f36025f8c24b7ca4ba70abed76d6a4ebb1b517859cd1e5df2ce"),
     ];
 
     public static BuiltInModel? Model(string? id) => Models.FirstOrDefault(m => m.Id == id);
@@ -300,7 +308,7 @@ public static class BuiltInAi
             if (_process is { HasExited: false } && CurrentModel == model.Id && _url != null) return (_url, _key!);
             StopUnlocked();
             if (!IsInstalled(model))
-                throw new AiException($"Die eingebaute KI ({model.Name}) ist noch nicht heruntergeladen: Einstellungen → KI einrichten → „Kostenlos auf diesem Rechner“.");
+                throw new AiException($"Die eingebaute KI ({model.Name}) ist noch nicht heruntergeladen: Seite „KI einrichten“ → „Kostenlos auf diesem Rechner“.");
             var port = FreePort();
             _key = Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
             var psi = new ProcessStartInfo(ServerExecutable!)
@@ -334,13 +342,17 @@ public static class BuiltInAi
             for (var i = 0; i < 600; i++)
             {
                 if (_process.HasExited)
+                {
+                    Diagnostics.ActivityLog.Write("Eingebaute KI", "beim Start beendet", url, string.Join("\n", LogLines.TakeLast(20)));
                     throw new AiException("Die eingebaute KI wurde beim Start beendet: " + string.Join(" ", LogLines.TakeLast(3)));
+                }
                 try
                 {
                     if ((await http.GetAsync(url + "/health", ct)).IsSuccessStatusCode)
                     {
                         _url = url + "/v1";
                         CurrentModel = model.Id;
+                        Diagnostics.ActivityLog.Write("Eingebaute KI", "gestartet", url, $"{model.Name} ({model.File}), Laufzeit llama.cpp {RuntimeBuild}");
                         return (_url, _key);
                     }
                 }
@@ -381,19 +393,25 @@ public static class BuiltInAi
 }
 
 /// <summary>Sprachmodell der eingebauten KI: startet den lokalen Server und spricht ihn über die OpenAI-Schnittstelle an.</summary>
-public sealed class BuiltInChatModel(AiProviderConfig config) : IChatModel
+public sealed class BuiltInChatModel(AiProviderConfig config) : IToolChatModel
 {
-    public string DisplayName => $"{config.Name} ({config.Model})";
+    // Der Name nennt das Modell schon („… (Gemma 4 E2B)“)
+    public string DisplayName => config.Name;
 
-    public async Task<string> CompleteAsync(string system, IReadOnlyList<ChatTurn> messages, CancellationToken ct = default)
+    private async Task<OpenAiCompatibleChatModel> InnerAsync(CancellationToken ct)
     {
         var model = BuiltInAi.Model(config.Model) ?? throw new AiException($"Unbekanntes Modell der eingebauten KI: {config.Model}");
         var (url, key) = await BuiltInAi.EnsureServerAsync(model, ct);
-        var inner = new AiProviderConfig
+        return new OpenAiCompatibleChatModel(new AiProviderConfig
         {
             Name = config.Name, Kind = AiProviderKind.OpenAiCompatible, BaseUrl = url, ApiKey = key, Model = model.Id,
             Temperature = config.Temperature ?? 0.2, MaxTokens = config.MaxTokens, TimeoutSeconds = config.TimeoutSeconds,
-        };
-        return await new OpenAiCompatibleChatModel(inner).CompleteAsync(system, messages, ct);
+        });
     }
+
+    public async Task<string> CompleteAsync(string system, IReadOnlyList<ChatTurn> messages, CancellationToken ct = default) =>
+        await (await InnerAsync(ct)).CompleteAsync(system, messages, ct);
+
+    public async Task<ToolReply> CompleteWithToolsAsync(string system, IReadOnlyList<AgentMessage> messages, IReadOnlyList<ToolSpec> tools, CancellationToken ct = default) =>
+        await (await InnerAsync(ct)).CompleteWithToolsAsync(system, messages, tools, ct);
 }

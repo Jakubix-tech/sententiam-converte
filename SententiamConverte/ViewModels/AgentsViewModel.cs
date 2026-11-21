@@ -32,7 +32,10 @@ public partial class LanguageChoice : ObservableObject
     [ObservableProperty] public partial bool IsChecked { get; set; }
 }
 
-/// <summary>Bereich „Agenten“: Themenrecherche, Usus-Prüfung, Bewertung von Übersetzungen.</summary>
+/// <summary>
+/// Bereich „Agenten“: Recherche, die die KI selbst steuert (mit Skills und Gedächtnis), Begriffsvergleich,
+/// Themenrecherche, Usus-Prüfung, Bewertung von Übersetzungen.
+/// </summary>
 public partial class AgentsViewModel : ViewModelBase
 {
     private readonly MainViewModel _main;
@@ -42,6 +45,33 @@ public partial class AgentsViewModel : ViewModelBase
 
     [ObservableProperty] public partial bool IsRunning { get; set; }
     [ObservableProperty] public partial string Log { get; set; } = "";
+
+    // KI-gesteuerte Recherche
+    [ObservableProperty] public partial string AgentTask { get; set; } = "";
+    [ObservableProperty] public partial string AgentSourceLanguage { get; set; } = "de-DE";
+    [ObservableProperty] public partial string AgentTargetLanguages { get; set; } = "en-GB";
+    [ObservableProperty] public partial int AgentMaxSteps { get; set; } = 10;
+    [ObservableProperty] public partial bool AgentLearn { get; set; } = true;
+    [ObservableProperty] public partial bool AgentRemember { get; set; } = true;
+    [ObservableProperty] public partial string AgentAnswer { get; set; } = "";
+    [ObservableProperty] public partial string AgentTranslation { get; set; } = "";
+    [ObservableProperty] public partial string AgentNote { get; set; } = "";
+    [ObservableProperty] public partial string AgentEvidence { get; set; } = "";
+    [ObservableProperty] public partial string AgentInfo { get; set; } = "";
+    public ObservableCollection<SourceRef> AgentSources { get; } = new();
+    public ObservableCollection<ResearchStep> AgentSteps { get; } = new();
+
+    // Skills und Gedächtnis
+    private readonly Lazy<SkillLibrary> _skills = new(() => new SkillLibrary());
+    public ObservableCollection<Skill> SkillList { get; } = new();
+    [ObservableProperty] public partial Skill? SelectedSkill { get; set; }
+    [ObservableProperty] public partial string SkillName { get; set; } = "";
+    [ObservableProperty] public partial string SkillDescription { get; set; } = "";
+    [ObservableProperty] public partial string SkillInstructions { get; set; } = "";
+    public string SkillFolder => _skills.Value.Folder;
+    public string MemoryInfo => _main.Project is { } p
+        ? $"Gedächtnis: Projekt-Wissen ({p.ProjectKnowledge.Count()} Einträge) – dazu durchsucht die KI Projekt-TM, Terminologie und alle angebundenen Datenbanken."
+        : "Gedächtnis: allgemeines KI-Gedächtnis (ohne geöffnetes Projekt).";
 
     // Recherche
     [ObservableProperty] public partial string Topic { get; set; } = "";
@@ -84,8 +114,11 @@ public partial class AgentsViewModel : ViewModelBase
 
     public void OnProjectChanged()
     {
+        OnPropertyChanged(nameof(MemoryInfo));
         var p = _main.Project;
         if (p == null) return;
+        AgentSourceLanguage = p.SourceLanguage;
+        AgentTargetLanguages = string.Join(", ", p.TargetLanguages);
         Topic = p.Topic;
         SourceLanguage = p.SourceLanguage;
         TargetChoices.Clear();
@@ -107,14 +140,152 @@ public partial class AgentsViewModel : ViewModelBase
         IsRunning = true;
         Log = "";
         _cts = new CancellationTokenSource();
-        try { await action(_cts.Token); }
-        catch (OperationCanceledException) { Log += "Abgebrochen.\n"; }
-        catch (Exception ex) { Log += "Fehler: " + ex.Message + "\n"; }
+        // Läuft weiter, wenn man den Reiter wechselt – die Statusleiste sagt, wann das Ergebnis da ist
+        _main.Status = "Agent arbeitet – läuft weiter, auch wenn Sie den Reiter wechseln.";
+        try
+        {
+            await action(_cts.Token);
+            _main.Status = "Agent fertig – Ergebnis im Reiter „Agenten“.";
+        }
+        catch (OperationCanceledException)
+        {
+            Log += "Abgebrochen.\n";
+            _main.Status = "Agent abgebrochen.";
+        }
+        catch (Exception ex)
+        {
+            Log += "Fehler: " + ex.Message + "\n";
+            _main.Status = "Agent: Fehler – siehe Protokoll im Reiter „Agenten“.";
+        }
         finally { IsRunning = false; }
     }
 
     [RelayCommand]
     private void Cancel() => _cts?.Cancel();
+
+    // ---------- KI-gesteuerte Recherche ----------
+
+    /// <summary>Allgemeines Gedächtnis, wenn kein Projekt geöffnet ist.</summary>
+    public static string GlobalMemoryPath => Core.Resources.AgentResources.GlobalMemoryPath;
+
+    /// <summary>
+    /// Eigene Verbindungen zu den Datenbanken: mit Projekt dessen Datenbanken (samt sprachbezogenen), ohne Projekt das
+    /// allgemeine KI-Gedächtnis und die sprachbezogenen Datenbanken der gewählten Sprachen. Der Agent läuft damit
+    /// weiter, auch wenn man inzwischen ein anderes Projekt öffnet.
+    /// </summary>
+    private Core.Resources.AgentResources OpenResources(string source, IReadOnlyList<string> targets) =>
+        _main.Project is { } p ? p.OpenForAgent() : Core.Resources.AgentResources.ForLanguages(source, targets, AppServices.Servers);
+
+    private static KnowledgeMemory MemoryOf(Core.Resources.AgentResources res, string source, IReadOnlyList<string> targets) =>
+        new(res.Knowledge[0], res.Knowledge, res.Termbases, res.Tms, source, targets);
+
+    // ---------- In den Datenbanken nachsehen ----------
+
+    [ObservableProperty] public partial string DbQuery { get; set; } = "";
+    [ObservableProperty] public partial string DbResult { get; set; } = "";
+
+    /// <summary>Sucht wie der Agent in TM, Terminologie, Wissen und Gedächtnis – z. B. ob es eine Formulierung schon gibt.</summary>
+    [RelayCommand]
+    private void SearchDatabases()
+    {
+        if (DbQuery.Trim().Length == 0) { DbResult = "Bitte einen Begriff oder eine Formulierung eingeben."; return; }
+        var targets = AgentTargetLanguages.Split([',', ';', ' '], StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList();
+        using var res = OpenResources(AgentSourceLanguage.Trim(), targets);
+        var found = MemoryOf(res, AgentSourceLanguage.Trim(), targets).Search(DbQuery.Trim(), AgentSourceLanguage.Trim());
+        DbResult = found.Length > 0 ? found : $"Nichts gefunden in {res.Knowledge.Count + res.Termbases.Count + res.Tms.Count} Datenbanken.";
+    }
+
+    /// <summary>Zeigt das Gedächtnis (Projekt-Wissen bzw. allgemeines KI-Gedächtnis) im Reiter „Wissen“.</summary>
+    [RelayCommand]
+    private void ShowMemory()
+    {
+        _main.Knowledge.ShowMemory();
+        _main.SelectedTab = MainViewModel.KnowledgeTab;
+    }
+
+    [RelayCommand]
+    private Task RunAgent() => Run(async ct =>
+    {
+        if (AgentTask.Trim().Length == 0) { Log = "Bitte eine Aufgabe oder Frage eingeben.\n"; return; }
+        var targets = AgentTargetLanguages.Split([',', ';', ' '], StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList();
+        if (targets.Count == 0) targets = [AgentSourceLanguage];
+        AgentAnswer = "";
+        AgentTranslation = "";
+        AgentNote = "";
+        AgentEvidence = "";
+        AgentInfo = "";
+        AgentSources.Clear();
+        AgentSteps.Clear();
+        var ctx = Context(AppServices.Ai.ResearchProviderId);
+        var source = AgentSourceLanguage.Trim();
+        using var resources = OpenResources(source, targets);
+        {
+            var memory = MemoryOf(resources, source, targets);
+            Log += $"Modell: {ctx.Model.DisplayName} · Websuche: {ctx.Search?.Name ?? "keine (nur Wikipedia/Wiktionary)"}\n";
+            var result = await new ResearchAgent(ctx, _skills.Value, memory)
+                .RunAsync(AgentTask.Trim(), source, targets, Math.Clamp(AgentMaxSteps, 2, 30), AgentLearn, AgentRemember, ct);
+            AgentAnswer = result.Answer;
+            AgentTranslation = result.Translation ?? "";
+            AgentNote = result.Note ?? "";
+            AgentEvidence = string.Join("\n", (result.Evidence ?? []).Select(e => e.ToString()));
+            foreach (var s in result.Sources) AgentSources.Add(s);
+            foreach (var s in result.Steps) AgentSteps.Add(s);
+            AgentInfo = $"{result.Steps.Count} Schritte" + (result.LearnedSkill != null ? $" · neuer Skill gelernt: {result.LearnedSkill.Name}" : "");
+            if (result.LearnedSkill != null) RefreshSkills();
+            OnPropertyChanged(nameof(MemoryInfo));
+        }
+    });
+
+    // ---------- Skills ----------
+
+    [RelayCommand]
+    private void RefreshSkills()
+    {
+        var selected = SelectedSkill?.Name;
+        SkillList.Clear();
+        foreach (var s in _skills.Value.All()) SkillList.Add(s);
+        SelectedSkill = SkillList.FirstOrDefault(s => s.Name == selected) ?? SkillList.FirstOrDefault();
+    }
+
+    partial void OnSelectedSkillChanged(Skill? value)
+    {
+        SkillName = value?.Name ?? "";
+        SkillDescription = value?.Description ?? "";
+        SkillInstructions = value?.Instructions ?? "";
+    }
+
+    [RelayCommand]
+    private void NewSkill()
+    {
+        SelectedSkill = null;
+        SkillName = "neuer-skill";
+        SkillDescription = "Wofür dieser Skill gedacht ist (ein Satz).";
+        SkillInstructions = "1. …\n2. …";
+    }
+
+    [RelayCommand]
+    private void SaveSkill()
+    {
+        var name = SkillLibrary.NormalizeName(SkillName);
+        if (name.Length < 3) { Log = "Bitte einen Namen mit mindestens drei Zeichen angeben.\n"; return; }
+        var existing = _skills.Value.Get(name);
+        // Eigene Änderungen gelten wie gelernte: mitgelieferte Skills bleiben als Vorlage erhalten, wenn man umbenennt
+        _skills.Value.Save(new Skill(name, SkillDescription.Trim(), SkillInstructions.Trim(), existing?.Learned ?? true, existing?.Uses ?? 0,
+            Version: existing?.Version ?? 0, Edited: existing is { Learned: false }));
+        if (SelectedSkill != null && SkillLibrary.NormalizeName(SelectedSkill.Name) != name && SelectedSkill.Learned) _skills.Value.Delete(SelectedSkill.Name);
+        RefreshSkills();
+        SelectedSkill = SkillList.FirstOrDefault(s => s.Name == name);
+        _main.Status = $"Skill „{name}“ gespeichert.";
+    }
+
+    [RelayCommand]
+    private void DeleteSkill()
+    {
+        if (SelectedSkill is not { } s) return;
+        _skills.Value.Delete(s.Name);
+        RefreshSkills();
+        _main.Status = s.Learned ? $"Skill „{s.Name}“ gelöscht." : $"Skill „{s.Name}“ gelöscht (mitgelieferte Skills kommen beim nächsten Start wieder).";
+    }
 
     // ---------- Recherche ----------
 
@@ -224,15 +395,22 @@ public partial class AgentsViewModel : ViewModelBase
 
     public static string FormatUsage(UsageResult r)
     {
+        // zuerst die klare Aussage, dann jede Angabe mit Beleg und Link zum Nachprüfen
         var sb = new StringBuilder();
         sb.AppendLine($"„{r.Expression}“ ({r.Language}): {UsageCheckAgent.VerdictName(r.Verdict).ToUpperInvariant()}");
+        sb.AppendLine(r.Statement);
         if (!string.IsNullOrWhiteSpace(r.Recommended) && r.Recommended != r.Expression) sb.AppendLine($"Empfehlung: „{r.Recommended}“");
         sb.AppendLine(r.Explanation);
         sb.AppendLine();
         foreach (var e in r.Evidence)
         {
             sb.AppendLine($"• „{e.Variant}“: {e.ExactHits} von {e.ResultsChecked} Suchtreffern wörtlich");
-            foreach (var ex in e.Examples.Take(3)) sb.AppendLine($"    {ex.Snippet}\n    {ex.Url}");
+            if (e.Queries.Count > 1) sb.AppendLine($"    Gesucht: {string.Join(" · ", e.Queries)}");
+            foreach (var ex in e.Examples)
+            {
+                sb.AppendLine(ex.Verified ? $"    [{ex.Number}] „{ex.Sentence}“" : $"    [{ex.Number}] Ausschnitt aus der Trefferliste: {ex.Snippet}");
+                sb.AppendLine($"        {ex.Link}");
+            }
         }
         return sb.ToString();
     }

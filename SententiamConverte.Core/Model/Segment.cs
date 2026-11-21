@@ -53,6 +53,22 @@ public sealed class Segment
     public string? Comment { get; set; }
     public DateTime? Modified { get; set; }
 
+    /// <summary>Höchstlänge der Übersetzung in Zeichen (ohne Tags), z. B. aus XLIFF „maxwidth“; null = keine.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? MaxLength { get; set; }
+
+    /// <summary>Lektorat: die bestätigte Fassung vor der Änderung des Prüfers (Änderungsverfolgung); null = keine offene Änderung.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ReviewBaseline { get; set; }
+
+    /// <summary>Fehlerbewertung im Lektorat: erfasste Fehler mit Kategorie und Schweregrad.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public List<Qa.LqaError>? Errors { get; set; }
+
+    /// <summary>Der eingesetzte Vorschlag (KI, MÜ, TM) bis zur Bestätigung – zum Lernen aus Korrekturen.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? Suggestion { get; set; }
+
     /// <summary>Frühere bestätigte Fassungen (Änderungsverlauf für das Lektorat).</summary>
     public List<SegmentRevision> History { get; set; } = new();
 

@@ -14,24 +14,28 @@ namespace SententiamConverte.Services;
 /// <summary>
 /// Sprache der Oberfläche. Der Programmtext ist Deutsch und dient zugleich als Schlüssel; die englische Tabelle
 /// (Strings.en.json) ordnet jedem deutschen Text die Übersetzung zu. Meldungen mit Werten stehen dort als Vorlage
-/// mit {0}, {1} …, z. B. „Projekt „{0}“ angelegt.“ → „Project “{0}” created.“.
+/// mit {0}, {1} …, z. B. „Projekt „{0}“ angelegt.“ → „Project “{0}” created.“. Weitere Sprachen (Strings.pl.json)
+/// bauen auf der englischen Tabelle auf: Was dort noch fehlt, erscheint englisch.
 /// </summary>
 public static class L
 {
-    public static IReadOnlyList<(string Code, string Name)> Languages { get; } = [("de", "Deutsch"), ("en", "English")];
+    public static IReadOnlyList<(string Code, string Name)> Languages { get; } = [("de", "Deutsch"), ("en", "English"), ("pl", "Polski")];
 
     public static string Language { get; private set; } = "de";
+
+    /// <summary>Sprache für Handbuch und erzeugte Dokumente (Angebot, Prüfdatei, Bewertung): Deutsch oder Englisch.</summary>
+    public static string DocumentLanguage => Language == "de" ? "de" : "en";
 
     private static Dictionary<string, string> _exact = new();
     private static List<(Regex Pattern, string Target)> _templates = new();
     private static readonly ConcurrentDictionary<string, string> Cache = new();
 
-    /// <summary>„de“, „en“ oder leer (= Umgebungsvariable SENTENTIAM_LANG, sonst Systemsprache).</summary>
+    /// <summary>„de“, „en“, „pl“ oder leer (= Umgebungsvariable SENTENTIAM_LANG, sonst Systemsprache).</summary>
     public static void SetLanguage(string? code)
     {
         if (string.IsNullOrWhiteSpace(code)) code = Environment.GetEnvironmentVariable("SENTENTIAM_LANG");
-        if (string.IsNullOrWhiteSpace(code)) code = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "de" ? "de" : "en";
-        Language = code.StartsWith("en", StringComparison.OrdinalIgnoreCase) ? "en" : "de";
+        if (string.IsNullOrWhiteSpace(code)) code = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName is "de" or "pl" ? CultureInfo.CurrentUICulture.TwoLetterISOLanguageName : "en";
+        Language = Languages.FirstOrDefault(l => code.StartsWith(l.Code, StringComparison.OrdinalIgnoreCase)).Code ?? "de";
         Cache.Clear();
         if (Language == "de")
         {
@@ -39,7 +43,9 @@ public static class L
             _templates = new();
             return;
         }
-        var table = Table(Language);
+        var table = Table("en");
+        if (Language != "en")
+            foreach (var (key, value) in Table(Language)) table[key] = value;          // Lücken bleiben englisch
         // Texte ohne {0}-Platzhalter (auch solche mit anderen geschweiften Klammern) werden exakt nachgeschlagen
         _exact = table.Where(kv => !Regex.IsMatch(kv.Key, @"\{\d+\}")).ToDictionary(kv => kv.Key, kv => kv.Value);
         _templates = table.Where(kv => Regex.IsMatch(kv.Key, @"\{\d+\}"))

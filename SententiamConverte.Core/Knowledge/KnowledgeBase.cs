@@ -109,6 +109,30 @@ public sealed class KnowledgeBase : IKnowledgeBase
         }
     }
 
+    /// <summary>Viele Einträge in einer Transaktion (Einarbeiten eines ganzen Gesetzes).</summary>
+    public int AddMany(IEnumerable<KnowledgeEntry> entries)
+    {
+        lock (_lock)
+        {
+            var n = 0;
+            using var tx = _db.BeginTransaction();
+            foreach (var e in entries)
+            {
+                using var cmd = _db.CreateCommand();
+                cmd.Transaction = tx;
+                cmd.CommandText = """
+                    INSERT INTO entry(lang,lang_p,topic,kind,title,content,quote,source_url,source_title,author,confidence,created,modified)
+                    VALUES($l,$lp,$t,$k,$ti,$c,$q,$su,$st,$a,$conf,$cr,$m)
+                    """;
+                Bind(cmd, e);
+                cmd.ExecuteNonQuery();
+                n++;
+            }
+            tx.Commit();
+            return n;
+        }
+    }
+
     public void Update(KnowledgeEntry e)
     {
         lock (_lock)

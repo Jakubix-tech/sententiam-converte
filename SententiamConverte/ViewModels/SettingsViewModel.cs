@@ -18,7 +18,17 @@ public partial class ProviderViewModel : ObservableObject
 
     public string Id => Config.Id;
     public string Name { get => Config.Name; set { Config.Name = value; OnPropertyChanged(); } }
-    public int KindIndex { get => (int)Config.Kind; set { Config.Kind = (AiProviderKind)value; OnPropertyChanged(); } }
+    // Ein Auswahlfeld meldet beim Aufbau oder Wechsel kurz -1 („keine Auswahl“) – das darf den Zugang nicht ändern
+    public int KindIndex
+    {
+        get => (int)Config.Kind;
+        set
+        {
+            if (!Enum.IsDefined((AiProviderKind)value)) return;
+            Config.Kind = (AiProviderKind)value;
+            OnPropertyChanged();
+        }
+    }
     public string BaseUrl { get => Config.BaseUrl; set { Config.BaseUrl = value; OnPropertyChanged(); OnPropertyChanged(nameof(PrivacyNote)); } }
 
     public string PrivacyNote => Config.IsLocal
@@ -81,10 +91,52 @@ public partial class SettingsViewModel : ViewModelBase
     /// <summary>„KI einrichten“ in wenigen Klicks.</summary>
     public AiSetupViewModel Setup { get; }
 
+    /// <summary>Datenausgang (Karte auf der Seite „KI einrichten“).</summary>
+    public OutboundViewModel Outbound => _main.Outbound;
+
+    /// <summary>Aus Korrekturen lernen (Karte in den Einstellungen).</summary>
+    public LearningViewModel Learning => _main.Learning;
+
+    // ---------- Grammatikprüfung ----------
+
+    public string[] GrammarEngineNames { get; } =
+    [
+        L.T("KI (Sprachmodell) – auch für Polnisch gut, vertrauliche Angaben als Platzhalter"),
+        L.T("LanguageTool auf eigenem Server – Texte bleiben im Haus"),
+        L.T("LanguageTool öffentlich – kostenlos, begrenzt, Texte gehen an LanguageTool (Deutschland)"),
+    ];
+
+    public int GrammarEngineIndex
+    {
+        get => (int)AppServices.Ai.Grammar.Engine;
+        set
+        {
+            if (value < 0 || value == (int)AppServices.Ai.Grammar.Engine) return;
+            AppServices.Ai.Grammar.Engine = (Core.Qa.GrammarEngine)value;
+            AppServices.Ai.Save();
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(GrammarUsesServer));
+        }
+    }
+
+    public bool GrammarUsesServer => AppServices.Ai.Grammar.Engine == Core.Qa.GrammarEngine.LanguageToolServer;
+
+    public string GrammarServerUrl
+    {
+        get => AppServices.Ai.Grammar.ServerUrl;
+        set
+        {
+            if (value == AppServices.Ai.Grammar.ServerUrl) return;
+            AppServices.Ai.Grammar.ServerUrl = value.Trim();
+            AppServices.Ai.Save();
+            OnPropertyChanged();
+        }
+    }
+
     public ObservableCollection<ProviderViewModel> Providers { get; } = new();
     public IReadOnlyList<AiProviderConfig> Presets { get; } = AiSettings.Presets();
-    public IReadOnlyList<string> KindNames { get; } = new[] { "OpenAI-kompatibel (lokal oder Cloud)", "Anthropic Claude", "OpenCode (eigene Installation)", "Eingebaute KI (auf diesem Rechner)" }.Select(L.T).ToList();
-    public IReadOnlyList<string> SearchNames { get; } = new[] { "Keine", "SearXNG (eigener Server)", "Brave Search (API-Schlüssel)", "Tavily (API-Schlüssel)", "Claude-Websuche" }.Select(L.T).ToList();
+    public IReadOnlyList<string> KindNames { get; } = new[] { "OpenAI-kompatibel (lokal oder Cloud)", "Anthropic Claude", "OpenCode (eigene Installation)", "Eingebaute KI (auf diesem Rechner)", "Verbund mehrerer Modelle", "Maschinelle Übersetzung (DeepL, Google, Microsoft, LibreTranslate)" }.Select(L.T).ToList();
+    public IReadOnlyList<string> SearchNames { get; } = new[] { "Keine", "SearXNG (eigener Server)", "Brave Search (API-Schlüssel)", "Tavily (API-Schlüssel)", "Claude-Websuche", "Wikipedia (kostenlos, ohne Schlüssel)" }.Select(L.T).ToList();
 
     [ObservableProperty] public partial ProviderViewModel? Selected { get; set; }
     [ObservableProperty] public partial AiProviderConfig? SelectedPreset { get; set; }
@@ -92,9 +144,35 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] public partial ProviderViewModel? ResearchProvider { get; set; }
     [ObservableProperty] public partial ProviderViewModel? EvaluateProvider { get; set; }
     [ObservableProperty] public partial ProviderViewModel? SearchClaudeProvider { get; set; }
-    [ObservableProperty] public partial int SearchKindIndex { get; set; }
-    [ObservableProperty] public partial string SearchBaseUrl { get; set; } = "";
-    [ObservableProperty] public partial string SearchApiKey { get; set; } = "";
+    /// <summary>Die Suchdienste zum Ankreuzen – mehrere gleichzeitig, jeder mit eigener Adresse bzw. eigenem Schlüssel.</summary>
+    public ObservableCollection<SearchSourceRow> SearchSources { get; } = new();
+
+    [RelayCommand]
+    private void OpenAiPage() => _main.SelectedTab = MainViewModel.AiTab;
+
+    [RelayCommand]
+    private async Task GetSearchKey(SearchSourceRow? row)
+    {
+        var url = row?.Kind == SearchProviderKind.Tavily ? "https://app.tavily.com/" : "https://brave.com/search/api/";
+        if (AppServices.Platform != null) await AppServices.Platform.OpenUrlAsync(url);
+    }
+
+    private SearchSourceRow SearchRow(SearchProviderKind kind) => SearchSources.First(r => r.Kind == kind);
+
+    /// <summary>Einen Dienst einschalten, z. B. nach dem Einrichten der eigenen SearXNG-Instanz.</summary>
+    internal void EnableSearchSource(SearchProviderKind kind, string? baseUrl = null)
+    {
+        var row = SearchRow(kind);
+        row.Enabled = true;
+        if (baseUrl != null) row.BaseUrl = baseUrl;
+    }
+
+    /// <summary>Einen Dienst ausschalten; ist danach keiner mehr an, sucht wieder Wikipedia.</summary>
+    internal void DisableSearchSource(SearchProviderKind kind)
+    {
+        SearchRow(kind).Enabled = false;
+        if (!SearchSources.Any(r => r.Enabled)) SearchRow(SearchProviderKind.Wikipedia).Enabled = true;
+    }
     [ObservableProperty] public partial string ExplanationLanguage { get; set; } = "Deutsch";
     [ObservableProperty] public partial string TestResult { get; set; } = "";
     [ObservableProperty] public partial bool IsTesting { get; set; }
@@ -146,16 +224,19 @@ public partial class SettingsViewModel : ViewModelBase
     }
 
     // Sprache der Oberfläche
-    public IReadOnlyList<string> UiLanguageNames { get; } = [L.T("Wie das System"), "Deutsch", "English"];
-    [ObservableProperty] public partial int UiLanguageIndex { get; set; } = AppServices.Ui.UiLanguage switch { "de" => 1, "en" => 2, _ => 0 };
+    public IReadOnlyList<string> UiLanguageNames { get; } = [L.T("Wie das System"), .. L.Languages.Select(l => l.Name)];
+    [ObservableProperty] public partial int UiLanguageIndex { get; set; } = L.Languages.ToList().FindIndex(l => l.Code == AppServices.Ui.UiLanguage) + 1;
     [ObservableProperty] public partial string UiLanguageInfo { get; set; } = "";
 
     partial void OnUiLanguageIndexChanged(int value)
     {
-        AppServices.Ui.UiLanguage = value switch { 1 => "de", 2 => "en", _ => "" };
+        AppServices.Ui.UiLanguage = value >= 1 && value <= L.Languages.Count ? L.Languages[value - 1].Code : "";
         AppServices.Ui.Save();
-        UiLanguageInfo = "Wird nach einem Neustart des Programms wirksam. / Takes effect after restarting the program.";
+        UiLanguageInfo = "Wird nach einem Neustart des Programms wirksam. / Takes effect after restarting the program. / Zmiana zadziała po ponownym uruchomieniu programu.";
     }
+
+    /// <summary>Überwachte Ordner.</summary>
+    public AutomationViewModel Automation => _main.Automation;
 
     // Lokale API
     public bool LocalApiAvailable => AppServices.LocalApi != null;
@@ -292,9 +373,19 @@ public partial class SettingsViewModel : ViewModelBase
         ResearchProvider = Find(s.ResearchProviderId);
         EvaluateProvider = Find(s.EvaluateProviderId);
         SearchClaudeProvider = Providers.FirstOrDefault(p => p.Id == s.Search.ClaudeProviderId) ?? Providers.FirstOrDefault(p => p.Config.Kind == AiProviderKind.Anthropic);
-        SearchKindIndex = (int)s.Search.Kind;
-        SearchBaseUrl = s.Search.BaseUrl;
-        SearchApiKey = s.Search.ApiKey;
+        SearchSources.Clear();
+        // ältere Einstellungen: der eine gewählte Dienst; neue: die angekreuzten
+        var configured = s.Search.Sources.Count > 0 ? s.Search.Sources : s.Search.ActiveSources();
+        foreach (var kind in SearchSourceRow.Order)
+        {
+            var c = configured.FirstOrDefault(x => x.Kind == kind);
+            SearchSources.Add(new SearchSourceRow(kind)
+            {
+                Enabled = c?.Enabled ?? false,
+                BaseUrl = c?.BaseUrl is { Length: > 0 } url ? url : kind == SearchProviderKind.SearXng ? s.Search.BaseUrl : "",
+                ApiKey = c?.ApiKey ?? "",
+            });
+        }
         ExplanationLanguage = s.ExplanationLanguage;
         Selected = Providers.FirstOrDefault();
         UpdateDictionaryStatus();
@@ -340,13 +431,10 @@ public partial class SettingsViewModel : ViewModelBase
             ExplanationLanguage = ExplanationLanguage,
             BuiltInFolder = AppServices.Ai.BuiltInFolder,
             SourceProfiles = Profiles.Where(p => p.Name.Trim().Length > 0).Select(p => p.ToProfile()).ToList(),
-            Search = new SearchConfig
-            {
-                Kind = (SearchProviderKind)SearchKindIndex,
-                BaseUrl = SearchBaseUrl,
-                ApiKey = SearchApiKey,
-                ClaudeProviderId = SearchClaudeProvider?.Id,
-            },
+            SourceProfilesVersion = SourceProfile.DefaultsVersion,
+            Privacy = AppServices.Ai.Privacy,
+            Transcription = AppServices.Ai.Transcription,
+            Search = SearchConfigFromRows(),
         };
         s.Save();
         AppServices.Ai = s;
@@ -372,6 +460,31 @@ public partial class SettingsViewModel : ViewModelBase
         finally { IsTesting = false; }
     }
 
+    /// <summary>
+    /// Websuche aus den angekreuzten Diensten. Kind, BaseUrl und ApiKey nennen den ersten (außer Wikipedia), damit
+    /// ältere Fassungen des Programms die Einstellungen weiter lesen können.
+    /// </summary>
+    private SearchConfig SearchConfigFromRows()
+    {
+        if (SearchSources.Count == 0) return AppServices.Ai.Search;                     // Seite noch nicht geladen
+        var sources = SearchSources.Select(r => new SearchSource
+        {
+            Kind = r.Kind, Enabled = r.Enabled, BaseUrl = r.BaseUrl.Trim(), ApiKey = r.ApiKey.Trim(),
+            ClaudeProviderId = r.Kind == SearchProviderKind.ClaudeWebSearch ? SearchClaudeProvider?.Id : null,
+        }).ToList();
+        var first = sources.FirstOrDefault(x => x.Enabled && x.Kind != SearchProviderKind.Wikipedia) ?? sources.FirstOrDefault(x => x.Enabled);
+        return new SearchConfig
+        {
+            Kind = first?.Kind ?? SearchProviderKind.None,
+            BaseUrl = first?.BaseUrl ?? "",
+            ApiKey = first?.ApiKey ?? "",
+            ClaudeProviderId = SearchClaudeProvider?.Id,
+            DockerFolder = LocalSearXng.InstallFolder,
+            Sources = sources,
+        };
+    }
+
+    /// <summary>Jeden angekreuzten Dienst einzeln prüfen – so sieht man, welcher antwortet und welcher nicht.</summary>
     [RelayCommand]
     private async Task TestSearch()
     {
@@ -380,9 +493,25 @@ public partial class SettingsViewModel : ViewModelBase
         try
         {
             Save();
-            var search = SearchProviderFactory.Create(AppServices.Ai) ?? throw new InvalidOperationException("Keine Websuche gewählt.");
-            var results = await search.SearchAsync("\"Anzugsdrehmoment\"", "de-DE", 5);
-            TestResult = $"{search.Name}: {results.Count} Treffer\n" + string.Join("\n", results.Select(r => "• " + r.Title + " – " + r.Url));
+            var lines = new List<string>();
+            var sources = AppServices.Ai.Search.ActiveSources();
+            if (sources.Count == 0) lines.Add(L.T("Kein Suchdienst angekreuzt."));
+            foreach (var source in sources)
+            {
+                var name = SearchProviderFactory.NameOf(source.Kind);
+                if (SearchProviderFactory.CreateOne(source, AppServices.Ai) is not { } search)
+                {
+                    lines.Add(L.T($"{name}: nicht nutzbar – Schlüssel bzw. Adresse fehlt."));
+                    continue;
+                }
+                try
+                {
+                    var results = await search.SearchAsync("\"Anzugsdrehmoment\"", "de-DE", 3);
+                    lines.Add(L.T($"{name}: {results.Count} Treffer") + (results.Count > 0 ? " – " + results[0].Title + " (" + results[0].Url + ")" : ""));
+                }
+                catch (Exception ex) { lines.Add($"{name}: " + L.T("Fehler: ") + ex.Message); }
+            }
+            TestResult = string.Join("\n", lines);
         }
         catch (Exception ex) { TestResult = "Fehler: " + ex.Message; }
         finally { IsTesting = false; }

@@ -1,0 +1,24 @@
+<Project Sdk="WixToolset.Sdk/5.0.2">
+  <!--
+    Windows-Installer (.msi) für Sententiam converte. Wird von build/Paketbau (Ziel win-x64) gebaut:
+      dotnet build build/Installer/SententiamConverte.Installer.wixproj -c Release -p:AppDir=<veröffentlichter Ordner> -p:LicenseRtf=<Lizenz.rtf>
+    Installiert für den angemeldeten Benutzer (ohne Administratorrechte) nach %LOCALAPPDATA%\Programs\Sententiam converte,
+    legt Einträge im Startmenü und auf dem Desktop an und ersetzt beim Aktualisieren die vorige Version.
+    WiX Toolset 5 (MS-RL) wird nur zum Bauen verwendet und nicht mitgeliefert.
+  -->
+  <PropertyGroup>
+    <OutputName>SententiamConverte-$(Version)-win-x64</OutputName>
+    <InstallerPlatform>x64</InstallerPlatform>
+    <Cultures>de-DE</Cultures>
+    <DefineConstants>AppDir=$(AppDir);LicenseRtf=$(LicenseRtf);ProductVersion=$(Version)</DefineConstants>
+    <!-- Dateien im Benutzerprofil: Schlüsselpfade sind die Dateien selbst (bei vielen Dateien üblich) -->
+    <SuppressIces>ICE38;ICE64;ICE91</SuppressIces>
+    <!-- WixShellExecTarget enthält absichtlich [INSTALLFOLDER]: WixShellExec formatiert den Wert selbst -->
+    <SuppressSpecificWarnings>1077</SuppressSpecificWarnings>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="WixToolset.UI.wixext" Version="5.0.2" />
+    <PackageReference Include="WixToolset.Util.wixext" Version="5.0.2" />
+  </ItemGroup>
+</Project>

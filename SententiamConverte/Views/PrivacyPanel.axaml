@@ -1,0 +1,100 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="using:SententiamConverte.Services"
+             xmlns:vm="using:SententiamConverte.ViewModels"
+             x:Class="SententiamConverte.Views.PrivacyPanel"
+             x:DataType="vm:PrivacyViewModel">
+    <Border Classes="card">
+        <StackPanel Spacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="🔒" FontSize="18" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Title, Converter={x:Static l:L.Text}}" Classes="h2" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock TextWrapping="Wrap" Classes="muted" FontSize="12"
+                       Text="{l:T 'Geschützte Angaben gehen nur als Platzhalter an eine Online-KI, z. B. [NAME_1], [DATE_1], [CASE_1]; das Programm setzt die echten Werte in der Antwort wieder ein. Im TM stehen ebenfalls nur Platzhalter – ein späterer Treffer bekommt die Werte des aktuellen Segments. Erkannt wird auf diesem Rechner, ohne Netz.'}" />
+            <!-- Vorschlag: die Dateien enthalten Namen, Aktenzeichen … -->
+            <Border IsVisible="{Binding Suggestion.Length}" Padding="10" CornerRadius="6" Background="#FFF7E6" BorderBrush="#F0B429" BorderThickness="1">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="{Binding Suggestion, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" Foreground="#5C3D00" />
+                    <WrapPanel>
+                        <Button Content="{l:T 'Ja, vertraulich behandeln'}" Command="{Binding AcceptSuggestionCommand}" Classes="accent" Margin="0,0,8,0" />
+                        <Button Content="{l:T 'Nein, nicht vertraulich'}" Command="{Binding DeclineSuggestionCommand}" />
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+            <CheckBox Content="{l:T 'Vertraulich: geschützte Angaben nur als Platzhalter an Online-KI senden'}" IsChecked="{Binding Enabled}" FontWeight="SemiBold" />
+            <StackPanel Spacing="4" Margin="24,0,0,0" IsEnabled="{Binding Enabled}">
+                <CheckBox Content="{l:T 'und nicht ins TM schreiben (dort Platzhalter)'}" IsChecked="{Binding KeepOutOfTm}" />
+                <CheckBox Content="{l:T 'auch an KI auf diesem Rechner nur Platzhalter senden'}" IsChecked="{Binding AlsoLocalAi}" />
+                <CheckBox IsChecked="{Binding ShareResearch}">
+                    <TextBlock TextWrapping="Wrap" Text="{l:T 'Recherchen trotzdem ins Recherche-Gedächtnis (alle Projekte) übernehmen – ohne Satzzusammenhang und ohne Zitate aus eigenen Fachtexten'}" />
+                </CheckBox>
+                <TextBlock Text="{l:T 'Was geschützt wird:'}" Margin="0,4,0,0" />
+                <WrapPanel>
+                    <CheckBox Content="{l:T 'Namen nach Anrede oder Titel'}" IsChecked="{Binding Names}" Margin="0,0,12,4" />
+                    <CheckBox Content="{l:T 'Datum'}" IsChecked="{Binding Dates}" Margin="0,0,12,4" />
+                    <CheckBox Content="{l:T 'Aktenzeichen'}" IsChecked="{Binding CaseNumbers}" Margin="0,0,12,4" />
+                    <CheckBox Content="{l:T 'E-Mail'}" IsChecked="{Binding Emails}" Margin="0,0,12,4" />
+                    <CheckBox Content="{l:T 'Telefon'}" IsChecked="{Binding Phones}" Margin="0,0,12,4" />
+                    <CheckBox Content="{l:T 'IBAN'}" IsChecked="{Binding Iban}" Margin="0,0,12,4" />
+                    <CheckBox Content="{l:T 'Anschriften'}" IsChecked="{Binding Addresses}" Margin="0,0,12,4" />
+                </WrapPanel>
+                <TextBlock Text="{l:T 'Schutzliste – je Zeile ein Begriff: Namen, Firmen, Orte, Kennzeichen … (im Editor auch per „Schützen“)'}" TextWrapping="Wrap" />
+                <TextBox Text="{Binding TermsText, UpdateSourceTrigger=LostFocus}" AcceptsReturn="True" TextWrapping="Wrap" Height="90" />
+                <TextBlock TextWrapping="Wrap" Classes="muted" FontSize="12"
+                           Text="{l:T 'Begriffe der Schutzliste bleiben in der Übersetzung unverändert (die KI sieht nur [TERM_1]). Orte oder Firmen, die übersetzt werden sollen (Köln → Cologne), deshalb nicht aufnehmen.'}" />
+                <TextBlock Text="{l:T 'Nicht schützen – je Zeile ein Wert, den die Erkennung findet, der aber nicht sensibel ist (z. B. ein Datum in einer Norm)'}" TextWrapping="Wrap" />
+                <TextBox Text="{Binding NotSensitiveText, UpdateSourceTrigger=LostFocus}" AcceptsReturn="True" TextWrapping="Wrap" Height="60" />
+                <WrapPanel>
+                    <Button Content="{l:T 'Namen mit lokaler KI finden'}" Command="{Binding FindNamesLocallyCommand}" Margin="0,0,8,4"
+                            ToolTip.Tip="{l:T 'Eine KI auf diesem Rechner (z. B. die eingebaute) sucht Namen in den Projektdateien, ordnet sie ein und schlägt vor, welche geschützt werden sollen – zum Prüfen, bevor etwas in die Schutzliste kommt. Der Text verlässt den Rechner dabei nicht.'}" />
+                    <Button Content="{l:T 'Erkannte Angaben anzeigen'}" Command="{Binding ShowDetectedCommand}" Margin="0,0,8,4" />
+                    <Button Content="{l:T 'TM anonymisieren'}" Command="{Binding AnonymizeTmsCommand}" Margin="0,0,8,4"
+                            ToolTip.Tip="{l:T 'Ersetzt geschützte Angaben in den vorhandenen Einträgen der Projekt-TM und der beschreibbaren TMs durch Platzhalter.'}" />
+                    <ProgressBar IsIndeterminate="True" Width="80" IsVisible="{Binding IsBusy}" VerticalAlignment="Center" />
+                </WrapPanel>
+            </StackPanel>
+            <SelectableTextBlock Text="{Binding Info, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" />
+            <!-- gefundene Namen prüfen: angehakt = schützen -->
+            <StackPanel Spacing="4" IsVisible="{Binding HasNameCandidates}">
+                <TextBlock Text="{l:T 'Gefundene Namen – angehakt wird geschützt. Was übersetzt werden muss (Länder, Arten von Schulen) oder nichts über eine Person verrät (Software, große Marken), nicht schützen.'}"
+                           TextWrapping="Wrap" FontWeight="SemiBold" />
+                <ScrollViewer MaxHeight="300">
+                    <ItemsControl ItemsSource="{Binding NameCandidates}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:NameCandidateRow">
+                                <Grid ColumnDefinitions="Auto,240,150,*" Margin="0,1">
+                                    <CheckBox IsChecked="{Binding IsChecked}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding KindName}" VerticalAlignment="Center" Classes="muted" FontSize="12" />
+                                    <TextBlock Grid.Column="3" Text="{Binding Reason}" VerticalAlignment="Center" FontSize="12" TextWrapping="Wrap" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+                <WrapPanel>
+                    <Button Content="{l:T 'Angehakte schützen'}" Command="{Binding ApplyNameCandidatesCommand}" Classes="accent" Margin="0,0,8,4"
+                            ToolTip.Tip="{l:T 'Angehakte kommen in die Schutzliste, abgehakte werden aus ihr entfernt; andere Einträge bleiben.'}" />
+                    <Button Content="{l:T 'Verwerfen'}" Command="{Binding DiscardNameCandidatesCommand}" Margin="0,0,8,4" />
+                </WrapPanel>
+            </StackPanel>
+            <TextBlock IsVisible="{Binding HasDetected}" TextWrapping="Wrap" FontSize="12" Classes="muted"
+                       Text="{l:T 'Angehakt wird geschützt (im Editor mit 🔒 am Segment). Was nicht sensibel ist, abhaken und „Abgehakte nicht schützen“; weitere Angaben in die Schutzliste eintragen.'}" />
+            <ScrollViewer MaxHeight="220">
+                <ItemsControl ItemsSource="{Binding Detected}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:DetectedRow">
+                            <Grid ColumnDefinitions="Auto,130,*">
+                                <CheckBox IsChecked="{Binding IsSensitive}" IsEnabled="{Binding CanUnprotect}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{Binding KindName}" Classes="muted" FontSize="12" VerticalAlignment="Center" />
+                                <SelectableTextBlock Grid.Column="2" Text="{Binding Text}" FontSize="12" VerticalAlignment="Center" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+            <Button Content="{l:T 'Abgehakte nicht schützen'}" Command="{Binding ApplyDetectedCommand}" IsVisible="{Binding HasDetected}" HorizontalAlignment="Left" />
+        </StackPanel>
+    </Border>
+</UserControl>

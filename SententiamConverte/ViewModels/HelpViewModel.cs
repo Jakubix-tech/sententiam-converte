@@ -39,7 +39,7 @@ public partial class HelpViewModel : ViewModelBase
 
     public HelpViewModel()
     {
-        var en = Services.L.Language == "en";
+        var en = Services.L.DocumentLanguage == "en";                                   // Polnisch: englisches Handbuch
         var developers = Services.L.T("Für Entwickler");
         _all = (en ? Load("Hilfe.en.Manual.md", "Manual", splitChapters: true) : Load("Hilfe.Handbuch.md", "Handbuch", splitChapters: true))
             .Concat(Load(en ? "Hilfe.en.API-Reference.md" : "Hilfe.API-Referenz.md", developers, splitChapters: false))

@@ -9,6 +9,7 @@ using SententiamConverte.Core.Extensions;
 using SententiamConverte.Core.Filters;
 using SententiamConverte.Core.Knowledge;
 using SententiamConverte.Core.Model;
+using SententiamConverte.Core.Privacy;
 using SententiamConverte.Core.Projects;
 using SententiamConverte.Core.Qa;
 using SententiamConverte.Core.Remote;
@@ -73,31 +74,49 @@ public sealed class ProjectCache(SdkOptions options)
 /// </summary>
 public sealed class SententiamService : ISententiam
 {
-    public const string Version = "2.0";
+    public const string Version = "2.1";
 
     private readonly SdkOptions _o;
     private readonly ProjectCache _projects;
 
     /// <param name="user">Wer arbeitet – erscheint als Autor neuer Wissenseinträge.</param>
-    public SententiamService(SdkOptions options, string? user = null) : this(options, new ProjectCache(options), user) { }
+    public SententiamService(SdkOptions options, string? user = null) : this(options, new ProjectCache(options), user, false) { }
 
-    private SententiamService(SdkOptions options, ProjectCache projects, string? user)
+    private SententiamService(SdkOptions options, ProjectCache projects, string? user, bool admin)
     {
         _o = options;
         _projects = projects;
         User = user;
+        IsAdmin = admin;
     }
 
     public string? User { get; }
+
+    /// <summary>Verwaltung: darf Arbeitsschritte setzen und Dateien unabhängig vom Schritt bearbeiten.</summary>
+    public bool IsAdmin { get; }
     public ProjectCache Projects => _projects;
 
     /// <summary>Dieselben Projekte, aber im Namen einer anderen Person (z. B. je Anfrage an die REST-API).</summary>
-    public SententiamService ForUser(string? user) => user == User ? this : new SententiamService(_o, _projects, user);
+    public SententiamService ForUser(string? user, bool admin = false) =>
+        user == User && admin == IsAdmin ? this : new SententiamService(_o, _projects, user, admin);
+
+    /// <summary>
+    /// Team: Darf der angemeldete Benutzer diese Datei gerade ändern? (Arbeitsschritte; intern ohne Benutzer immer.)
+    /// </summary>
+    private void CheckWrite(TranslationProject p, string fileId, string language)
+    {
+        if (User != null) TeamWorkflow.CheckEditable(p, fileId, language, User, IsAdmin);
+    }
+
+    private bool MayWrite(TranslationProject p, string fileId, string language) =>
+        User == null || TeamWorkflow.StepOf(p, fileId, language).MayEdit(User, IsAdmin);
 
     // ---------- Allgemein ----------
 
     public Task<ApiInfo> InfoAsync(CancellationToken ct = default) => Task.FromResult(new ApiInfo("Sententiam converte", Version, "/openapi/v2.json",
-        ["projects", "files", "segments", "pretranslate", "analysis", "qa", "tm", "terms", "knowledge", "align", "packages", "agents", "extensions"]));
+        ["projects", "files", "segments", "pretranslate", "analysis", "qa", "tm", "terms", "knowledge", "align", "packages", "agents", "extensions",
+         "review", "evaluation", "quote", "templates", "qa-profiles", "tm-maintenance", "term-extraction", "import-translations", "privacy",
+         "workflow", "automation", "language-data", "dictation"]));
 
     public Task<IReadOnlyList<FormatInfo>> FormatsAsync(CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<FormatInfo>>(FileFilters.All.Select(f => new FormatInfo(f.Id, f.Name, f.Extensions)).ToList());
@@ -112,8 +131,15 @@ public sealed class SententiamService : ISententiam
     public Task<IReadOnlyList<string>> ProjectsAsync(CancellationToken ct = default) =>
         Task.Run<IReadOnlyList<string>>(() => _projects.Names().ToList(), ct);
 
-    public Task<ProjectDto> CreateProjectAsync(ProjectCreateDto project, CancellationToken ct = default) =>
-        Task.Run(() => Dto.Project(_projects.Create(project)), ct);
+    public Task<ProjectDto> CreateProjectAsync(ProjectCreateDto project, CancellationToken ct = default) => Task.Run(() =>
+    {
+        var template = project.Template is { Length: > 0 } name
+            ? ProjectTemplates.Load().FirstOrDefault(t => t.Name.Equals(name, StringComparison.CurrentCultureIgnoreCase)) ?? throw new KeyNotFoundException(name)
+            : null;
+        var p = _projects.Create(project);
+        if (template != null) lock (p) ProjectTemplates.Apply(template, p);
+        return Dto.Project(p);
+    }, ct);
 
     public Task<ProjectDto> GetProjectAsync(string project, CancellationToken ct = default) => With(project, Dto.Project, ct);
 
@@ -123,6 +149,8 @@ public sealed class SententiamService : ISententiam
         if (u.PretranslateMinScore is { } m) p.PretranslateMinScore = Math.Clamp(m, 50, 100);
         if (u.ConfirmContextMatches is { } c) p.ConfirmContextMatches = c;
         if (u.SourceProfile != null) p.SourceProfile = u.SourceProfile.Length == 0 ? null : u.SourceProfile;
+        if (u.AutoLocalize is { } al) p.AutoLocalize = al;
+        if (u.Client != null) p.Client = u.Client;
         p.Save();
         return Dto.Project(p);
     }, ct);
@@ -176,6 +204,7 @@ public sealed class SententiamService : ISententiam
         With(project, p =>
         {
             var f = FileOf(p, file);
+            CheckWrite(p, f.Id, language);
             var d = p.LoadDocument(f, language);
             var n = Workflow.ReplaceInTargets(d, find, replace, matchCase);
             p.SaveDocument(f, d);
@@ -256,6 +285,7 @@ public sealed class SententiamService : ISententiam
             foreach (var (f, lang) in p.Documents())
             {
                 ct.ThrowIfCancellationRequested();
+                if (!MayWrite(p, f.Id, lang)) continue;                 // Team: nicht an der Reihe
                 var d = p.LoadDocument(f, lang);
                 var (applied, confirmed) = Workflow.Pretranslate(p, d, r.ConfirmExact, r.Overwrite);
                 p.SaveDocument(f, d);
@@ -275,7 +305,7 @@ public sealed class SententiamService : ISententiam
 
     public Task<IReadOnlyList<QaIssueDto>> QaAsync(string project, CancellationToken ct = default) =>
         With<IReadOnlyList<QaIssueDto>>(project, p => p.Documents().SelectMany(x =>
-            QaChecker.Check(p.LoadDocument(x.File, x.Language), p.Qa, p.ProjectTermbase)
+            QaChecker.Check(p.LoadDocument(x.File, x.Language), p.Qa, p.ProjectTermbase, brief: p.Brief(x.File, x.Language))
                 .Select(i => new QaIssueDto(x.File.OriginalName, x.Language, i.SegmentId, i.Severity.ToString(), i.Check, i.Message))).ToList(), ct);
 
     public Task<QaSettings> SetQaSettingsAsync(string project, QaSettings settings, CancellationToken ct = default) =>
@@ -295,7 +325,10 @@ public sealed class SententiamService : ISententiam
 
     public Task AddToTmAsync(string project, TmAddDto u, CancellationToken ct = default) => With(project, p =>
     {
-        p.ProjectTm.Add(u.SourceLanguage, u.TargetLanguage, u.Source, u.Target, User ?? "API", u.Structure, null, u.Previous, u.Next);
+        var (src, tgt) = p.MasksTm ? Privacy.PrivacyScanner.MaskPair(u.Source, u.Target, p.Privacy) : (u.Source, u.Target);
+        p.ProjectTm.Add(u.SourceLanguage, u.TargetLanguage, src, tgt, User ?? "API", u.Structure, null,
+            p.MasksTm && u.Previous != null ? Privacy.TmPrivacy.Mask(u.Previous, p.Privacy) : u.Previous,
+            p.MasksTm && u.Next != null ? Privacy.TmPrivacy.Mask(u.Next, p.Privacy) : u.Next);
         return true;
     }, ct);
 
@@ -407,7 +440,10 @@ public sealed class SententiamService : ISententiam
             var p = _projects.Get(name);
             lock (p)
                 foreach (var pair in pairs.Where(x => x.Accepted))
-                    p.ProjectTm.Add(r.SourceLanguage, r.TargetLanguage, pair.SourceText, pair.TargetText, "Alignment");
+                {
+                    var (src, tgt) = p.MasksTm ? Privacy.PrivacyScanner.MaskPair(pair.SourceText, pair.TargetText, p.Privacy) : (pair.SourceText, pair.TargetText);
+                    p.ProjectTm.Add(r.SourceLanguage, r.TargetLanguage, src, tgt, "Alignment");
+                }
         }
         return pairs;
     }, ct);
@@ -432,17 +468,20 @@ public sealed class SententiamService : ISententiam
         var ctx = AgentContext.From(ai, r.ProviderId ?? ai.TranslateProviderId);
         if (r.Project != null && r.File != null && r.Language != null && r.SegmentId is { } id)
         {
-            var (p, d, s, m, t, k, prev, next) = await With(r.Project, project =>
+            Projects.DocumentBrief? brief = null;
+            var (p, d, s, m, t, k, rs, prev, next) = await With(r.Project, project =>
             {
-                var doc = project.LoadDocument(FileOf(project, r.File), r.Language);
+                var file = FileOf(project, r.File);
+                brief = project.Brief(file, r.Language);                    // Steckbrief, falls im Editor erstellt
+                var doc = project.LoadDocument(file, r.Language);
                 var all = doc.Segments.ToList();
                 var seg = all.FirstOrDefault(x => x.Id == id) ?? throw new KeyNotFoundException($"Segment {id}");
                 var i = all.IndexOf(seg);
                 return (project, doc, seg, Workflow.Lookup(project, doc, seg), Workflow.Terms(project, doc, seg), Workflow.Knowledge(project, doc, seg),
-                    i > 0 ? all[i - 1].Source : null, i < all.Count - 1 ? all[i + 1].Source : null);
+                    Workflow.Research(project, doc, seg), i > 0 ? all[i - 1].Source : null, i < all.Count - 1 ? all[i + 1].Source : null);
             }, ct);
             return new TranslationResult(await new AiTranslator(ctx).TranslateAsync(s.Source, d.SourceLanguage, d.TargetLanguage, p.Topic, m, t, prev, next,
-                ct: ct, knowledge: k));
+                ct: ct, knowledge: k, brief: brief, research: rs));
         }
         if (r.Text == null || r.SourceLanguage == null || r.TargetLanguage == null)
             throw new ArgumentException("Text und Sprachen angeben (oder Projekt, Datei, Sprache und Segment).");
@@ -532,7 +571,7 @@ public sealed class SententiamService : ISententiam
         try
         {
             model = ai.Get(ai.TranslateProviderId) is { } provider ? ChatModelFactory.Create(provider) : null;
-            search = SearchProviderFactory.Create(ai);
+            search = Privacy.PrivacyGuard.Wrap(SearchProviderFactory.Create(ai));
         }
         catch (Exception ex) when (ex is AiException or ArgumentException) { }
         var context = new ExtensionContext
@@ -551,6 +590,314 @@ public sealed class SententiamService : ISententiam
             }
         return result;
     }
+
+    // ---------- Lektorat und Fehlerbewertung ----------
+
+    public Task<FileContent> ReviewFileAsync(string project, string file, string language, CancellationToken ct = default) => With(project, p =>
+    {
+        var f = FileOf(p, file);
+        var ms = new MemoryStream();
+        ReviewDocx.Export(p.LoadDocument(f, language), ms);
+        return new FileContent(Path.GetFileNameWithoutExtension(f.OriginalName) + "_" + language + "_Pruefung.docx", ms.ToArray());
+    }, ct);
+
+    public Task<ReviewImportResult> ImportReviewAsync(string project, string file, string language, ReviewImportDto review, CancellationToken ct = default) =>
+        With(project, p =>
+        {
+            var f = FileOf(p, file);
+            CheckWrite(p, f.Id, language);
+            var d = p.LoadDocument(f, language);
+            var result = ReviewDocx.Import(new MemoryStream(review.File.Content), d, p, markReviewed: true, markUnchangedReviewed: review.MarkUnchangedReviewed);
+            p.SaveDocument(f, d);
+            _o.DocumentChanged?.Invoke(p, f.Id, language);
+            return result;
+        }, ct);
+
+    public Task<SegmentDto> AcceptChangeAsync(string project, string file, string language, int id, CancellationToken ct = default) =>
+        WithSegment(project, file, language, id, (p, f, d, s) => { TrackChanges.Accept(s); return Dto.Segment(d, s); }, true, ct);
+
+    public Task<SegmentDto> RejectChangeAsync(string project, string file, string language, int id, CancellationToken ct = default) =>
+        WithSegment(project, file, language, id, (p, f, d, s) => { TrackChanges.Reject(s); return Dto.Segment(d, s); }, true, ct);
+
+    public Task<SegmentDto> AddErrorAsync(string project, string file, string language, int id, LqaErrorDto error, CancellationToken ct = default) =>
+        WithSegment(project, file, language, id, (p, f, d, s) =>
+        {
+            if (string.IsNullOrWhiteSpace(error.Category)) throw new ArgumentException("Kategorie fehlt.");
+            (s.Errors ??= new()).Add(new LqaError(error.Category.Trim(), error.Severity, error.Note?.Trim() ?? "", User ?? Environment.UserName, DateTime.UtcNow));
+            return Dto.Segment(d, s);
+        }, true, ct);
+
+    public Task<SegmentDto> RemoveErrorAsync(string project, string file, string language, int id, int index, CancellationToken ct = default) =>
+        WithSegment(project, file, language, id, (p, f, d, s) =>
+        {
+            if (s.Errors == null || index < 0 || index >= s.Errors.Count) throw new KeyNotFoundException($"Fehler {index}");
+            s.Errors.RemoveAt(index);
+            if (s.Errors.Count == 0) s.Errors = null;
+            return Dto.Segment(d, s);
+        }, true, ct);
+
+    public Task<LqaReport> EvaluationAsync(string project, string? file = null, string? language = null, CancellationToken ct = default) => With(project, p =>
+    {
+        var docs = file != null
+            ? (language != null ? [language] : p.LanguagesOf(FileOf(p, file))).Select(l => p.LoadDocument(FileOf(p, file), l)).ToList()
+            : p.Documents().Where(x => language == null || x.Language.Equals(language, StringComparison.OrdinalIgnoreCase))
+                .Select(x => p.LoadDocument(x.File, x.Language)).ToList();
+        return Lqa.Evaluate(docs, p.Lqa);
+    }, ct);
+
+    public Task<FileContent> EvaluationReportAsync(string project, string file, string language, CancellationToken ct = default) => With(project, p =>
+    {
+        var f = FileOf(p, file);
+        var ms = new MemoryStream();
+        Lqa.ExportDocx($"{f.OriginalName} ({language})", [p.LoadDocument(f, language)], p.Lqa, ms);
+        return new FileContent(Path.GetFileNameWithoutExtension(f.OriginalName) + "_" + language + "_Bewertung.docx", ms.ToArray());
+    }, ct);
+
+    public Task<LqaSettings> SetLqaSettingsAsync(string project, LqaSettings settings, CancellationToken ct = default) =>
+        With(project, p => { p.Lqa = settings; p.Save(); return p.Lqa; }, ct);
+
+    // ---------- Zahlen, Pseudoübersetzung, Angebot ----------
+
+    public Task<int> LocalizeNumbersAsync(string project, CancellationToken ct = default) => With(project, p =>
+    {
+        var changed = 0;
+        foreach (var (f, lang) in p.Documents())
+        {
+            ct.ThrowIfCancellationRequested();
+            if (!MayWrite(p, f.Id, lang)) continue;
+            var d = p.LoadDocument(f, lang);
+            var before = changed;
+            foreach (var s in d.Segments.Where(s => !s.Locked && s.Target.Length > 0))
+            {
+                var localized = AutoLocalizer.Localize(s.Source, s.Target, d.SourceLanguage, d.TargetLanguage);
+                if (localized == s.Target) continue;
+                s.Target = localized;
+                s.Modified = DateTime.UtcNow;
+                changed++;
+            }
+            if (changed == before) continue;
+            p.SaveDocument(f, d);
+            _o.DocumentChanged?.Invoke(p, f.Id, lang);
+        }
+        return changed;
+    }, ct);
+
+    public Task<FileContent> PseudoTranslationAsync(string project, string file, string language, CancellationToken ct = default) => With(project, p =>
+    {
+        var f = FileOf(p, file);
+        var d = p.LoadDocument(f, language);
+        foreach (var s in d.Segments.Where(s => !s.Locked)) s.Target = PseudoTranslator.Translate(s.Source);
+        var ms = new MemoryStream();
+        p.ExportTarget(f, d, ms);                                      // nur die Zieldatei, das Projekt bleibt unverändert
+        var target = p.TargetFileName(f, language);
+        return new FileContent(Path.GetFileNameWithoutExtension(target) + "_pseudo" + Path.GetExtension(target), ms.ToArray());
+    }, ct);
+
+    private static QuoteDto Quote(TranslationProject p)
+    {
+        var quotes = p.TargetLanguages.Select(l => QuoteCalculator.Calculate(Analyzer.Analyze(p.AllDocuments(l), p.TmsFor(l)), p.Rates, l)).ToList();
+        var net = quotes.Sum(q => q.Net);
+        var vat = Math.Round(net * p.Rates.VatPercent / 100m, 2);
+        return new QuoteDto(quotes, net, vat, net + vat, p.Rates.Currency, p.Rates.Unit);
+    }
+
+    public Task<QuoteDto> QuoteAsync(string project, RateSettings? rates = null, CancellationToken ct = default) => With(project, p =>
+    {
+        if (rates != null)
+        {
+            p.Rates = rates;
+            p.Save();
+        }
+        return Quote(p);
+    }, ct);
+
+    public Task<FileContent> QuoteDocumentAsync(string project, CancellationToken ct = default) => With(project, p =>
+    {
+        var ms = new MemoryStream();
+        QuoteCalculator.ExportDocx(p.Name, p.SourceLanguage, Quote(p).Quotes, p.Rates, ms);
+        return new FileContent(p.Name + "_Angebot.docx", ms.ToArray());
+    }, ct);
+
+    // ---------- Vorlagen und QA-Profile ----------
+
+    public Task<IReadOnlyList<ProjectTemplate>> TemplatesAsync(CancellationToken ct = default) =>
+        Task.Run<IReadOnlyList<ProjectTemplate>>(ProjectTemplates.Load, ct);
+
+    public Task<ProjectTemplate> SaveTemplateAsync(string project, string name, CancellationToken ct = default) =>
+        With(project, p => ProjectTemplates.SaveFrom(p, name.Trim().Length > 0 ? name : throw new ArgumentException("Name fehlt.")), ct);
+
+    public Task<IReadOnlyList<QaProfile>> QaProfilesAsync(CancellationToken ct = default) => Task.Run<IReadOnlyList<QaProfile>>(QaProfiles.Load, ct);
+
+    public Task<QaProfile> SaveQaProfileAsync(string project, string name, CancellationToken ct = default) => With(project, p =>
+    {
+        if (name.Trim().Length == 0) throw new ArgumentException("Name fehlt.");
+        QaProfiles.Save(name, p.Qa);
+        return QaProfiles.Load().First(x => x.Name == name.Trim());
+    }, ct);
+
+    public Task<QaSettings> ApplyQaProfileAsync(string project, string name, CancellationToken ct = default) => With(project, p =>
+    {
+        var profile = QaProfiles.Load().FirstOrDefault(x => x.Name.Equals(name, StringComparison.CurrentCultureIgnoreCase)) ?? throw new KeyNotFoundException(name);
+        p.Qa = QaProfiles.CloneSettings(profile.Settings);
+        p.Save();
+        return p.Qa;
+    }, ct);
+
+    // ---------- TM-Pflege, Fachbegriffe, alte Übersetzungen ----------
+
+    public Task<TmReplaceResult> ReplaceInTmAsync(string project, TmReplaceDto r, CancellationToken ct = default) => With(project, p =>
+    {
+        if (r.Find.Length == 0) throw new ArgumentException("Suchtext fehlt.");
+        var changes = TmMaintenance.Preview(p.ProjectTm, r.Find, r.Replace, r.InSource, r.InTarget, r.MatchCase, r.Regex, r.WholeWords);
+        if (!r.Preview) foreach (var c in changes) p.ProjectTm.Update(c.Unit.Id, c.Source, c.Target);
+        return new TmReplaceResult(changes.Count, changes.Take(200).ToList());
+    }, ct);
+
+    public Task<TmCleanResult> CleanTmAsync(string project, TmCleanDto r, CancellationToken ct = default) =>
+        With(project, p => TmMaintenance.Clean(p.ProjectTm, r.Duplicates, r.EmptyTargets, r.Identical), ct);
+
+    public Task<IReadOnlyList<InconsistentDto>> InconsistentTmAsync(string project, CancellationToken ct = default) =>
+        With<IReadOnlyList<InconsistentDto>>(project, p => TmMaintenance.Inconsistent(p.ProjectTm).Select(x => new InconsistentDto(x.Source, x.Units)).ToList(), ct);
+
+    /// <summary>Ein Modell für Aufgaben, die ein Sprachmodell brauchen (bei einem MÜ-Dienst fürs Übersetzen: das der Recherche).</summary>
+    private IChatModel LanguageModel()
+    {
+        var ai = _o.Ai();
+        var provider = ai.Get(ai.TranslateProviderId) is { Kind: not AiProviderKind.MachineTranslation } t ? t : ai.Get(ai.ResearchProviderId);
+        return provider == null ? throw new AiException("Kein KI-Zugang eingerichtet (Seite „KI einrichten“).") : ChatModelFactory.Create(provider);
+    }
+
+    public async Task<IReadOnlyList<TermSuggestion>> ExtractTermsAsync(string project, ExtractTermsDto r, CancellationToken ct = default)
+    {
+        var (sentences, candidates, p) = await With(project, p =>
+        {
+            var lang = p.TargetLanguages.FirstOrDefault(l => l.Equals(r.Language, StringComparison.OrdinalIgnoreCase)) ?? throw new KeyNotFoundException(r.Language);
+            var sentences = p.Files.Where(f => p.LanguagesOf(f).Contains(lang)).SelectMany(f => p.LoadDocument(f, lang).Segments)
+                .Where(s => !s.Locked).Select(s => s.Source).ToList();
+            var termbases = p.TermbasesFor(lang);
+            bool Known(string term) => termbases.Any(tb => tb.Lookup(p.SourceLanguage, term, 3)
+                .Any(c => c.Terms.Any(t => Languages.Matches(t.Language, p.SourceLanguage) && string.Equals(t.Text, term, StringComparison.CurrentCultureIgnoreCase))));
+            return (sentences, TermExtractor.Candidates(sentences, p.SourceLanguage, Math.Clamp(r.Max, 10, 300), Known), p);
+        }, ct);
+        if (!r.UseAi) return candidates.Select(c => new TermSuggestion(c.Term, "", c.Count, c.Example)).ToList();
+        return await TermExtractor.RefineAsync(LanguageModel(), candidates, sentences, p.SourceLanguage, r.Language, p.Topic, ct);
+    }
+
+    public async Task<ImportTranslationsResult> ImportTranslationsAsync(string project, ImportTranslationsDto r, CancellationToken ct = default)
+    {
+        var p = _projects.Get(project);
+        var source = r.SourceLanguage ?? p.SourceLanguage;
+        var targets = r.TargetLanguages is { Count: > 0 } t ? t : p.TargetLanguages;
+        var pairing = TranslatedFiles.Pair(r.Files.Select(f => new ImportFile(f.Name, f.Content)).ToList(), source, targets);
+        IChatModel? model = null;
+        if (r.UseAi || r.SuggestTerms) model = LanguageModel();
+        var results = new List<ImportedPairDto>();
+        var accepted = new List<(string Src, string Tgt, string SrcLang, string TgtLang)>();
+        foreach (var pair in pairing.Pairs)
+        {
+            ct.ThrowIfCancellationRequested();
+            var session = TranslatedFiles.Align(pair);
+            if (r.UseAi && model != null && !pair.IsBilingual) await new AiAligner(model).AutoAsync(session, ct);
+            string tmName;
+            int imported;
+            lock (p)
+            {
+                if (!r.Shared)
+                {
+                    tmName = "Projekt-TM";
+                    imported = TranslatedFiles.ImportToTm(session, p.ProjectTm, pair.Source.Name, r.KeepTags, p.Privacy);
+                }
+                else
+                {
+                    var (name, path, _) = TranslatedFiles.SharedDatabase(ResourceKind.Tm, session.SourceLanguage, session.TargetLanguage, p);
+                    tmName = name;
+                    if (p.Tms.FirstOrDefault(x => !x.IsRemote && string.Equals(Path.GetFullPath(x.Location), Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase)) is { } open)
+                        imported = TranslatedFiles.ImportToTm(session, open, pair.Source.Name, r.KeepTags, p.Privacy);
+                    else
+                        using (var tm = new TranslationMemory(path)) imported = TranslatedFiles.ImportToTm(session, tm, pair.Source.Name, r.KeepTags, p.Privacy);
+                }
+            }
+            accepted.AddRange(session.Accepted.Select(a => (a.SourceText, a.TargetText, session.SourceLanguage, session.TargetLanguage)));
+            results.Add(new ImportedPairDto(pair.Source.Name, pair.Target?.Name, pair.SourceLanguage, pair.TargetLanguage, pair.How, imported,
+                session.Pairs.Count(x => !(x.Accepted && x.IsComplete)), tmName));
+        }
+        var terms = new List<TermSuggestion>();
+        if (r.SuggestTerms && model != null)
+            foreach (var g in accepted.GroupBy(a => (a.SrcLang, a.TgtLang)))
+                terms.AddRange(await new TermSuggester(model).SuggestAsync(g.Select(a => (a.Src, a.Tgt)).ToList(), g.Key.SrcLang, g.Key.TgtLang, p.Topic, ct: ct));
+        return new ImportTranslationsResult(results, pairing.Unpaired.Select(f => f.Name).ToList(), terms);
+    }
+
+    // ---------- Datenschutz ----------
+
+    public Task<PrivacySettings> SetPrivacyAsync(string project, PrivacySettings settings, CancellationToken ct = default) =>
+        With(project, p => { p.Privacy = settings; p.Save(); return p.Privacy; }, ct);
+
+    public Task<IReadOnlyList<DetectedDto>> DetectSensitiveAsync(string project, CancellationToken ct = default) =>
+        With<IReadOnlyList<DetectedDto>>(project, p =>
+        {
+            var texts = p.Documents().SelectMany(d => p.LoadDocument(d.File, d.Language).Segments).SelectMany(s => new[] { s.Source, s.Target })
+                .Where(t => t.Length > 0).Distinct();
+            var settings = p.Privacy.Clone();
+            settings.Enabled = true;
+            return PrivacyScanner.Detect(texts, settings).Select(x => new DetectedDto(x.Kind, x.Value, x.Count)).ToList();
+        }, ct);
+
+    // ---------- Team: Arbeitsschritte ----------
+
+    public Task<IReadOnlyList<FileStepDto>> WorkflowAsync(string project, CancellationToken ct = default) =>
+        With<IReadOnlyList<FileStepDto>>(project, p => p.Files.SelectMany(f => p.LanguagesOf(f)
+            .Select(l => new FileStepDto(f.Id, f.OriginalName, TeamWorkflow.StepOf(p, f.Id, l)))).ToList(), ct);
+
+    public Task<FileStep> SetWorkflowAsync(string project, string file, string language, WorkflowUpdate update, CancellationToken ct = default) =>
+        With(project, p => TeamWorkflow.Set(p, FileOf(p, file).Id, language, update, User ?? "", User == null || IsAdmin), ct);
+
+    // ---------- Automatisierung, Sprachdaten, Diktat ----------
+
+    public async Task<IReadOnlyList<WatchResult>> ProcessFolderAsync(string project, WatchRunDto r, CancellationToken ct = default)
+    {
+        if (User != null && !IsAdmin) throw new UnauthorizedAccessException("Eingangsordner verarbeitet nur die Verwaltung.");
+        if (!Directory.Exists(r.Folder)) throw new KeyNotFoundException(r.Folder);
+        var p = _projects.Get(project);
+        var rule = new WatchRule
+        {
+            Folder = r.Folder, ProjectFolder = p.Folder, Pretranslate = r.Pretranslate, AiTranslate = r.AiTranslate,
+            ExportTargets = r.ExportTargets, OutputFolder = r.OutputFolder ?? "",
+        };
+        AgentContext? ai = null;
+        if (r.AiTranslate) ai = AgentContext.From(_o.Ai(), _o.Ai().TranslateProviderId);
+        var results = new List<WatchResult>();
+        foreach (var file in WatchProcessor.PendingFiles(rule, TimeSpan.FromSeconds(1)))
+        {
+            ct.ThrowIfCancellationRequested();
+            // unter der Projektsperre, auf einem eigenen Thread (eine Sperre darf nicht über ein await reichen)
+            results.Add(await Task.Run(() =>
+            {
+                lock (p) return WatchProcessor.ProcessAsync(rule, file, p, ai, ct: ct).GetAwaiter().GetResult();
+            }, ct));
+        }
+        return results;
+    }
+
+    public Task<IReadOnlyList<LanguageDataSet>> LanguageDataAsync(string sourceLanguage, string targetLanguage, CancellationToken ct = default) =>
+        Task.Run<IReadOnlyList<LanguageDataSet>>(async () => await LanguageData.SearchAsync(sourceLanguage, targetLanguage, ct), ct);
+
+    public async Task<ProjectDto> InstallLanguageDataAsync(string project, LanguageDataInstallDto r, CancellationToken ct = default)
+    {
+        if (User != null && !IsAdmin) throw new UnauthorizedAccessException("Sprachdaten lädt nur die Verwaltung.");
+        var set = (await LanguageData.SearchAsync(r.SourceLanguage, r.TargetLanguage, ct)).FirstOrDefault(d => d.Id == r.Id) ?? throw new KeyNotFoundException(r.Id);
+        var result = await LanguageData.InstallAsync(set, r.SourceLanguage, r.TargetLanguage, LanguageData.DefaultFolder, ct: ct);
+        return await With(project, p =>
+        {
+            var reference = new ResourceRef { Kind = set.Kind, Location = result.Path, WriteBack = false, Languages = [r.SourceLanguage, r.TargetLanguage] };
+            if (r.ForLanguages) p.AttachForLanguages(reference);
+            else p.Attach(reference);
+            return Dto.Project(p);
+        }, ct);
+    }
+
+    public Task<string> TranscribeAsync(TranscribeDto r, CancellationToken ct = default) =>
+        Transcriber.TranscribeAsync(r.Audio.Content, r.Language, _o.Ai().Transcription, ct);
 
     // ---------- Hilfen ----------
 
@@ -574,6 +921,7 @@ public sealed class SententiamService : ISententiam
         Func<TranslationProject, ProjectFile, BilingualDocument, Segment, T> action, bool save, CancellationToken ct) => With(project, p =>
     {
         var f = FileOf(p, file);
+        if (save) CheckWrite(p, f.Id, language);
         var d = p.LoadDocument(f, language);
         var s = d.Segments.FirstOrDefault(x => x.Id == id) ?? throw new KeyNotFoundException($"Segment {id}");
         var result = action(p, f, d, s);

@@ -5,6 +5,7 @@ using UglyToad.PdfPig;
 using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.Core;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.WordExtractor;
+using UglyToad.PdfPig.Graphics.Operations;
 using UglyToad.PdfPig.Writer;
 
 namespace SententiamConverte.Core.Tests;
@@ -12,6 +13,72 @@ namespace SententiamConverte.Core.Tests;
 /// <summary>PDF wird als PDF im Layout des Originals zurückgeschrieben: Grafiken bleiben, Text steht an seiner Stelle.</summary>
 public class PdfExportTests
 {
+    /// <summary>
+    /// Wie „Microsoft: Print To PDF“: am Anfang eine gespiegelte Umrechnung ohne q/Q, der Text mit Gegen-Spiegelung im Tm.
+    /// Von Hand geschrieben, weil der PDF-Baukasten solche Seiten nicht erzeugt.
+    /// </summary>
+    private static byte[] FlippedSample()
+    {
+        const string content = "0.75 0 0 -0.75 0 841.92 cm\nq\n0 0 1 rg\n10 10 100 20 re f\nQ\nBT\n/F1 16 Tf\n1 0 0 -1 60 100 Tm\n(Guten Tag) Tj\nET\n";
+        var objects = new[]
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.32 841.92] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+            $"<< /Length {content.Length} >>\nstream\n{content}endstream",
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        };
+        var sb = new System.Text.StringBuilder("%PDF-1.4\n");
+        var offsets = new List<int>();
+        for (var i = 0; i < objects.Length; i++)
+        {
+            offsets.Add(sb.Length);
+            sb.Append($"{i + 1} 0 obj\n{objects[i]}\nendobj\n");
+        }
+        var xref = sb.Length;
+        sb.Append($"xref\n0 {objects.Length + 1}\n0000000000 65535 f \n");
+        foreach (var o in offsets) sb.Append($"{o:D10} 00000 n \n");
+        sb.Append($"trailer\n<< /Size {objects.Length + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n");
+        return System.Text.Encoding.ASCII.GetBytes(sb.ToString());
+    }
+
+    [Fact]
+    public void TextStaysUprightWhenThePageStartsWithAFlippedTransform()
+    {
+        var pdf = FlippedSample();
+        var doc = new PdfFilter().Read(new MemoryStream(pdf), "flip.pdf", "de-DE", "en-GB", new Segmenter("de-DE"));
+        var seg = doc.Paragraphs.SelectMany(p => p.Segments).Single(s => s.Source.Contains("Guten Tag"));
+        seg.Target = "Good day";
+        using var output = new MemoryStream();
+        PdfRewriter.Write(doc, new MemoryStream(pdf), output);
+
+        using var result = PdfDocument.Open(output.ToArray());
+        var page = result.GetPage(1);
+        var letters = page.Letters.Where(l => "Good day".Contains(l.Value) && l.Value != " ").ToList();
+        Assert.Equal("Goodday", string.Concat(letters.Select(l => l.Value)));
+        Assert.All(letters, l => Assert.Equal(TextOrientation.Horizontal, l.TextOrientation));       // nicht auf dem Kopf
+        Assert.InRange(letters[0].StartBaseLine.Y, 750, 780);                                         // oben, wie das Original (842 − 0,75·100)
+        Assert.DoesNotContain(page.Letters, l => l.Value == "T");                                      // „Guten Tag“ entfernt
+        Assert.NotEmpty(page.ExperimentalAccess.Paths);                                                // blaue Fläche bleibt
+    }
+
+    [Fact]
+    public void CopiedContentIsIsolatedAndBalanced()
+    {
+        IGraphicsStateOperation cm = new UglyToad.PdfPig.Graphics.Operations.SpecialGraphicsState.ModifyCurrentTransformationMatrix([0.75, 0, 0, -0.75, 0, 842]);
+        string Kinds(IEnumerable<IGraphicsStateOperation> ops) => string.Join(" ", ops.Select(o => o switch
+        {
+            UglyToad.PdfPig.Graphics.Operations.SpecialGraphicsState.Push => "q",
+            UglyToad.PdfPig.Graphics.Operations.SpecialGraphicsState.Pop => "Q",
+            _ => "cm",
+        }));
+        var push = UglyToad.PdfPig.Graphics.Operations.SpecialGraphicsState.Push.Value;
+        var pop = UglyToad.PdfPig.Graphics.Operations.SpecialGraphicsState.Pop.Value;
+        Assert.Equal("q cm q Q Q", Kinds(PdfRewriter.Isolated([cm, push, pop])));
+        Assert.Equal("q q cm Q Q", Kinds(PdfRewriter.Isolated([push, cm])));                          // offen gebliebenes q
+        Assert.Equal("q cm Q", Kinds(PdfRewriter.Isolated([pop, cm])));                               // überzähliges Q
+    }
+
     private static readonly byte[] Png = Convert.FromBase64String(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==");
 
@@ -106,6 +173,48 @@ public class PdfExportTests
         var prose = Assert.Single(sources, s => s.StartsWith("Dieses Dokument"));
         Assert.EndsWith("im neuen Jahr.", prose);                       // drei Zeilen, ein Absatz
         Assert.Contains(TagText.Start(1) + "wichtigen" + TagText.End(1), prose);
+    }
+
+    /// <summary>
+    /// Die Ersatzschrift (Noto) läuft breiter als z. B. Helvetica/Arial: Ohne Abgleich wirkte die Übersetzung bei gleicher
+    /// Punktgröße größer und bräche anders um. Unveränderter Text muss etwa so breit stehen wie im Original.
+    /// </summary>
+    [Fact]
+    public void TheReplacementFontLooksAsLargeAsTheOriginal()
+    {
+        var b = new PdfDocumentBuilder();
+        var pb = b.AddPage(595, 842);
+        var helvetica = b.AddStandard14Font(UglyToad.PdfPig.Fonts.Standard14Fonts.Standard14Font.Helvetica);
+        string[] lines =
+        [
+            "Softwareentwicklung und Architektur mit C# und .NET",
+            "Datenbanken, Schnittstellen und Automatisierung",
+            "Konstruktion und Produktionsplanung im Betrieb",
+            "Projektarbeit mit Verantwortung und Terminen",
+            "Webanwendungen mit JavaScript und TypeScript",
+        ];
+        for (var i = 0; i < lines.Length; i++) pb.AddText("• " + lines[i], 10, new PdfPoint(50, 760 - i * 40), helvetica);   // Aufzählung: je ein Absatz
+        var original = b.Build();
+        var doc = Read(original);
+        foreach (var s in doc.Segments) s.Target = s.Source;                          // Text bleibt, nur die Schrift wechselt
+        var page = Export(doc, original, out var result);
+        using var _ = result;
+        using var source = PdfDocument.Open(original);
+
+        static double Width(Page p, string line)
+        {
+            var key = line.Replace(" ", "");
+            var letters = p.Letters.Where(l => !string.IsNullOrWhiteSpace(l.Value)).GroupBy(l => Math.Round(l.StartBaseLine.Y))
+                .Select(g => g.OrderBy(l => l.StartBaseLine.X).SkipWhile(l => l.Value == "•").ToList())             // ohne Aufzählungszeichen
+                .First(g => string.Concat(g.Select(l => l.Value)).StartsWith(key));
+            return letters[^1].EndBaseLine.X - letters[0].StartBaseLine.X;
+        }
+        foreach (var line in lines)
+        {
+            var ratio = Width(page, line) / Width(source.GetPage(1), line);
+            Assert.True(ratio is >= 0.97 and <= 1.03, $"{line}: {Width(page, line):0.0} statt {Width(source.GetPage(1), line):0.0} | "
+                + string.Join(" / ", page.Letters.GroupBy(l => Math.Round(l.StartBaseLine.Y)).Select(g => $"{g.Key}:{g.First().PointSize:0.0}:{string.Concat(g.Select(l => l.Value))}")));
+        }
     }
 
     [Fact]

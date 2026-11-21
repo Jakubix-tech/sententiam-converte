@@ -147,7 +147,7 @@ public class EditorUiTests
             var vm = new MainViewModel();
             var window = new MainWindow { DataContext = vm, Width = 1400, Height = 900 };
             window.Show();
-            vm.SelectedTab = 5;
+            vm.SelectedTab = MainViewModel.AiTab;
             Dispatcher.UIThread.RunJobs();
 
             var setup = vm.Settings.Setup;
@@ -165,10 +165,34 @@ public class EditorUiTests
             Assert.Equal(provider.Id, AppServices.Ai.ResearchProviderId);
             Assert.Equal(provider.Id, AppServices.Ai.EvaluateProviderId);
             Assert.True(provider.IsLocal);
-            window.GetVisualDescendants().OfType<Avalonia.Controls.TextBlock>().First(t => t.Text == "KI einrichten")
+            window.GetVisualDescendants().OfType<Avalonia.Controls.TextBlock>().First(t => t.Text == "Lokal auf diesem Rechner")
                 .FindAncestorOfType<Avalonia.Controls.Border>()!.BringIntoView();
             Dispatcher.UIThread.RunJobs();
             window.CaptureRenderedFrame()?.Save(Path.Combine(TestSetup.ScreenshotDir, "26-ki-einrichten.png"));
+
+            // Kostenlos, mehrere Modelle gleichzeitig: zwei Modelle des Prüfservers, das dritte antwortet nicht
+            setup.PoolCandidates.Clear();
+            foreach (var (model, url) in new[] { ("modell-a", $"http://127.0.0.1:{port}/v1"), ("modell-b", $"http://127.0.0.1:{port}/v1"), ("tot", "http://127.0.0.1:9/v1") })
+                setup.PoolCandidates.Add(new PoolCandidateViewModel(new PoolCandidate("Prüfdienst",
+                    new AiProviderConfig { Name = "Prüfdienst: " + model, Kind = AiProviderKind.OpenAiCompatible, BaseUrl = url, Model = model }, true)));
+            await Run(setup.UseFreePoolCommand);
+            Assert.StartsWith("✔ Verbund aus 2 Modellen eingerichtet", setup.PoolStatus);
+            Assert.Contains("Nicht aufgenommen (keine Antwort): tot", setup.PoolStatus);
+            var pool = AppServices.Ai.Get(AppServices.Ai.TranslateProviderId)!;
+            Assert.Equal(AiProviderKind.Pool, pool.Kind);
+            Assert.Equal(["modell-a", "modell-b"], pool.Members!.Select(m => m.Model));
+            Assert.Equal(pool.Id, AppServices.Ai.ResearchProviderId);
+            Assert.StartsWith("✔", setup.PoolCandidates[0].Result);
+            Assert.StartsWith("✖", setup.PoolCandidates[2].Result);
+            // ein Auswahlfeld ohne Auswahl (-1) darf die Art eines Zugangs nicht verändern
+            var guarded = new ProviderViewModel(new AiProviderConfig { Kind = AiProviderKind.BuiltIn }) { KindIndex = -1 };
+            Assert.Equal(AiProviderKind.BuiltIn, guarded.Config.Kind);
+            await Run(setup.UseFreePoolCommand);                                          // erneut: ersetzt statt verdoppelt
+            Assert.Single(AppServices.Ai.Providers, p => p.Kind == AiProviderKind.Pool);
+            window.GetVisualDescendants().OfType<Avalonia.Controls.TextBlock>().First(t => t.Text == "Kostenlos – mehrere Modelle gleichzeitig")
+                .FindAncestorOfType<Avalonia.Controls.Border>()!.BringIntoView();
+            Dispatcher.UIThread.RunJobs();
+            window.CaptureRenderedFrame()?.Save(Path.Combine(TestSetup.ScreenshotDir, "33-ki-verbund.png"));
         }
         finally
         {
@@ -187,7 +211,7 @@ public class EditorUiTests
             // wie bei einer neuen Installation: die eingebaute KI ist gewählt, aber noch nicht heruntergeladen
             var builtIn = AiSettings.BuiltInPreset();
             AppServices.Ai = new AiSettings { Providers = [builtIn], TranslateProviderId = builtIn.Id };
-            BuiltInAi.Folder = Path.Combine(Path.GetTempPath(), "sc-ki-" + Guid.NewGuid().ToString("N")[..8]);
+            BuiltInAi.Folder = Path.Combine(TestSetup.Home, "ki-" + Guid.NewGuid().ToString("N")[..8]);
 
             var platform = new FakePlatform();
             platform.FilesToPick.Add(("anleitung.docx", UiFlowTests.SampleDocx()));
@@ -213,7 +237,7 @@ public class EditorUiTests
             // „Andere KI oder Ordner …“ führt zu „KI einrichten“ mit der Karte für die eingebaute KI
             await Run(vm.Editor.OpenAiSettingsCommand);
             await Pump(200);
-            Assert.Equal(5, vm.SelectedTab);
+            Assert.Equal(MainViewModel.AiTab, vm.SelectedTab);
             var setup = vm.Settings.Setup;
             Assert.True(setup.IsBuiltInSupported);
             Assert.Equal("gemma-4-e2b", setup.SelectedBuiltInModel!.Id);

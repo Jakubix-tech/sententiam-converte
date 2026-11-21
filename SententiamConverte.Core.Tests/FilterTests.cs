@@ -195,4 +195,83 @@ public class FilterTests
         Assert.Equal("Guten Tag.⟨1/⟩Wie geht's?", doc.Segments.First().Source);
         Assert.Equal("1\n00:00:01,000 --> 00:00:03,000\nGood day.\nHow are you?\n\n2\n00:00:04,000 --> 00:00:05,000\nThanks.\n", Utf8(output));
     }
+
+    [Fact]
+    public void Dita()
+    {
+        const string topic = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE task PUBLIC "-//OASIS//DTD DITA Task//EN" "task.dtd">
+            <task id="pumpe" xml:lang="de-DE">
+              <title>Pumpe <ph>einschalten</ph></title>
+              <shortdesc>So starten Sie die Pumpe.</shortdesc>
+              <taskbody>
+                <prereq>Der Tank ist gefüllt.</prereq>
+                <steps>
+                  <step><cmd>Klicken Sie auf <uicontrol>Start</uicontrol>.</cmd>
+                    <info>Die Anzeige wird grün. Siehe <xref href="wartung.dita">Wartung</xref>.</info></step>
+                </steps>
+                <example>
+                  <codeblock>pumpe --start  # nicht übersetzen</codeblock>
+                  <p translate="no">Markenname</p>
+                  <note>Hinweis vorab:<ul><li>Erster Punkt</li></ul></note>
+                  <lines>Zeile eins
+            Zeile zwei</lines>
+                  <fig><image href="pumpe.png"><alt>Die Pumpe</alt></image></fig>
+                  <p>Mit <codeph>--start</codeph> und <image href="i.png" alt="Symbol"/> starten.</p>
+                </example>
+              </taskbody>
+            </task>
+            """;
+        var filter = new DitaFilter();
+        var (doc, output) = RoundTrip(filter, Encoding.UTF8.GetBytes(topic), "pumpe.dita", s => s
+            .Replace("Pumpe ", "Switch on ").Replace("einschalten", "the pump").Replace("So starten Sie die Pumpe.", "How to start the pump.")
+            .Replace("Der Tank ist gefüllt.", "The tank is full.").Replace("Klicken Sie auf ", "Click ").Replace("Start", "Start")
+            .Replace("Die Anzeige wird grün.", "The display turns green.").Replace("Siehe ", "See ").Replace("Wartung", "Maintenance")
+            .Replace("Hinweis vorab:", "Note first:").Replace("Erster Punkt", "First item").Replace("Zeile eins", "Line one")
+            .Replace("Zeile zwei", "Line two").Replace("Die Pumpe", "The pump").Replace("Mit ", "Use ").Replace(" und ", " and ")
+            .Replace(" starten.", " to start.").Replace("Symbol", "Icon"));
+
+        Assert.DoesNotContain(doc.Segments, s => s.Source.Contains("nicht übersetzen") || s.Source.Contains("Markenname") || s.Source.Contains("--start"));
+        Assert.Contains(doc.Segments, s => s.Source == "Hinweis vorab:");                   // Text neben einer Liste geht nicht verloren
+        Assert.Contains(doc.Paragraphs, p => p.Context == "task/title");
+        Assert.Equal("pumpe.dita", filter.TargetFileName("pumpe.dita", "en-GB"));           // Verweise zwischen Dateien bleiben gültig
+
+        var result = Utf8(output);
+        var xml = System.Xml.Linq.XDocument.Parse(result);                                 // wohlgeformt
+        Assert.Contains("<!DOCTYPE task PUBLIC \"-//OASIS//DTD DITA Task//EN\" \"task.dtd\">", result);
+        Assert.Equal("en-GB", xml.Root!.Attribute(System.Xml.Linq.XNamespace.Xml + "lang")!.Value);
+        Assert.Contains("<title>Switch on <ph>the pump</ph></title>", result);
+        Assert.Contains("<cmd>Click <uicontrol>Start</uicontrol>.</cmd>", result);
+        Assert.Contains("See <xref href=\"wartung.dita\">Maintenance</xref>.", result);
+        Assert.Contains("<codeblock>pumpe --start  # nicht übersetzen</codeblock>", result);
+        Assert.Contains("<p translate=\"no\">Markenname</p>", result);
+        Assert.Contains("<note>Note first:<ul><li>First item</li></ul></note>", result);
+        Assert.Contains("<lines>Line one\nLine two</lines>", result.Replace("\r\n", "\n"));
+        Assert.Contains("<alt>The pump</alt>", result);
+        Assert.Contains("<p>Use <codeph>--start</codeph> and <image href=\"i.png\" alt=\"Icon\" /> to start.</p>", result);
+    }
+
+    [Fact]
+    public void DitaMap()
+    {
+        const string map = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE map PUBLIC "-//OASIS//DTD DITA Map//EN" "map.dtd">
+            <map xml:lang="de-DE">
+              <title>Handbuch</title>
+              <topicref href="pumpe.dita" navtitle="Pumpe einschalten">
+                <topicmeta><navtitle>Pumpe einschalten</navtitle></topicmeta>
+              </topicref>
+            </map>
+            """;
+        var (doc, output) = RoundTrip(new DitaFilter(), Encoding.UTF8.GetBytes(map), "handbuch.ditamap", s => s
+            .Replace("Handbuch", "Manual").Replace("Pumpe einschalten", "Switch on the pump"));
+        Assert.Equal(3, doc.Segments.Count());
+        var result = Utf8(output);
+        Assert.Contains("<title>Manual</title>", result);
+        Assert.Contains("href=\"pumpe.dita\" navtitle=\"Switch on the pump\"", result);
+        Assert.Contains("<navtitle>Switch on the pump</navtitle>", result);
+        Assert.Same(FileFilters.ForFile("x.ditamap"), FileFilters.ForFile("y.dita"));
+    }
 }

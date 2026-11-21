@@ -44,6 +44,9 @@ public partial class MainView : UserControl, IPlatformServices
         e.Handled = true;
     }
 
+    /// <summary>Nach der Wahl im Umschalter (Statusleiste) die Liste schließen.</summary>
+    private void OnProjectPicked(object? sender, RoutedEventArgs e) => ProjectSwitcher.Flyout?.Hide();
+
     private IStorageProvider Storage => TopLevel.GetTopLevel(this)!.StorageProvider;
 
     public async Task<IReadOnlyList<PickedFile>> PickFilesAsync(string title, IReadOnlyList<string> patterns, bool multiple)

@@ -210,7 +210,7 @@ public partial class ExtensionsViewModel : ViewModelBase
         try
         {
             model = ai.Get(ai.TranslateProviderId) is { } provider ? ChatModelFactory.Create(provider) : null;
-            search = SearchProviderFactory.Create(ai);
+            search = Core.Privacy.PrivacyGuard.Wrap(SearchProviderFactory.Create(ai));
         }
         catch (Exception ex) when (ex is AiException or ArgumentException or InvalidOperationException) { }
 

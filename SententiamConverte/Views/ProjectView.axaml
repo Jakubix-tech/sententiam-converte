@@ -2,7 +2,9 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:l="using:SententiamConverte.Services"
              xmlns:vm="using:SententiamConverte.ViewModels"
+             xmlns:c="using:SententiamConverte.Controls"
              xmlns:remote="using:SententiamConverte.Core.Remote"
+             xmlns:views="using:SententiamConverte.Views"
              x:Class="SententiamConverte.Views.ProjectView"
              x:DataType="vm:MainViewModel">
     <ScrollViewer>
@@ -15,7 +17,52 @@
                         ToolTip.Tip="{l:T 'Paket mit zweisprachigen Dateien und TMs als neues Projekt übernehmen'}" />
                 <Button Content="{l:T 'Gemeinsames Projekt (Team) …'}" Command="{Binding BeginSharedCommand}" Margin="0,0,8,8"
                         ToolTip.Tip="{l:T 'Projekt auf dem Teamserver öffnen – mehrere Personen bearbeiten gleichzeitig dieselben Dateien'}" />
+                <Button Content="{l:T 'Alte Übersetzungen übernehmen …'}" Command="{Binding OpenImportTranslationsCommand}" Margin="0,0,8,8"
+                        ToolTip.Tip="{l:T 'Original und Übersetzung schon vorhanden? Ins TM übernehmen und Fachbegriffe gewinnen'}" />
+                <Button Content="{l:T 'Erste Schritte'}" Command="{Binding Start.ShowCommand}" IsVisible="{Binding !Start.IsVisible}" Margin="0,0,8,8" />
             </WrapPanel>
+
+            <!-- Anleitung für neue Benutzer: KI, Projekt, alte Übersetzungen, übersetzen -->
+            <views:GettingStartedPanel DataContext="{Binding Start}" IsVisible="{Binding IsVisible}" />
+
+            <!-- Meldung: dem Projekt fehlen gemeinsame Datenbanken -->
+            <Border IsVisible="{Binding DatabaseHint.Length}" Padding="12" CornerRadius="6" Background="#FFF7E6" BorderBrush="#F0B429" BorderThickness="1">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="{Binding DatabaseHint, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" Foreground="#5C3D00" />
+                    <WrapPanel>
+                        <Button Content="{l:T 'Empfohlene anlegen'}" Command="{Binding CreateRecommendedDatabasesCommand}" Classes="accent" Margin="0,0,8,4" />
+                        <Button Content="{l:T 'Künftig immer automatisch'}" Command="{Binding AlwaysCreateDatabasesCommand}" Margin="0,0,8,4" />
+                        <Button Content="{l:T 'Empfehlungen und Pfade ansehen'}" Command="{Binding ShowDatabasesCommand}" Margin="0,0,8,4" />
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
+            <views:PrivacyPanel DataContext="{Binding Privacy}" />
+
+            <!-- Hilfsmittel, die zum Projekt passen -->
+            <Border Classes="card" IsVisible="{Binding Tools.HasSuggestions}">
+                <StackPanel Spacing="8">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="{l:T 'Hilfsmittel für dieses Projekt'}" Classes="h2" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Content="{l:T 'Alle Hilfsmittel …'}" Command="{Binding ShowToolsCommand}" />
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding Tools.Suggestions}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ToolRow">
+                                <Button Command="{Binding Owner.OpenCommand}" CommandParameter="{Binding}" ToolTip.Tip="{Binding Description}" Margin="0,0,8,6">
+                                    <StackPanel Spacing="1">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding Reason}" Classes="muted" FontSize="11" />
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
 
             <Border IsVisible="{Binding ShowShared}" Classes="card">
                 <StackPanel Spacing="8">
@@ -47,16 +94,21 @@
             <Border IsVisible="{Binding ShowNewProject}" Classes="card">
                 <StackPanel Spacing="8">
                     <TextBlock Text="{l:T 'Neues Projekt'}" Classes="h2" />
+                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasTemplates}">
+                        <TextBlock Text="{l:T 'Vorlage'}" VerticalAlignment="Center" />
+                        <ComboBox ItemsSource="{Binding Templates}" SelectedItem="{Binding NewTemplate}" MinWidth="260" PlaceholderText="{l:T '(ohne Vorlage)'}" />
+                        <Button Content="{l:T 'Vorlage löschen'}" Command="{Binding DeleteTemplateCommand}" IsVisible="{Binding NewTemplate, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    </StackPanel>
                     <TextBlock Text="{l:T 'Name'}" />
                     <TextBox Text="{Binding NewName}" PlaceholderText="{l:T 'z. B. Betriebsanleitung Pumpe P-200'}" />
                     <Grid ColumnDefinitions="*,12,*">
                         <StackPanel Spacing="4">
                             <TextBlock Text="{l:T 'Ausgangssprache'}" />
-                            <AutoCompleteBox Text="{Binding NewSource}" ItemsSource="{Binding LanguageCodes}" FilterMode="StartsWith" />
+                            <c:LanguagePicker Value="{Binding NewSource}" />
                         </StackPanel>
                         <StackPanel Grid.Column="2" Spacing="4">
-                            <TextBlock Text="{l:T 'Zielsprachen (mit Komma getrennt)'}" />
-                            <TextBox Text="{Binding NewTargets}" PlaceholderText="{l:T 'en-GB, pl-PL'}" />
+                            <TextBlock Text="{l:T 'Zielsprachen'}" />
+                            <c:LanguagePicker Value="{Binding NewTargets}" Multiple="True" />
                         </StackPanel>
                     </Grid>
                     <TextBlock Text="{l:T 'Fachgebiet / Thema (für TM-Kontext und KI-Agenten)'}" />
@@ -72,24 +124,35 @@
                         <Button Content="{l:T 'Abbrechen'}" Command="{Binding CancelNewProjectCommand}" />
                     </StackPanel>
                     <TextBlock Classes="muted" TextWrapping="Wrap" FontSize="12"
-                               Text="{l:T 'Gängige Sprachcodes: de-DE, de-AT, de-CH, en-GB, en-US, pl-PL, fr-FR, it-IT, es-ES, nl-NL, cs-CZ, uk-UA …'}" />
+                               Text="{l:T 'Sprachen auswählen: Namen oder Code eintippen (z. B. „Polnisch“ oder „pl“) und aus der Liste wählen; nicht aufgeführte Sprachen gehen auch als Code (z. B. „eu“).'}" />
                 </StackPanel>
             </Border>
 
-            <!-- Zuletzt geöffnet -->
-            <Border Classes="card" IsVisible="{Binding !HasProject}">
-                <StackPanel Spacing="6">
-                <TextBlock Text="{l:T 'Zuletzt geöffnet'}" Classes="h2" />
-                <ItemsControl ItemsSource="{Binding RecentProjects}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="x:String">
-                            <Button Content="{Binding}" Margin="0,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                                    Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).OpenProjectCommand}"
-                                    CommandParameter="{Binding}" />
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-                </StackPanel>
+            <!-- Zuletzt geöffnet bzw. (bei offenem Projekt, zugeklappt) die anderen Projekte: ein Klick schaltet um -->
+            <Border Classes="card" IsVisible="{Binding HasOtherProjects}">
+                <Expander IsExpanded="{Binding !HasProject, Mode=OneWay}" HorizontalAlignment="Stretch" Padding="0,8,0,0">
+                    <Expander.Header>
+                        <TextBlock Text="{Binding RecentTitle, Converter={x:Static l:L.Text}}" Classes="h2" />
+                    </Expander.Header>
+                    <ItemsControl ItemsSource="{Binding OtherProjects}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:RecentProjectRow">
+                                <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+                                    <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="10,6"
+                                            Command="{Binding Owner.SwitchProjectCommand}" CommandParameter="{Binding Folder}">
+                                        <StackPanel Spacing="1">
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding Details}" Classes="muted" FontSize="12" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Grid.Column="1" Content="✕" Margin="6,0,0,0" VerticalAlignment="Stretch" Padding="10,0"
+                                            Command="{Binding Owner.ForgetProjectCommand}" CommandParameter="{Binding Folder}"
+                                            ToolTip.Tip="{l:T 'Aus der Liste nehmen – der Projektordner bleibt, wie er ist'}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Expander>
             </Border>
 
             <!-- Offenes Projekt -->
@@ -123,8 +186,16 @@
                 <WrapPanel>
                     <TextBlock Text="{l:T 'Fachquellen für die Agenten:'}" VerticalAlignment="Center" Margin="0,0,8,4" />
                     <ComboBox ItemsSource="{Binding ProfileNames}" SelectedItem="{Binding ProjectProfile}" MinWidth="200" Margin="0,0,16,4" />
-                    <CheckBox Content="{l:T 'Kontexttreffer (101 %) beim Vorübersetzen bestätigen'}" IsChecked="{Binding ConfirmContextMatches}" Margin="0,0,0,4"
+                    <CheckBox Content="{l:T 'Kontexttreffer (101 %) beim Vorübersetzen bestätigen'}" IsChecked="{Binding ConfirmContextMatches}" Margin="0,0,16,4"
                               ToolTip.Tip="{l:T 'Gleicher Satz im gleichen Zusammenhang (vorheriger Satz bzw. gleiche ID) wie im TM'}" />
+                    <CheckBox Content="{l:T 'Zahlen und Datum automatisch anpassen'}" IsChecked="{Binding AutoLocalize}" Margin="0,0,0,4"
+                              ToolTip.Tip="{l:T 'TM-Treffer und KI-Übersetzungen schreiben Zahlen und Datum in der Form der Zielsprache (1.234,5 → 1,234.5; 12.03.2024 → 12/03/2024)'}" />
+                </WrapPanel>
+                <WrapPanel>
+                    <TextBlock Text="{l:T 'Als Vorlage für neue Projekte:'}" VerticalAlignment="Center" Margin="0,0,8,4" />
+                    <TextBox Text="{Binding TemplateName}" PlaceholderText="{l:T 'z. B. Kunde Müller GmbH – Recht'}" Width="260" Margin="0,0,8,4" />
+                    <Button Content="{l:T 'Speichern'}" Command="{Binding SaveAsTemplateCommand}" Margin="0,0,8,4"
+                            ToolTip.Tip="{l:T 'Sprachen, Fachgebiet, Fachquellen, QA, Datenschutz, Preise, Fehlerbewertung und die angebundenen gemeinsamen Datenbanken als Vorlage merken'}" />
                 </WrapPanel>
 
                 <WrapPanel>
@@ -132,6 +203,14 @@
                     <Button Content="{l:T 'Vorübersetzen (TM)'}" Command="{Binding PretranslateCommand}" Margin="0,0,8,8" />
                     <Button Content="{l:T 'Analyse'}" Command="{Binding AnalyzeCommand}" Margin="0,0,8,8" />
                     <Button Content="{l:T 'QA alle Dateien'}" Command="{Binding RunQaAllCommand}" Margin="0,0,8,8" />
+                    <Button Content="{l:T 'Zahlen und Datum anpassen'}" Command="{Binding LocalizeNumbersCommand}" Margin="0,0,8,8"
+                            ToolTip.Tip="{l:T 'In allen Dateien Zahlen und Datum, die noch im Format der Ausgangssprache stehen, in die Form der Zielsprache bringen'}" />
+                    <Button Content="{l:T 'Pseudoübersetzung …'}" Command="{Binding PseudoTranslateCommand}" Margin="0,0,8,8"
+                            ToolTip.Tip="{l:T 'Zieldatei der gewählten Datei mit Akzentbuchstaben und 30 % längerem Text erzeugen – zeigt vor der Übersetzung, ob Sonderzeichen, Länge und alle Textstellen im Layout ankommen. Das Projekt bleibt unverändert.'}" />
+                    <Button Content="{l:T 'Prüfdatei zurückholen …'}" Command="{Binding ImportReviewCommand}" Margin="0,0,8,8"
+                            ToolTip.Tip="{l:T 'Korrigierte Prüfdatei (Word) einlesen: Änderungen werden als lektoriert übernommen, der vorige Stand bleibt im Verlauf, Anmerkungen und Word-Kommentare kommen in die Segmentkommentare.'}" />
+                    <CheckBox Content="{l:T 'Unveränderte als lektoriert'}" IsChecked="{Binding ReviewMarksUnchanged}" Margin="0,0,8,8"
+                              ToolTip.Tip="{l:T 'Segmente, die der Prüfer nicht geändert hat, beim Zurückholen als lektoriert markieren'}" />
                     <Button Content="{l:T 'Gescanntes PDF erkennen (KI) …'}" Command="{Binding OcrPdfCommand}" Margin="0,0,8,8"
                             ToolTip.Tip="{l:T 'Texterkennung über einen Claude-Zugang; das Ergebnis wird als Word-Datei ins Projekt übernommen'}" />
                     <Button Content="{l:T 'Rückgabepaket (.sdlrpx) …'}" Command="{Binding ExportReturnPackageCommand}" Margin="0,0,8,8"
@@ -140,6 +219,16 @@
 
                 <Expander Header="{l:T 'QA-Einstellungen und eigene Regeln'}" HorizontalAlignment="Stretch">
                     <StackPanel Spacing="6">
+                        <WrapPanel>
+                            <TextBlock Text="{l:T 'QA-Profil:'}" VerticalAlignment="Center" Margin="0,0,6,4" />
+                            <ComboBox ItemsSource="{Binding QaProfileList}" SelectedItem="{Binding SelectedQaProfile}" MinWidth="200" Margin="0,0,6,4"
+                                      PlaceholderText="{l:T '(kein gespeichertes Profil)'}" />
+                            <Button Content="{l:T 'Übernehmen'}" Command="{Binding LoadQaProfileCommand}" Margin="0,0,6,4" />
+                            <Button Content="{l:T 'Löschen'}" Command="{Binding DeleteQaProfileCommand}" Margin="0,0,16,4" />
+                            <TextBox Text="{Binding QaProfileName}" PlaceholderText="{l:T 'Name, z. B. Kunde A'}" Width="180" Margin="0,0,6,4" />
+                            <Button Content="{l:T 'Als Profil speichern'}" Command="{Binding SaveQaProfileCommand}" Margin="0,0,6,4"
+                                    ToolTip.Tip="{l:T 'Die QA-Einstellungen dieses Projekts unter einem Namen merken, z. B. je Kunde, und in anderen Projekten übernehmen'}" />
+                        </WrapPanel>
                         <WrapPanel>
                             <CheckBox Content="{l:T 'Leere Segmente'}" IsChecked="{Binding Qa.EmptyTarget}" Margin="0,0,14,0" />
                             <CheckBox Content="{l:T 'Ziel = Quelle'}" IsChecked="{Binding Qa.TargetEqualsSource}" Margin="0,0,14,0" />
@@ -151,9 +240,17 @@
                             <CheckBox Content="{l:T 'Terminologie'}" IsChecked="{Binding Qa.Terminology}" Margin="0,0,14,0" />
                             <CheckBox Content="{l:T 'Wortdopplungen'}" IsChecked="{Binding Qa.RepeatedWords}" Margin="0,0,14,0" />
                             <CheckBox Content="{l:T 'Konsistenz'}" IsChecked="{Binding Qa.InconsistentTranslations}" Margin="0,0,14,0" />
+                            <CheckBox Content="{l:T 'Anrede'}" IsChecked="{Binding Qa.Address}" Margin="0,0,14,0" />
                             <CheckBox Content="{l:T 'Länge'}" IsChecked="{Binding Qa.Length}" Margin="0,0,14,0" />
                             <CheckBox Content="{l:T 'Rechtschreibung'}" IsChecked="{Binding Qa.Spelling}" Margin="0,0,14,0" />
+                            <CheckBox Content="{l:T 'Zahlenformat der Zielsprache'}" IsChecked="{Binding Qa.NumberFormat}" Margin="0,0,14,0"
+                                      ToolTip.Tip="{l:T 'Meldet Zahlen und Datum, die noch im Format der Ausgangssprache stehen (1.234,5 statt 1,234.5)'}" />
                         </WrapPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="{l:T 'Höchstlänge jeder Übersetzung (Zeichen, 0 = keine):'}" VerticalAlignment="Center" />
+                            <NumericUpDown Value="{Binding Qa.MaxChars}" Minimum="0" Maximum="100000" Increment="10" FormatString="0" Width="130" />
+                            <TextBlock Text="{l:T 'Eigene Grenzen aus der Datei (z. B. XLIFF „maxwidth“) gelten zusätzlich.'}" Classes="muted" FontSize="12" VerticalAlignment="Center" />
+                        </StackPanel>
                         <TextBlock Text="{l:T 'Unerwünschte Wörter (mit Komma getrennt)'}" />
                         <TextBox Text="{Binding ForbiddenWords}" />
                         <TextBlock Text="{l:T 'Eigene Regeln mit regulären Ausdrücken'}" FontWeight="SemiBold" Margin="0,6,0,0" />
@@ -184,10 +281,52 @@
 
                     </StackPanel>
                 </Border>
+                <!-- Team: Arbeitsschritte -->
+                <Border Classes="card" IsVisible="{Binding IsSharedProject}">
+                    <StackPanel Spacing="8">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="{l:T 'Arbeitsschritte im Team'}" Classes="h2" VerticalAlignment="Center" />
+                            <Button Content="{l:T 'Aktualisieren'}" Command="{Binding RefreshTeamCommand}" />
+                        </StackPanel>
+                        <TextBlock TextWrapping="Wrap" Classes="muted" FontSize="12"
+                                   Text="{l:T 'Jede Datei durchläuft Übersetzung, Lektorat und Freigabe. Bearbeiten darf, wer gerade an der Reihe ist (ohne Zuweisung: jeder mit Schreibrecht); mit „Abgeben“ geht die Datei zum nächsten Schritt. Zuständige und Schritte legt die Verwaltung des Teamservers fest.'}" />
+                        <SelectableTextBlock Text="{Binding TeamInfo, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontWeight="SemiBold" IsVisible="{Binding TeamInfo.Length}" />
+                        <ItemsControl ItemsSource="{Binding TeamSteps}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:TeamStepRow">
+                                    <Border Padding="8" Margin="0,0,0,6" CornerRadius="6" BorderThickness="1" BorderBrush="{DynamicResource CardBorder}">
+                                        <StackPanel Spacing="6">
+                                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                                <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding Language}" Classes="muted" />
+                                                <TextBlock Text="{Binding StepText}" Foreground="{DynamicResource SystemAccentColor}" FontWeight="SemiBold" />
+                                                <Button Content="{l:T 'Abgeben'}" IsVisible="{Binding CanAdvance}" Classes="accent"
+                                                        Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).AdvanceTeamStepCommand}" CommandParameter="{Binding}"
+                                                        ToolTip.Tip="{l:T 'Eigenen Schritt abschließen – die Datei geht zum nächsten Schritt'}" />
+                                            </StackPanel>
+                                            <WrapPanel IsVisible="{Binding IsAdmin}">
+                                                <TextBlock Text="{l:T 'Schritt'}" VerticalAlignment="Center" Margin="0,0,6,4" />
+                                                <ComboBox ItemsSource="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).StepNames}" SelectedIndex="{Binding StepIndex}" Width="130" Margin="0,0,12,4" />
+                                                <TextBlock Text="{l:T 'Übersetzung'}" VerticalAlignment="Center" Margin="0,0,6,4" />
+                                                <ComboBox ItemsSource="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).TeamUserNames}" SelectedItem="{Binding Translator}" Width="130" Margin="0,0,12,4" />
+                                                <TextBlock Text="{l:T 'Lektorat'}" VerticalAlignment="Center" Margin="0,0,6,4" />
+                                                <ComboBox ItemsSource="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).TeamUserNames}" SelectedItem="{Binding Reviewer}" Width="130" Margin="0,0,12,4" />
+                                                <TextBlock Text="{l:T 'Freigabe'}" VerticalAlignment="Center" Margin="0,0,6,4" />
+                                                <ComboBox ItemsSource="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).TeamUserNames}" SelectedItem="{Binding Approver}" Width="130" Margin="0,0,12,4" />
+                                                <Button Content="{l:T 'Speichern'}" Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).SaveTeamStepCommand}" CommandParameter="{Binding}" Margin="0,0,0,4" />
+                                            </WrapPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
                 <Border Classes="card">
                     <StackPanel Spacing="10">
                 <TextBlock Text="{l:T 'Dateien'}" Classes="h2" />
-                <TextBlock Text="{l:T 'Unterstützt: DOCX, XLSX, PPTX, ODT/ODS/ODP, IDML, XLIFF (auch .sdlxliff), PDF (mit dem Layout des Originals), HTML, Markdown, RESX, JSON, PO, SRT/VTT, Text – und Formate aus Erweiterungen. TMX, TBX und .sdltm unter „TM &amp; Terminologie“.'}"
+                <TextBlock Text="{l:T 'Unterstützt: DOCX, XLSX, PPTX, ODT/ODS/ODP, IDML, XLIFF (auch .sdlxliff), PDF (mit dem Layout des Originals), HTML, Markdown, DITA, RESX, JSON, PO, SRT/VTT, Text – und Formate aus Erweiterungen. TMX, TBX und .sdltm unter „TM &amp; Terminologie“.'}"
                            Classes="muted" FontSize="12" TextWrapping="Wrap" />
                 <ListBox ItemsSource="{Binding Files}" SelectedItem="{Binding SelectedFile}" MinHeight="80">
                     <ListBox.ItemTemplate>
@@ -207,8 +346,22 @@
                                             Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).OpenInEditorCommand}" CommandParameter="{Binding}" />
                                     <Button Content="{l:T 'Zieldatei'}" Margin="4,0"
                                             Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).ExportTargetCommand}" CommandParameter="{Binding}" />
+                                    <Button Content="{l:T 'Anonymisiert'}" Margin="4,0"
+                                            ToolTip.Tip="{l:T 'Fassung ohne Namen, Daten, Aktenzeichen, Kontaktdaten und Begriffe der Schutzliste – einheitlich durch Platzhalter ersetzt (Einstellungen: Datenschutz des Projekts)'}">
+                                        <Button.Flyout>
+                                            <MenuFlyout>
+                                                <MenuItem Header="{l:T 'Ausgangsdatei anonymisiert …'}"
+                                                          Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).ExportAnonymizedSourceCommand}" CommandParameter="{Binding}" />
+                                                <MenuItem Header="{l:T 'Zieldatei anonymisiert …'}"
+                                                          Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).ExportAnonymizedTargetCommand}" CommandParameter="{Binding}" />
+                                            </MenuFlyout>
+                                        </Button.Flyout>
+                                    </Button>
                                     <Button Content="{l:T 'XLIFF'}" Margin="4,0" ToolTip.Tip="{l:T 'Zweisprachige XLIFF-Datei für andere Werkzeuge'}"
                                             Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).ExportBilingualCommand}" CommandParameter="{Binding}" />
+                                    <Button Content="{l:T 'Prüfdatei'}" Margin="4,0"
+                                            ToolTip.Tip="{l:T 'Word-Tabelle mit Ausgangstext und Übersetzung für das Lektorat ohne Übersetzungsprogramm; zurück mit „Prüfdatei zurückholen“'}"
+                                            Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).ExportReviewCommand}" CommandParameter="{Binding}" />
                                     <Button Content="{l:T 'Entfernen'}" Margin="4,0"
                                             Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).RemoveFileCommand}" CommandParameter="{Binding}" />
                                 </WrapPanel>
@@ -234,6 +387,38 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
+
+                <!-- Kostenvoranschlag -->
+                <TextBlock Text="{l:T 'Angebot'}" FontWeight="SemiBold" Margin="0,6,0,0" />
+                <WrapPanel>
+                    <TextBlock Text="{l:T 'Preis'}" VerticalAlignment="Center" Margin="0,0,6,4" />
+                    <NumericUpDown Value="{Binding RatePrice}" Minimum="0" Increment="0.01" FormatString="0.00##" Width="120" Margin="0,0,6,4" />
+                    <TextBox Text="{Binding RateCurrency}" Width="60" Margin="0,0,6,4" />
+                    <ComboBox ItemsSource="{Binding RateUnitNames}" SelectedIndex="{Binding RateUnitIndex}" Width="220" Margin="0,0,16,4" />
+                    <TextBlock Text="{l:T 'MwSt. %'}" VerticalAlignment="Center" Margin="0,0,6,4" />
+                    <NumericUpDown Value="{Binding RateVat}" Minimum="0" Maximum="50" Increment="1" FormatString="0.#" Width="100" Margin="0,0,16,4" />
+                    <TextBlock Text="{l:T 'Mindestbetrag'}" VerticalAlignment="Center" Margin="0,0,6,4" />
+                    <NumericUpDown Value="{Binding RateMinimum}" Minimum="0" Increment="5" FormatString="0.00" Width="120" Margin="0,0,6,4" />
+                </WrapPanel>
+                <Expander Header="{l:T 'Anteil des Preises je Trefferstufe'}" HorizontalAlignment="Stretch">
+                    <ItemsControl ItemsSource="{Binding WeightRows}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:WeightRow">
+                                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,18,6">
+                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" Width="150" />
+                                    <NumericUpDown Value="{Binding Weight}" Minimum="0" Maximum="300" Increment="5" FormatString="0" Width="110" />
+                                    <TextBlock Text="%" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Expander>
+                <SelectableTextBlock Text="{Binding QuoteText}" TextWrapping="Wrap" IsVisible="{Binding HasQuote}" FontWeight="SemiBold" />
+                <TextBlock Text="{l:T 'Erst „Analyse“ ausführen – dann steht hier der Preis.'}" Classes="muted" FontSize="12" IsVisible="{Binding !HasQuote}" />
+                <Button Content="{l:T 'Angebot als Word speichern …'}" Command="{Binding ExportQuoteCommand}" IsVisible="{Binding HasQuote}" HorizontalAlignment="Left" />
                     </StackPanel>
                 </Border>
             </StackPanel>

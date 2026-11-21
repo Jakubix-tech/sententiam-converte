@@ -19,10 +19,13 @@
     <PackageReference Include="AngleSharp" />
     <PackageReference Include="WeCantSpell.Hunspell" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="Microsoft.ML.Tokenizers" />
   </ItemGroup>
   <ItemGroup>
     <!-- Noto Sans/Serif (SIL Open Font License) für übersetzte PDFs -->
     <EmbeddedResource Include="Fonts\*.ttf" LogicalName="SententiamConverte.Core.Fonts.%(Filename)%(Extension)" />
+    <!-- Sprachrichtungen der lokalen Übersetzung (OPUS-MT): Fassung, Größe und Prüfsumme jeder Datei -->
+    <EmbeddedResource Include="Ai\LocalMt\katalog.json" LogicalName="SententiamConverte.Core.Ai.LocalMt.katalog.json" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="SententiamConverte.Core.Tests" />

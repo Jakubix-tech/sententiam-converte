@@ -68,7 +68,7 @@ public sealed class EvaluationAgent(AgentContext ctx)
                     """, ct));
                 var usage = new UsageCheckAgent(ctx);
                 foreach (var phrase in doubts.Phrases.Where(p => p.Trim().Length > 0).Take(3))
-                    usageChecks.Add(await usage.RunAsync(phrase, targetLanguage, topic, suggestAlternatives: true, ct: ct));
+                    usageChecks.Add(await usage.RunAsync(phrase, targetLanguage, topic, suggestAlternatives: true, ct: ct, readPages: false));
             }
             catch (AiException ex) { ctx.Say("Usus-Prüfung übersprungen: " + ex.Message); }
         }

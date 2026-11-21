@@ -39,6 +39,7 @@ public partial class AiDownloadService : ObservableObject
         Text = $"Lade {what} …";
         _cts = new CancellationTokenSource();
         var watch = Stopwatch.StartNew();
+        var total = Stopwatch.StartNew();
         string? current = null;
         long startBytes = 0;
         var progress = new Progress<DownloadProgress>(p =>
@@ -75,6 +76,7 @@ public partial class AiDownloadService : ObservableObject
             IsRunning = false;
             _cts.Dispose();
             _cts = null;
+            Core.Diagnostics.ActivityLog.Write("Download", what, null, $"{Text} ({total.Elapsed.TotalSeconds:0} s)");
         }
         return false;
     }

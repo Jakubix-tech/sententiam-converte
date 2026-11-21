@@ -12,6 +12,7 @@ sealed class Program
     public static void Main(string[] args)
     {
         Services.AppServices.LocalApi = new LocalApiHost();
+        Services.AppServices.Recorder = new AudioRecorder();
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }
 

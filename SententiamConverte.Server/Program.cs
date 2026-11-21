@@ -204,6 +204,8 @@ namespace SententiamConverte.Server
             var api = app.MapGroup("/api/v1");
 
             api.MapGet("/me", (HttpContext ctx) => new WhoAmI(User(ctx)!.Name, User(ctx)!.Role.ToString()));
+            api.MapGet("/users", (HttpContext ctx, UserStore users) =>
+                Require(ctx, Role.Editor) ?? Results.Ok(users.All.Select(u => new TeamUser(u.Name, u.Role.ToString())).ToList()));
             api.MapGet("/resources", (ResourceStore store) => store.List());
             api.MapPost("/resources", (HttpContext ctx, ResourceInfo info, ResourceStore store, ActivityLog log) =>
             {
@@ -304,7 +306,15 @@ namespace SententiamConverte.Server
             pr.MapGet("/{project}/files/{file}/{lang}/changes", (string project, string file, string lang, long since, SharedProjectStore s) =>
                 Safe(() => s.Changes(project, file, lang, since)));
             pr.MapPut("/{project}/files/{file}/{lang}/segments/{id:int}", (HttpContext ctx, string project, string file, string lang, int id, SegmentUpdate u, SharedProjectStore s) =>
-                Require(ctx, Role.Editor) ?? Safe(() => s.Update(project, file, lang, id, u, User(ctx)!.Name)));
+                Require(ctx, Role.Editor) ?? Safe(() => s.Update(project, file, lang, id, u, User(ctx)!.Name, User(ctx)!.Role >= Role.Admin)));
+            pr.MapPut("/{project}/files/{file}/{lang}/workflow", (HttpContext ctx, string project, string file, string lang, WorkflowUpdate u, SharedProjectStore s, ActivityLog log) =>
+            {
+                if (Require(ctx, Role.Editor) is { } denied) return denied;
+                var user = User(ctx)!;
+                var result = Safe(() => s.SetWorkflow(project, file, lang, u, user.Name, user.Role >= Role.Admin));
+                log.Add(user.Name, ResourceKind.Tm, project, u.Advance ? $"abgegeben: {file} ({lang})" : $"Arbeitsschritt geändert: {file} ({lang})");
+                return result;
+            });
             pr.MapPost("/{project}/files/{file}/{lang}/segments/{id:int}/lock", (HttpContext ctx, string project, string file, string lang, int id, SharedProjectStore s) =>
                 Require(ctx, Role.Editor) ?? Safe(() => s.Lock(project, file, lang, id, User(ctx)!.Name)));
             pr.MapDelete("/{project}/files/{file}/{lang}/segments/{id:int}/lock", (HttpContext ctx, string project, string file, string lang, int id, SharedProjectStore s) =>
@@ -353,6 +363,7 @@ namespace SententiamConverte.Server
             catch (KeyNotFoundException) { return Results.NotFound(); }
             catch (ArgumentException ex) { return Results.BadRequest(ex.Message); }
             catch (NotSupportedException ex) { return Results.BadRequest(ex.Message); }
+            catch (UnauthorizedAccessException ex) { return Results.Problem(detail: ex.Message, statusCode: 403); }
         }
 
         private static string TagTextPlain(string s) => SententiamConverte.Core.Model.TagText.StripTags(s);

@@ -1,0 +1,196 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="using:SententiamConverte.Services"
+             xmlns:vm="using:SententiamConverte.ViewModels"
+             xmlns:c="using:SententiamConverte.Controls"
+             xmlns:ag="using:SententiamConverte.Core.Agents"
+             x:Class="SententiamConverte.Views.ToolsView"
+             x:DataType="vm:ToolsViewModel">
+    <ScrollViewer>
+        <StackPanel Margin="16" Spacing="12" MaxWidth="1100" HorizontalAlignment="Left">
+            <TextBlock Text="{l:T 'Hilfsmittel'}" Classes="h1" />
+            <TextBlock Classes="muted" TextWrapping="Wrap"
+                       Text="{l:T 'Termbanken, Wörterbücher, Korpora, Rechtsquellen und Sprachberatung öffentlicher und gemeinnütziger Herausgeber. Eingebautes nutzt das Programm selbst, ladbare Daten kommen als Datenbank ins Programm, alles andere öffnet der Browser.'}" />
+
+            <!-- Vorschläge für das Projekt -->
+            <Border Classes="card" IsVisible="{Binding HasSuggestions}">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="{Binding SuggestionsTitle}" Classes="h2" />
+                    <ItemsControl ItemsSource="{Binding Suggestions}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ToolRow">
+                                <Border Classes="card" Width="330" Margin="0,0,10,10">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                        <TextBlock Classes="muted" FontSize="12" Text="{Binding Reason}" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding Description}" TextWrapping="Wrap" FontSize="13" />
+                                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
+                                            <Button Content="{l:T 'Öffnen'}" Command="{Binding Owner.OpenCommand}" CommandParameter="{Binding}" />
+                                            <Button Content="{l:T 'Laden …'}" Command="{Binding Owner.DownloadCommand}" CommandParameter="{Binding}" IsVisible="{Binding CanDownload}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Nachschlagen -->
+            <Border Classes="card">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="{l:T 'Nachschlagen'}" Classes="h2" />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="{l:T 'Begriff eingeben (im Editor: Text markieren und Strg+Umschalt+L), Sprache wählen und ein Wörterbuch anklicken – der Browser öffnet die Seite mit dem Begriff.'}" />
+                    <WrapPanel>
+                        <TextBox Text="{Binding Term}" Watermark="{l:T 'Begriff oder Wendung'}" Width="320" Margin="0,0,8,6" />
+                        <c:LanguagePicker Value="{Binding TermLanguage}" Width="230" Margin="0,0,8,6" />
+                    </WrapPanel>
+                    <ItemsControl ItemsSource="{Binding LookupTools}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ToolRow">
+                                <Button Content="{Binding Name}" Command="{Binding Owner.LookUpCommand}" CommandParameter="{Binding}"
+                                        ToolTip.Tip="{Binding Description}" Margin="0,0,8,6" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Quellen-Datenbank -->
+            <Border Classes="card">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="{l:T 'Quellen-Datenbank'}" Classes="h2" />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="{l:T 'Webseiten, auf denen sich bei Recherchen Belege fanden, und Fundorte, die die KI nennt – mit Sprache und Thema. Künftige Recherchen zum selben Thema durchsuchen diese Seiten gezielt (mit einem Suchdienst unter „KI einrichten“); belegte Seiten zuerst.'}" />
+                    <Grid ColumnDefinitions="*,10,Auto">
+                        <TextBox Text="{Binding SiteFilter}" PlaceholderText="{l:T 'Filtern nach Seite, Thema oder Sprache'}" />
+                        <TextBlock Grid.Column="2" Text="{Binding SitesSummary, Converter={x:Static l:L.Text}}" VerticalAlignment="Center" FontSize="12" />
+                    </Grid>
+                    <ScrollViewer MaxHeight="360">
+                        <ItemsControl ItemsSource="{Binding Sites}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SiteRow">
+                                    <Grid ColumnDefinitions="*,6,Auto,6,Auto" Margin="0,2">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Domain}" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Info}" FontSize="11" Classes="muted" TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding Note}" FontSize="11" TextWrapping="Wrap" IsVisible="{Binding Note.Length}" />
+                                        </StackPanel>
+                                        <Button Grid.Column="2" Content="{l:T 'Öffnen'}" VerticalAlignment="Top"
+                                                Command="{Binding $parent[UserControl].((vm:ToolsViewModel)DataContext).OpenSiteCommand}" CommandParameter="{Binding}" />
+                                        <Button Grid.Column="4" Content="✕" VerticalAlignment="Top" ToolTip.Tip="{l:T 'Aus der Datenbank entfernen'}"
+                                                Command="{Binding $parent[UserControl].((vm:ToolsViewModel)DataContext).RemoveSiteCommand}" CommandParameter="{Binding}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </StackPanel>
+            </Border>
+
+            <!-- Verbreitung im Netz -->
+            <Border Classes="card">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="{l:T 'Verbreitung im Netz'}" Classes="h2" />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="{l:T 'Kommt ein Ausdruck in bestimmten Ländern überhaupt so vor – und wie oft? Je Variante und Land wird die genaue Wortfolge gesucht (offizielle Such-Schnittstelle mit Länderfilter: Brave oder Tavily, unter „KI einrichten“). Gezählt werden Treffer, die die Wortfolge wörtlich enthalten, und wie viele davon auf Seiten des Landes liegen. Varianten mit „|“ trennen, z. B. „Jänner | Januar“.'}" />
+                    <WrapPanel>
+                        <TextBox Text="{Binding PresenceQuery}" Watermark="{l:T 'Ausdruck | Variante'}" Width="320" Margin="0,0,8,6" />
+                        <c:LanguagePicker Value="{Binding PresenceLanguage}" Width="200" Margin="0,0,8,6" />
+                        <TextBox Text="{Binding PresenceCountries}" Watermark="{l:T 'Länder, z. B. DE, AT, CH'}" Width="160" Margin="0,0,8,6" />
+                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,8,6">
+                            <TextBlock Text="{l:T 'Seiten je Land'}" VerticalAlignment="Center" />
+                            <NumericUpDown Value="{Binding PresencePages}" Minimum="1" Maximum="10" Increment="1" FormatString="0" Width="100" />
+                        </StackPanel>
+                    </WrapPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="{l:T 'Prüfen'}" Command="{Binding CheckPresenceCommand}" Classes="accent" IsEnabled="{Binding !IsCheckingPresence}" />
+                        <Button Content="{l:T 'Abbrechen'}" Command="{Binding CancelPresenceCommand}" IsVisible="{Binding IsCheckingPresence}" />
+                        <TextBlock Text="{Binding PresenceCost}" Classes="muted" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding PresenceStatus}" TextWrapping="Wrap" IsVisible="{Binding PresenceStatus.Length}" />
+                    <ItemsControl ItemsSource="{Binding PresenceResults}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:PresenceRow">
+                                <Border BorderBrush="{DynamicResource CardBorder}" BorderThickness="0,0,0,1" Padding="0,8">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="{Binding Variant}" FontWeight="SemiBold" FontSize="15" />
+                                        <ItemsControl ItemsSource="{Binding Cells}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:PresenceCellRow">
+                                                    <Border BorderBrush="{Binding Color}" BorderThickness="0,0,0,3" Padding="8,4" Margin="0,0,10,4" MinWidth="150">
+                                                        <StackPanel>
+                                                            <TextBlock><Run Text="{Binding Country}" FontWeight="SemiBold" /><Run Text="  " /><Run Text="{Binding Count}" FontSize="16" FontWeight="Bold" /><Run Text="  " /><Run Text="{Binding LevelName}" /></TextBlock>
+                                                            <TextBlock Text="{Binding Detail}" Classes="muted" FontSize="11" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <ItemsControl ItemsSource="{Binding Examples}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="ag:UsageExample">
+                                                    <Button Padding="4,2" Margin="0,1" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                                            Command="{Binding $parent[UserControl].((vm:ToolsViewModel)DataContext).OpenExampleCommand}" CommandParameter="{Binding}">
+                                                        <TextBlock TextWrapping="Wrap" FontSize="12"><Run Text="{Binding Title}" FontWeight="SemiBold" /><Run Text=" – " /><Run Text="{Binding Snippet}" /></TextBlock>
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Katalog -->
+            <Border Classes="card">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="{l:T 'Alle Hilfsmittel'}" Classes="h2" />
+                    <WrapPanel>
+                        <ComboBox ItemsSource="{Binding KindNames}" SelectedIndex="{Binding KindIndex}" MinWidth="220" Margin="0,0,8,6" />
+                        <c:LanguagePicker Value="{Binding LanguageFilter}" Placeholder="{l:T 'Sprache (leer = alle)'}" Width="230" Margin="0,0,8,6" />
+                        <TextBox Text="{Binding SearchText}" Watermark="{l:T 'Suchen …'}" Width="220" Margin="0,0,8,6" />
+                        <TextBlock Text="{Binding CountText}" Classes="muted" VerticalAlignment="Center" Margin="0,0,0,6" />
+                    </WrapPanel>
+                    <ItemsControl ItemsSource="{Binding Rows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ToolRow">
+                                <Border BorderBrush="{DynamicResource CardBorder}" BorderThickness="0,0,0,1" Padding="0,8">
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                        <StackPanel Spacing="2">
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                            <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap">
+                                                <Run Text="{Binding KindName}" /><Run Text=" · " /><Run Text="{Binding AccessName}" /><Run Text=" · " /><Run Text="{Binding Provider}" />
+                                            </TextBlock>
+                                            <TextBlock Text="{Binding Description}" TextWrapping="Wrap" />
+                                            <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap">
+                                                <Run Text="{Binding LanguagesText}" /><Run Text=" · " /><Run Text="{Binding License}" />
+                                            </TextBlock>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
+                                            <Button Content="{l:T 'Öffnen'}" Command="{Binding Owner.OpenCommand}" CommandParameter="{Binding}" HorizontalAlignment="Stretch" />
+                                            <Button Content="{l:T 'Laden …'}" Command="{Binding Owner.DownloadCommand}" CommandParameter="{Binding}" IsVisible="{Binding CanDownload}" HorizontalAlignment="Stretch" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

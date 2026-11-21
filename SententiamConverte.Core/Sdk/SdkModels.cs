@@ -41,17 +41,24 @@ public sealed record FileContent(string Name, [property: JsonPropertyName("base6
 
 public sealed record FormatInfo(string Id, string Name, IReadOnlyList<string> Extensions);
 
-public sealed record ProjectCreateDto(string Name, string SourceLanguage, List<string> TargetLanguages, string? Topic = null);
+/// <summary>Neues Projekt; mit <see cref="Template"/> werden die Einstellungen und Datenbanken einer Projektvorlage übernommen.</summary>
+public sealed record ProjectCreateDto(string Name, string SourceLanguage, List<string> TargetLanguages, string? Topic = null, string? Template = null);
 
-public sealed record ProjectUpdateDto(string? Topic = null, int? PretranslateMinScore = null, bool? ConfirmContextMatches = null, string? SourceProfile = null);
+public sealed record ProjectUpdateDto(string? Topic = null, int? PretranslateMinScore = null, bool? ConfirmContextMatches = null, string? SourceProfile = null,
+    bool? AutoLocalize = null, string? Client = null);
 
 public sealed record FileDto(string Id, string Name, string Format, List<string> Languages, string? PackagePath);
 
 public sealed record ProjectDto(string Name, string SourceLanguage, List<string> TargetLanguages, string Topic, string? SourceProfile,
     int PretranslateMinScore, bool ConfirmContextMatches, bool IsShared, List<FileDto> Files, List<ResourceRef> Resources, List<string> ResourceErrors);
 
+/// <summary>
+/// Ein Segment. <see cref="ReviewBaseline"/>: bestätigte Fassung vor einer offenen Änderung des Prüfers;
+/// <see cref="Errors"/>: erfasste Fehler der Fehlerbewertung; <see cref="MaxLength"/>: Höchstlänge aus der Datei.
+/// </summary>
 public sealed record SegmentDto(int Id, string Source, string Target, SegmentStatus Status, TranslationOrigin Origin, int? MatchPercent,
-    string? Comment, string? Context, bool Locked, List<SegmentRevision> History);
+    string? Comment, string? Context, bool Locked, List<SegmentRevision> History, string? ReviewBaseline = null, List<Qa.LqaError>? Errors = null,
+    int? MaxLength = null);
 
 public sealed record SegmentUpdateDto(string? Target = null, SegmentStatus? Status = null, string? Comment = null);
 
@@ -96,6 +103,54 @@ public sealed record KnowledgeAgentRequest(string Project, string Topic, List<st
 public sealed record CompareRequest(string Term, string SourceLanguage, string TargetLanguage, string? Context = null, string? Topic = null,
     string? SourceProfile = null, List<string>? Candidates = null, string? Project = null, bool SaveToTermbase = false, bool SaveToKnowledge = false);
 
+// ---------- Lektorat, Angebot, TM-Pflege, alte Übersetzungen, Team, Automatisierung (seit 2.1) ----------
+
+/// <summary>Korrigierte Prüfdatei (Word) zurückgeben.</summary>
+public sealed record ReviewImportDto(FileContent File, bool MarkUnchangedReviewed = false);
+
+/// <summary>Ein Fehler für die Fehlerbewertung.</summary>
+public sealed record LqaErrorDto(string Category, Qa.LqaSeverity Severity, string? Note = null);
+
+/// <summary>Angebot für alle Zielsprachen.</summary>
+public sealed record QuoteDto(List<Analysis.Quote> Quotes, decimal Net, decimal Vat, decimal Total, string Currency, Analysis.RateUnit Unit);
+
+/// <summary>Suchen und Ersetzen im Projekt-TM; mit <see cref="Preview"/> wird nichts geändert.</summary>
+public sealed record TmReplaceDto(string Find, string Replace, bool InSource = false, bool InTarget = true, bool MatchCase = false,
+    bool Regex = false, bool WholeWords = false, bool Preview = false);
+
+public sealed record TmReplaceResult(int Count, List<Tm.TmReplacement> Changes);
+
+public sealed record TmCleanDto(bool Duplicates = true, bool EmptyTargets = true, bool Identical = false);
+
+/// <summary>Gleiche Quelle, verschiedene Übersetzungen.</summary>
+public sealed record InconsistentDto(string Source, List<Tm.TmUnit> Units);
+
+/// <summary>Fachbegriffe aus den Projektdateien gewinnen (für eine Zielsprache).</summary>
+public sealed record ExtractTermsDto(string Language, bool UseAi = true, int Max = 150);
+
+/// <summary>Alte Übersetzungen: alle Dateien auf einmal; zugeordnet wird über Dateiname, Sprache und Zahlen.</summary>
+public sealed record ImportTranslationsDto(List<FileContent> Files, string? SourceLanguage = null, List<string>? TargetLanguages = null,
+    bool Shared = true, bool UseAi = false, bool SuggestTerms = false, bool KeepTags = true);
+
+public sealed record ImportedPairDto(string Source, string? Target, string SourceLanguage, string TargetLanguage, string How, int Imported, int Uncertain, string Tm);
+
+public sealed record ImportTranslationsResult(List<ImportedPairDto> Pairs, List<string> Unpaired, List<Alignment.TermSuggestion> Terms);
+
+/// <summary>Eine erkannte geschützte Angabe (Datenschutz).</summary>
+public sealed record DetectedDto(Privacy.SensitiveKind Kind, string Value, int Count);
+
+/// <summary>Arbeitsschritt einer Datei in einer Zielsprache.</summary>
+public sealed record FileStepDto(string FileId, string FileName, FileStep Step);
+
+/// <summary>Einen Eingangsordner einmal verarbeiten (nur Verwaltung, Pfade auf dem Rechner des Dienstes).</summary>
+public sealed record WatchRunDto(string Folder, bool Pretranslate = true, bool AiTranslate = false, bool ExportTargets = true, string? OutputFolder = null);
+
+/// <summary>Freien Sprachdatensatz laden und anbinden (nur Verwaltung).</summary>
+public sealed record LanguageDataInstallDto(string Id, string SourceLanguage, string TargetLanguage, bool ForLanguages = true);
+
+/// <summary>Aufnahme (WAV) in Text umwandeln – mit der Spracherkennung aus den KI-Einstellungen.</summary>
+public sealed record TranscribeDto(FileContent Audio, string Language);
+
 public sealed record ExtensionCommandInfo(string Id, string Name, string? Description, string Scope);
 
 public sealed record ExtensionInfo(string Id, string Name, string Version, string? Author, string? Description, bool Enabled, bool Loaded,
@@ -112,5 +167,5 @@ public static class Dto
         p.PretranslateMinScore, p.ConfirmContextMatches, p.IsShared, p.Files.Select(f => File(p, f)).ToList(), p.Resources, p.ResourceErrors);
 
     public static SegmentDto Segment(BilingualDocument d, Segment s) => new(s.Id, s.Source, s.Target, s.Status, s.Origin, s.MatchPercent,
-        s.Comment, d.ParagraphOf(s)?.Context, s.Locked, s.History);
+        s.Comment, d.ParagraphOf(s)?.Context, s.Locked, s.History, s.ReviewBaseline, s.Errors, s.MaxLength);
 }

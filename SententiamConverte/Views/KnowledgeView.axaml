@@ -12,7 +12,7 @@
                     <ComboBox ItemsSource="{Binding Bases}" SelectedItem="{Binding SelectedBase}" MinWidth="240" Margin="0,0,8,4">
                         <ComboBox.ItemTemplate>
                             <DataTemplate x:DataType="kb:IKnowledgeBase">
-                                <TextBlock Text="{Binding Location}" />
+                                <TextBlock Text="{Binding Name}" ToolTip.Tip="{Binding Location}" />
                             </DataTemplate>
                         </ComboBox.ItemTemplate>
                     </ComboBox>
@@ -54,16 +54,81 @@
             </Grid>
         </TabItem>
 
+        <TabItem Header="{l:T 'Fragen'}">
+            <ScrollViewer>
+                <StackPanel Spacing="8" MaxWidth="1000" HorizontalAlignment="Left">
+                    <TextBlock TextWrapping="Wrap" Classes="muted"
+                               Text="{l:T 'Stelle eine Frage zu einem Thema, das im Wissen steht – etwa nach einer Recherche mit dem Wissens-Agenten. Die KI antwortet nur aus den Einträgen der Wissensdatenbanken und deinen eigenen Fachtexten und belegt jede Aussage mit [n]. Steht etwas nicht darin, sagt sie das; „Nachrecherchieren“ sucht genau das im Netz, legt es in der gewählten Datenbank ab und fragt noch einmal.'}" />
+                    <Grid ColumnDefinitions="*,8,Auto">
+                        <TextBox Text="{Binding Question}" PlaceholderText="{l:T 'z. B. Wie ist ein MIG/MAG-Schweißgerät aufgebaut?'}" AcceptsReturn="False">
+                            <TextBox.KeyBindings>
+                                <KeyBinding Gesture="Enter" Command="{Binding AskKnowledgeCommand}" />
+                            </TextBox.KeyBindings>
+                        </TextBox>
+                        <Button Grid.Column="2" Content="{l:T 'Fragen'}" Classes="accent" Command="{Binding AskKnowledgeCommand}" IsEnabled="{Binding !IsAsking}" />
+                    </Grid>
+                    <WrapPanel>
+                        <ComboBox ItemsSource="{Binding Bases}" SelectedItem="{Binding SelectedBase}" MinWidth="240" Margin="0,0,8,4"
+                                  ToolTip.Tip="{l:T 'In diese Datenbank schreibt „Nachrecherchieren“'}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="kb:IKnowledgeBase">
+                                    <TextBlock Text="{Binding Name}" ToolTip.Tip="{Binding Location}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <CheckBox Content="{l:T 'nur in dieser Datenbank suchen'}" IsChecked="{Binding AskOnlySelected}" Margin="0,0,8,4" />
+                        <CheckBox Content="{l:T 'Fehlendes gleich im Netz nachrecherchieren'}" IsChecked="{Binding AutoResearchMissing}" Margin="0,0,8,4"
+                                  ToolTip.Tip="{l:T 'Steht zu einem Begriff noch nichts im Wissen, sagt das Programm das und lässt den Wissens-Agenten sofort danach suchen (in die gewählte Datenbank), dann antwortet es neu.'}" />
+                        <Button Content="{l:T 'Abbrechen'}" Command="{Binding CancelAskCommand}" IsVisible="{Binding IsAsking}" Margin="0,0,8,4" />
+                    </WrapPanel>
+                    <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsAsking}" />
+                    <SelectableTextBlock Text="{Binding AskStatus, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontSize="12" />
+                    <Border Classes="card" IsVisible="{Binding HasAnswer}">
+                        <StackPanel Spacing="8">
+                            <SelectableTextBlock Text="{Binding AnswerText}" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding MissingText}" IsVisible="{Binding HasMissing}" TextWrapping="Wrap" FontSize="12" Foreground="#B45309" />
+                            <WrapPanel>
+                                <Button Content="{l:T 'Nachrecherchieren'}" Command="{Binding ResearchAndAskAgainCommand}" IsEnabled="{Binding !IsRunning}" Margin="0,0,8,4"
+                                        ToolTip.Tip="{l:T 'Der Wissens-Agent sucht das Fehlende im Netz, legt es in der gewählten Datenbank ab, danach wird neu gefragt'}" />
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+                    <TextBlock Text="{l:T 'Quellen der Antwort'}" FontWeight="SemiBold" IsVisible="{Binding AnswerNotes.Count}" />
+                    <ItemsControl ItemsSource="{Binding AnswerNotes}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:KnowledgeNoteRow">
+                                <StackPanel Spacing="2" Margin="0,0,0,8" Opacity="{Binding Opacity}">
+                                    <TextBlock Text="{Binding Header}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                    <SelectableTextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="12" />
+                                    <TextBlock Text="{Binding Quote}" IsVisible="{Binding HasQuote}" TextWrapping="Wrap" FontSize="12" FontStyle="Italic" Classes="muted" />
+                                    <Button Padding="2,0" HorizontalContentAlignment="Left" FontSize="11" IsVisible="{Binding HasSource}"
+                                            Command="{Binding $parent[UserControl].((vm:KnowledgeViewModel)DataContext).OpenNoteSourceCommand}" CommandParameter="{Binding}">
+                                        <TextBlock Text="{Binding Source}" TextWrapping="Wrap" />
+                                    </Button>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+
         <TabItem Header="{l:T 'Wissens-Agent'}">
             <ScrollViewer>
                 <StackPanel Spacing="8" MaxWidth="1000" HorizontalAlignment="Left">
                     <TextBlock TextWrapping="Wrap" Classes="muted"
-                               Text="{l:T 'Der Agent sucht zum Thema in jeder gewählten Sprache verlässliche Quellen, liest sie und legt Wissenseinträge mit wörtlichem Beleg in der oben gewählten Wissensdatenbank an. Einträge, deren Beleg nicht wirklich auf der Seite steht, werden verworfen. Seiten, die das Auslesen per robots.txt oder Nutzungsvorbehalt untersagen, werden übersprungen.'}" />
+                               Text="{l:T 'Der Agent arbeitet sich ein wie ein Mensch: Er gliedert das Thema in Unterthemen (beim Schweißen etwa Verfahren, Maschinen und ihr Aufbau, Werkstoffe, Normen), sucht und liest zu jedem in jeder gewählten Sprache verlässliche Quellen und legt Wissenseinträge mit wörtlichem Beleg in der oben gewählten Wissensdatenbank an. Danach prüft er, zu welchen Unterthemen noch nichts gefunden ist, und sucht dort mit neuen Anfragen weiter (bis zu drei Runden). Einträge, deren Beleg nicht wirklich auf der Seite steht, werden verworfen; Seiten, die das Auslesen per robots.txt oder Nutzungsvorbehalt untersagen, werden übersprungen. Ergiebige Fachseiten merkt sich das Programm für die nächste Recherche.'}" />
                     <TextBlock Text="{l:T 'Ziel-Datenbank'}" />
+                    <TextBlock TextWrapping="Wrap" Classes="muted" FontSize="12"
+                               Text="{l:T 'Zur Wahl stehen das allgemeine KI-Gedächtnis, die Wissensdatenbanken im Benutzerordner und – bei offenem Projekt – dessen Datenbanken. Eine neue Datenbank wird bei offenem Projekt gleich angebunden; beim Übersetzen bekommt die KI passende Einträge als Hintergrundwissen.'}" />
+                    <WrapPanel>
+                        <TextBox Text="{Binding NewBaseName}" PlaceholderText="{l:T 'Name für eine neue Datenbank'}" Width="260" Margin="0,0,8,4" />
+                        <Button Content="{l:T 'Neue Datenbank anlegen'}" Command="{Binding NewBaseCommand}" Margin="0,0,8,4" />
+                    </WrapPanel>
                     <ComboBox ItemsSource="{Binding Bases}" SelectedItem="{Binding SelectedBase}" MinWidth="300">
                         <ComboBox.ItemTemplate>
                             <DataTemplate x:DataType="kb:IKnowledgeBase">
-                                <TextBlock Text="{Binding Location}" />
+                                <TextBlock Text="{Binding Name}" ToolTip.Tip="{Binding Location}" />
                             </DataTemplate>
                         </ComboBox.ItemTemplate>
                     </ComboBox>
@@ -72,6 +137,7 @@
                     <TextBlock Text="{l:T 'Schwerpunkt / offene Fragen (optional)'}" />
                     <TextBox Text="{Binding AgentFocus}" AcceptsReturn="True" TextWrapping="Wrap" Height="70" />
                     <TextBlock Text="{l:T 'Sprachen'}" />
+                    <TextBox Text="{Binding AgentExtraLanguages}" PlaceholderText="{l:T 'weitere Sprachen, z. B. pl-PL, fr-FR'}" Width="300" HorizontalAlignment="Left" />
                     <ItemsControl ItemsSource="{Binding AgentLanguages}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
@@ -94,12 +160,182 @@
             </ScrollViewer>
         </TabItem>
 
+        <TabItem Header="{l:T 'Einarbeiten'}">
+            <ScrollViewer>
+                <StackPanel Spacing="8" MaxWidth="1000" HorizontalAlignment="Left">
+                    <TextBlock Text="{l:T 'Gesetz einarbeiten'}" Classes="h2" />
+                    <TextBlock TextWrapping="Wrap" Classes="muted"
+                               Text="{l:T 'Das Programm lädt die amtliche Fassung eines Bundesgesetzes von gesetze-im-internet.de (amtliches Werk, frei verwendbar) mit ihrem Stand, macht jeden Paragraphen in den eigenen Fachtexten durchsuchbar und zieht die Begriffe heraus: Legaldefinitionen wie „Notwehr ist die Verteidigung, die …“ und Begriffslisten wie in § 11 StGB, dazu die Überschriften mit dem ersten Satz als Definition – jeweils mit Paragraph als Fundstelle. Bei Englisch als Zielsprache kommen die Benennungen aus der englischen Übersetzung des Bundesjustizministeriums dazu; sie ist nicht amtlich und urheberrechtlich geschützt, deshalb werden nur einzelne Benennungen übernommen und als „zugelassen“ markiert, keine Sätze. Eigene Dokumente (PDF, Word …) arbeitet das Programm unter TM &amp; Terminologie → Eigene Fachtexte ein.'}" />
+                    <WrapPanel>
+                        <StackPanel Margin="0,0,12,4" Spacing="2">
+                            <TextBlock Text="{l:T 'Gesetz (Abkürzung)'}" />
+                            <TextBox Text="{Binding StudyAbbreviation}" Width="160" HorizontalAlignment="Left">
+                                <TextBox.KeyBindings>
+                                    <KeyBinding Gesture="Enter" Command="{Binding StudyCommand}" />
+                                </TextBox.KeyBindings>
+                            </TextBox>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,12,4" Spacing="2">
+                            <TextBlock Text="{l:T 'Zielsprache'}" />
+                            <TextBox Text="{Binding StudyTargetLanguage}" Width="120" HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </WrapPanel>
+                    <TextBlock TextWrapping="Wrap" Classes="muted" FontSize="12">
+                        <Run Text="{l:T 'z. B.'}" /> <Run Text="{Binding StudyExamples, Mode=OneWay}" />
+                    </TextBlock>
+                    <WrapPanel>
+                        <CheckBox Content="{l:T 'Begriffe in die gemeinsame Terminologie des Sprachpaars'}" IsChecked="{Binding StudyToTermbase}" Margin="0,0,16,4" />
+                        <CheckBox Content="{l:T 'Definitionen in die gewählte Wissensdatenbank'}" IsChecked="{Binding StudyToKnowledge}" Margin="0,0,8,4" />
+                        <ComboBox ItemsSource="{Binding Bases}" SelectedItem="{Binding SelectedBase}" MinWidth="240" Margin="0,0,8,4" IsEnabled="{Binding StudyToKnowledge}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="kb:IKnowledgeBase">
+                                    <TextBlock Text="{Binding Name}" ToolTip.Tip="{Binding Location}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </WrapPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="{l:T 'Einarbeiten'}" Command="{Binding StudyCommand}" Classes="accent" />
+                        <Button Content="{l:T 'Abbrechen'}" Command="{Binding CancelStudyCommand}" IsVisible="{Binding IsStudying}" />
+                    </StackPanel>
+                    <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsStudying}" />
+                    <SelectableTextBlock Text="{Binding StudyLog, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontSize="12" />
+                    <ScrollViewer MaxHeight="420" IsVisible="{Binding StudiedTerms.Count}">
+                    <ItemsControl ItemsSource="{Binding StudiedTerms}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:StudiedTermRow">
+                                <Border Classes="card" Margin="0,0,0,6" Padding="8">
+                                    <StackPanel Spacing="2">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{Binding Header}" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Kind}" Classes="muted" FontSize="12" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <SelectableTextBlock Text="{Binding Definition}" TextWrapping="Wrap" FontSize="12" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    </ScrollViewer>
+
+                    <TextBlock Text="{l:T 'Eigene Dokumente einarbeiten'}" Classes="h2" Margin="0,16,0,0" />
+                    <TextBlock TextWrapping="Wrap" Classes="muted"
+                               Text="{l:T 'Aus den eingelesenen eigenen Fachtexten (TM &amp; Terminologie → Eigene Fachtexte: Ordner mit PDF, Word, Writer …) zieht das Programm die Begriffe heraus, die dort erklärt werden: Definitionssätze wie „Unter X versteht man …“, „X ist ein …“, „X means …“, „X to …“, Abkürzungen wie „Gleitringdichtung (GLRD)“ und Glossarlisten. Auf Wunsch liest auch die KI mit; ihr Vorschlag zählt nur, wenn der Belegsatz Wort für Wort im Dokument steht und den Begriff enthält. Als Definition gilt immer der Satz aus dem Dokument, mit Datei und Seite als Quelle zum Nachprüfen. Gespeichert wird erst, was Sie abhaken. Online-KI liest die Dokumente nur, wenn es bei den eigenen Fachtexten erlaubt ist.'}" />
+                    <ItemsControl ItemsSource="{Binding StudyFiles}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:StudyFileRow">
+                                <CheckBox IsChecked="{Binding IsChecked}">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Name}" />
+                                        <TextBlock Text="{Binding Info}" Classes="muted" FontSize="12" />
+                                    </StackPanel>
+                                </CheckBox>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="{l:T 'Noch keine Dokumente eingelesen – unter TM &amp; Terminologie → Eigene Fachtexte einen Ordner hinzufügen.'}"
+                               IsVisible="{Binding !HasStudyFiles}" Classes="muted" TextWrapping="Wrap" />
+                    <WrapPanel IsVisible="{Binding HasStudyFiles}">
+                        <StackPanel Margin="0,0,12,4" Spacing="2">
+                            <TextBlock Text="{l:T 'Von'}" />
+                            <TextBox Text="{Binding DocSourceLanguage}" Width="100" HorizontalAlignment="Left" />
+                        </StackPanel>
+                        <StackPanel Margin="0,0,12,4" Spacing="2">
+                            <TextBlock Text="{l:T 'Nach'}" />
+                            <TextBox Text="{Binding DocTargetLanguage}" Width="100" HorizontalAlignment="Left" />
+                        </StackPanel>
+                        <CheckBox Content="{l:T 'KI liest mit'}" IsChecked="{Binding DocUseAi}" VerticalAlignment="Bottom" Margin="0,0,12,4" />
+                    </WrapPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="{l:T 'Liste aktualisieren'}" Command="{Binding RefreshStudyFilesCommand}" />
+                        <Button Content="{l:T 'Begriffe herausziehen'}" Command="{Binding ExtractDocumentTermsCommand}" IsVisible="{Binding HasStudyFiles}" />
+                        <Button Content="{l:T 'Abbrechen'}" Command="{Binding CancelDocsCommand}" IsVisible="{Binding IsStudyingDocs}" />
+                    </StackPanel>
+                    <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsStudyingDocs}" />
+                    <SelectableTextBlock Text="{Binding DocLog, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontSize="12" />
+                    <ScrollViewer MaxHeight="420" IsVisible="{Binding HasDocumentTerms}">
+                        <ItemsControl ItemsSource="{Binding DocumentTerms}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:DocumentTermRow">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,6">
+                                        <CheckBox IsChecked="{Binding IsChecked}" VerticalAlignment="Top" />
+                                        <StackPanel Grid.Column="1" Spacing="1">
+                                            <TextBlock Text="{Binding Header}" FontWeight="SemiBold" />
+                                            <SelectableTextBlock Text="{Binding Definition}" TextWrapping="Wrap" FontSize="12" />
+                                            <TextBlock Text="{Binding Info}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <Button Grid.Column="2" Content="{l:T 'Öffnen'}" VerticalAlignment="Top" Margin="8,0,0,0"
+                                                ToolTip.Tip="{l:T 'Dokument an der Fundstelle öffnen'}"
+                                                Command="{Binding $parent[UserControl].((vm:KnowledgeViewModel)DataContext).OpenDocumentTermCommand}" CommandParameter="{Binding}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                    <Button Content="{l:T 'Übernehmen'}" Command="{Binding SaveDocumentTermsCommand}" Classes="accent" IsVisible="{Binding HasDocumentTerms}"
+                            ToolTip.Tip="{l:T 'Angehakte Begriffe in die Terminologie des Sprachpaars und in die oben gewählte Wissensdatenbank'}" />
+
+                    <TextBlock Text="{l:T 'Thema → TM (EU-Recht)'}" Classes="h2" Margin="0,16,0,0" />
+                    <TextBlock TextWrapping="Wrap" Classes="muted"
+                               Text="{l:T 'Das Programm sucht Rechtsakte der EU, deren Titel zum Thema passt (Verordnungen und Richtlinien zuerst), lädt die amtlichen Fassungen beider Sprachen aus der Dokumentenschnittstelle des Amts für Veröffentlichungen und paart sie Absatz für Absatz und Satz für Satz – jede Sprachfassung ist amtlich und gleich gegliedert. Weichen die Fassungen in der Gliederung ab, wird der Rechtsakt übersprungen; Paare mit abweichenden Zahlen fallen weg. Die Sätze kommen mit CELEX-Nummer als Herkunft in eine eigene TM, die an das Sprachpaar gebunden ist. Weiterverwendung erlaubt (Beschluss 2011/833/EU), Quelle: EUR-Lex, © Europäische Union; verbindlich ist nur die im Amtsblatt veröffentlichte Fassung. Nur Amtssprachen der EU.'}" />
+                    <WrapPanel>
+                        <StackPanel Margin="0,0,12,4" Spacing="2">
+                            <TextBlock Text="{l:T 'Thema'}" />
+                            <TextBox Text="{Binding TopicTmTopic}" Width="320" HorizontalAlignment="Left"
+                                     PlaceholderText="{l:T 'z. B. Maschinen, Aufzüge (Komma = oder)'}">
+                                <TextBox.KeyBindings>
+                                    <KeyBinding Gesture="Enter" Command="{Binding FindTopicActsCommand}" />
+                                </TextBox.KeyBindings>
+                            </TextBox>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,12,4" Spacing="2">
+                            <TextBlock Text="{l:T 'Von'}" />
+                            <TextBox Text="{Binding TopicTmSource}" Width="100" HorizontalAlignment="Left" />
+                        </StackPanel>
+                        <StackPanel Margin="0,0,12,4" Spacing="2">
+                            <TextBlock Text="{l:T 'Nach'}" />
+                            <TextBox Text="{Binding TopicTmTarget}" Width="100" HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </WrapPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="{l:T 'Rechtsakte suchen'}" Command="{Binding FindTopicActsCommand}" />
+                        <Button Content="{l:T 'Abbrechen'}" Command="{Binding CancelTopicTmCommand}" IsVisible="{Binding IsTopicTmBusy}" />
+                    </StackPanel>
+                    <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsTopicTmBusy}" />
+                    <ItemsControl ItemsSource="{Binding TopicActs}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:EuActRow">
+                                <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,6">
+                                    <CheckBox IsChecked="{Binding IsChecked}" VerticalAlignment="Top" />
+                                    <StackPanel Grid.Column="1" Spacing="1">
+                                        <TextBlock Text="{Binding Title}" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding TargetTitle}" TextWrapping="Wrap" Classes="muted" FontSize="12" />
+                                        <TextBlock Text="{Binding Info}" Classes="muted" FontSize="12" />
+                                    </StackPanel>
+                                    <Button Grid.Column="2" Content="{l:T 'Öffnen'}" VerticalAlignment="Top" Margin="8,0,0,0"
+                                            Command="{Binding $parent[UserControl].((vm:KnowledgeViewModel)DataContext).OpenTopicActCommand}" CommandParameter="{Binding}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <WrapPanel IsVisible="{Binding HasTopicActs}">
+                        <TextBlock Text="{l:T 'Ziel-TM'}" VerticalAlignment="Center" Margin="0,0,8,4" />
+                        <TextBox Text="{Binding TopicTmName}" Width="420" Margin="0,0,8,4" />
+                        <Button Content="{l:T 'TM aufbauen'}" Command="{Binding BuildTopicTmCommand}" Classes="accent" Margin="0,0,8,4" />
+                    </WrapPanel>
+                    <SelectableTextBlock Text="{Binding TopicTmLog, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontSize="12" />
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+
         <TabItem Header="{l:T 'Team-Aktivität'}">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
                     <Button Content="{l:T 'Aktualisieren'}" Command="{Binding LoadActivityCommand}" />
                     <TextBlock Text="{l:T 'Was das Team zuletzt zu TMs, Terminologien und Wissensdatenbanken beigetragen hat.'}" VerticalAlignment="Center" Classes="muted" />
                 </StackPanel>
+                <SelectableTextBlock DockPanel.Dock="Top" Text="{Binding ActivityInfo, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" Margin="0,0,0,8"
+                                     IsVisible="{Binding ActivityInfo.Length}" />
                 <ListBox ItemsSource="{Binding Activity}">
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:ActivityRow">

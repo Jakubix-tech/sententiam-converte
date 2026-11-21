@@ -36,9 +36,9 @@ alle, die das Projekt gerade im Programm offen haben, beim nächsten Abgleich �
 | Methode | Pfad | Wirkung |
 |---|---|---|
 | GET | `/projects` | alle Projekte |
-| POST | `/projects` | anlegen: `{ name, sourceLanguage, targetLanguages[], topic }` |
+| POST | `/projects` | anlegen: `{ name, sourceLanguage, targetLanguages[], topic, template }` (mit `template`: Einstellungen einer Projektvorlage) |
 | GET | `/projects/{project}` | Projekt mit Dateien und Ressourcen |
-| PATCH | `/projects/{project}` | `{ topic, pretranslateMinScore, confirmContextMatches, sourceProfile }` |
+| PATCH | `/projects/{project}` | `{ topic, pretranslateMinScore, confirmContextMatches, sourceProfile, autoLocalize, client }` |
 | POST | `/projects/{project}/resources` | TM, Terminologie oder Wissen anbinden: `{ kind, location, server, languages[], writeBack }` |
 | DELETE | `/projects/{project}/resources?kind=&location=&server=` | Ressource lösen |
 | GET | `/projects/{project}/files` | Dateiliste |
@@ -55,7 +55,7 @@ Pfad-Anfang: `/projects/{project}/files/{file}/{lang}/segments/{id}`
 
 | Methode | Pfad | Wirkung |
 |---|---|---|
-| GET | `` | Segment (Quelle, Ziel, Status, Herkunft, Treffer-%, Kommentar, Kontext, Verlauf) |
+| GET | `` | Segment (Quelle, Ziel, Status, Herkunft, Treffer-%, Kommentar, Kontext, Verlauf, offene Änderung `reviewBaseline`, Fehler `errors`, Höchstlänge `maxLength`) |
 | PUT | `` | `{ target, status, comment }` – jedes Feld optional |
 | POST | `/confirm` | bestätigen: ins TM (mit Kontext), auf gleiche Segmente übertragen; Antwort `{ segment, propagated }` |
 | GET | `/matches?minScore=` | TM-Treffer (101 = Kontexttreffer) |
@@ -128,7 +128,7 @@ Status für Benennungen: `Preferred`, `Admitted`, `Forbidden`. Arten von Wissen:
 | POST | `/agents/knowledge` | `{ project, topic, languages[], focus, pagesPerLanguage, knowledgeBase, sourceProfile }` |
 | POST | `/agents/compare` | Begriffsvergleich: `{ term, sourceLanguage, targetLanguage, context, topic, sourceProfile, candidates[], project, saveToTermbase, saveToKnowledge }` |
 
-Die Agenten nutzen die KI-Einstellungen des Gastgebers (Desktop: Einstellungen → KI; Teamserver:
+Die Agenten nutzen die KI-Einstellungen des Gastgebers (Desktop: Seite „KI einrichten“; Teamserver:
 `<daten>/ki-einstellungen.json` im selben Format wie `ai-settings.json`). Sie können je nach Umfang einige
 Minuten laufen; Clients sollten eine entsprechende Wartezeit einstellen.
 
@@ -142,6 +142,65 @@ Minuten laufen; Clients sollten eine entsprechende Wartezeit einstellen.
 Ändert ein Befehl das Dokument (`documentChanged: true`), wird es gespeichert und allen Beteiligten gemeldet.
 Auf dem Teamserver installiert der Administrator Erweiterungen auf der Kommandozeile:
 `SententiamConverte.Server erweiterung installieren <datei.scext>` und `erweiterung ein <kennung>`.
+
+## Lektorat und Fehlerbewertung (seit 2.1)
+
+Pfad-Anfang Datei: `/projects/{project}/files/{file}/{lang}`, Segment: `…/segments/{id}`
+
+| Methode | Pfad | Wirkung |
+|---|---|---|
+| GET | `…/{lang}/review` | Prüfdatei (Word-Tabelle) für das Lektorat (Base64) |
+| POST | `…/{lang}/review` | korrigierte Prüfdatei einlesen: `{ file: { name, base64 }, markUnchangedReviewed }` |
+| POST | `…/segments/{id}/accept-change` | Änderung des Prüfers annehmen |
+| POST | `…/segments/{id}/reject-change` | Änderung ablehnen – die vorige Fassung gilt wieder |
+| POST | `…/segments/{id}/errors` | Fehler erfassen: `{ category, severity, note }` (`Minor`, `Major`, `Critical`, `Neutral`) |
+| DELETE | `…/segments/{id}/errors/{index}` | erfassten Fehler entfernen |
+| GET | `…/{lang}/evaluation` | Fehlerbewertung der Datei: Wörter, Fehler, Strafpunkte, Punktzahl, bestanden |
+| GET | `…/{lang}/evaluation/report` | Bewertungsbericht als Word |
+| GET | `/projects/{project}/evaluation?language=` | Fehlerbewertung des Projekts |
+| PUT | `/projects/{project}/evaluation-settings` | `{ minorPoints, majorPoints, criticalPoints, passScore }` |
+
+## Zahlen, Pseudoübersetzung, Angebot, Vorlagen (seit 2.1)
+
+| Methode | Pfad | Wirkung |
+|---|---|---|
+| POST | `/projects/{project}/localize-numbers` | Zahlen und Datum in die Schreibweise der Zielsprache; Antwort: geänderte Segmente |
+| GET | `/projects/{project}/files/{file}/{lang}/pseudo` | Zieldatei mit Pseudoübersetzung (Projekt bleibt unverändert) |
+| GET | `/projects/{project}/quote` | Angebot: je Zielsprache Einheiten, gewichtet, Betrag; netto, MwSt., gesamt |
+| PUT | `/projects/{project}/quote` | Preise setzen (`{ currency, unit, price, minimumFee, vatPercent, weights }`) und Angebot berechnen |
+| GET | `/projects/{project}/quote/document` | Angebot als Word |
+| GET | `/templates` | Projektvorlagen |
+| POST | `/projects/{project}/template?name=` | Projekt als Vorlage speichern |
+| GET | `/qa-profiles` | QA-Profile |
+| POST | `/projects/{project}/qa-profile?name=` | QA-Einstellungen als Profil speichern |
+| PUT | `/projects/{project}/qa-profile?name=` | QA-Profil ins Projekt übernehmen |
+
+## TM-Pflege, Fachbegriffe, alte Übersetzungen, Datenschutz (seit 2.1)
+
+| Methode | Pfad | Wirkung |
+|---|---|---|
+| POST | `/projects/{project}/tm/replace` | `{ find, replace, inSource, inTarget, matchCase, regex, wholeWords, preview }` – Antwort `{ count, changes[] }` |
+| POST | `/projects/{project}/tm/clean` | `{ duplicates, emptyTargets, identical }` |
+| GET | `/projects/{project}/tm/inconsistent` | gleiche Quelle, verschiedene Übersetzungen |
+| POST | `/projects/{project}/terms/extract` | Fachbegriffe aus den Projektdateien: `{ language, useAi, max }` |
+| POST | `/projects/{project}/import-translations` | alte Übersetzungen: `{ files: [{ name, base64 }], sourceLanguage, targetLanguages[], shared, useAi, suggestTerms, keepTags }` |
+| PUT | `/projects/{project}/privacy` | Datenschutz-Einstellungen |
+| GET | `/projects/{project}/privacy/detected` | was in den Dateien geschützt würde |
+
+## Team, Automatisierung, Sprachdaten, Diktat (seit 2.1)
+
+| Methode | Pfad | Wirkung |
+|---|---|---|
+| GET | `/projects/{project}/workflow` | Arbeitsschritt jeder Datei und Zielsprache |
+| PUT | `/projects/{project}/files/{file}/{lang}/workflow` | Verwaltung: `{ step, translator, reviewer, approver }`; wer an der Reihe ist: `{ advance: true }` |
+| POST | `/projects/{project}/process-folder` | Eingangsordner einmal verarbeiten (Admin): `{ folder, pretranslate, aiTranslate, exportTargets, outputFolder }` |
+| GET | `/language-data?sourceLanguage=&targetLanguage=` | freie Sprachdaten (OPUS, IATE) für ein Sprachpaar |
+| POST | `/projects/{project}/language-data` | Datensatz laden und anbinden (Admin): `{ id, sourceLanguage, targetLanguage, forLanguages }` |
+| POST | `/transcribe` | Aufnahme in Text: `{ audio: { name, base64 }, language }` |
+
+**Arbeitsschritte gelten auch hier:** Sind einer Datei Zuständige zugewiesen, ändert sie über die Schnittstelle nur, wer
+gerade an der Reihe ist (sonst `403` mit Begründung); die Vorübersetzung überspringt solche Dateien. Die Verwaltung darf
+immer.
 
 ## .NET-SDK
 

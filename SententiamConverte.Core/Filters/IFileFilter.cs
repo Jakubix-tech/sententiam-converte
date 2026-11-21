@@ -36,6 +36,7 @@ public static class FileFilters
         new IdmlFilter(),
         new HtmlFilter(),
         new MarkdownFilter(),
+        new DitaFilter(),
         new ResxFilter(),
         new JsonFilter(),
         new PoFilter(),

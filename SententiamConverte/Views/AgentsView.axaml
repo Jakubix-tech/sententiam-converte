@@ -7,6 +7,141 @@
              x:DataType="vm:AgentsViewModel">
     <Grid RowDefinitions="*,Auto,Auto">
         <TabControl Padding="8">
+            <!-- KI-gesteuerte Recherche -->
+            <TabItem Header="{l:T 'Recherche (KI steuert)'}">
+                <ScrollViewer>
+                    <StackPanel Spacing="8" MaxWidth="1100" HorizontalAlignment="Left">
+                        <TextBlock TextWrapping="Wrap" Classes="muted"
+                                   Text="{l:T 'Die KI recherchiert selbst: Sie entscheidet Schritt für Schritt, ob sie in den Projekt-Datenbanken nachschlägt, in Wikipedia, Wiktionary oder im Web sucht, einen Artikel oder eine Webseite liest, einen Skill anwendet oder sich etwas merkt – das Programm führt aus und liefert ihr die Inhalte. Seiten werden nur gelesen, wenn robots.txt und Nutzungsvorbehalte es erlauben. Funktioniert mit jeder KI, auch der kostenlosen eingebauten.'}" />
+                        <TextBlock TextWrapping="Wrap" Classes="muted"
+                                   Text="{l:T 'Amtliche Quellen: Gesetze aus Deutschland (Bundesrecht), Polen, dem Vereinigten Königreich und der EU (in allen Amtssprachen) sowie das DWDS fragt die KI direkt über deren Schnittstellen ab. Sie kennt die Fachseiten je Thema und Sprache (Einstellungen → Fachquellen), ergänzt neu gefundene amtliche Seiten und vergleicht Rechtsbegriffe beider Rechtsordnungen – mit Übersetzungsvorschlag und Anmerkung des Übersetzers. Für die gezielte Suche auf einzelnen Fachseiten braucht sie eine Websuche (Brave, Tavily, SearXNG oder Claude).'}" />
+                        <TextBlock Text="{l:T 'Aufgabe oder Frage'}" />
+                        <TextBox Text="{Binding AgentTask}" AcceptsReturn="True" TextWrapping="Wrap" Height="70"
+                                 PlaceholderText="{l:T 'z. B. Wie heißt „Abkantpresse“ (Blechbearbeitung) auf Polnisch? Mit Beleg.'}" />
+                        <WrapPanel>
+                            <StackPanel Spacing="4" Margin="0,0,12,4">
+                                <TextBlock Text="{l:T 'Ausgangssprache'}" />
+                                <TextBox Text="{Binding AgentSourceLanguage}" Width="100" />
+                            </StackPanel>
+                            <StackPanel Spacing="4" Margin="0,0,12,4">
+                                <TextBlock Text="{l:T 'Zielsprache(n)'}" />
+                                <TextBox Text="{Binding AgentTargetLanguages}" Width="180" />
+                            </StackPanel>
+                            <StackPanel Spacing="4" Margin="0,0,12,4">
+                                <TextBlock Text="{l:T 'Höchstens Schritte'}" />
+                                <NumericUpDown Value="{Binding AgentMaxSteps}" Minimum="2" Maximum="30" Width="120" FormatString="0" />
+                            </StackPanel>
+                            <StackPanel Spacing="6" Margin="0,22,0,4">
+                                <CheckBox Content="{l:T 'Ergebnis im Gedächtnis speichern'}" IsChecked="{Binding AgentRemember}" />
+                                <CheckBox Content="{l:T 'Neue Skills lernen'}" IsChecked="{Binding AgentLearn}" />
+                            </StackPanel>
+                        </WrapPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="{l:T 'Recherchieren'}" Command="{Binding RunAgentCommand}" Classes="accent" />
+                            <Button Content="{l:T 'Abbrechen'}" Command="{Binding CancelCommand}" IsVisible="{Binding IsRunning}" />
+                            <TextBlock Text="{Binding AgentInfo, Converter={x:Static l:L.Text}}" VerticalAlignment="Center" Classes="muted" />
+                        </StackPanel>
+                        <Border Classes="card" IsVisible="{Binding AgentAnswer.Length}">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="{l:T 'Antwort'}" FontWeight="SemiBold" />
+                                <SelectableTextBlock Text="{Binding AgentAnswer}" TextWrapping="Wrap" />
+                                <StackPanel Spacing="4" Margin="0,6,0,0" IsVisible="{Binding AgentTranslation.Length}">
+                                    <TextBlock Text="{l:T 'Übersetzungsvorschlag'}" FontWeight="SemiBold" />
+                                    <SelectableTextBlock Text="{Binding AgentTranslation}" TextWrapping="Wrap" FontSize="15" />
+                                </StackPanel>
+                                <StackPanel Spacing="4" Margin="0,6,0,0" IsVisible="{Binding AgentNote.Length}">
+                                    <TextBlock Text="{l:T 'Anmerkung des Übersetzers (für die Leser der Übersetzung)'}" FontWeight="SemiBold" />
+                                    <Border Padding="8" CornerRadius="4" Background="{DynamicResource SystemControlBackgroundBaseLowBrush}">
+                                        <SelectableTextBlock Text="{Binding AgentNote}" TextWrapping="Wrap" FontStyle="Italic" />
+                                    </Border>
+                                </StackPanel>
+                                <StackPanel Spacing="4" Margin="0,6,0,0" IsVisible="{Binding AgentEvidence.Length}">
+                                    <TextBlock Text="{l:T 'Beleg-Prüfung (vom Programm, nicht von der KI)'}" FontWeight="SemiBold" />
+                                    <SelectableTextBlock Text="{Binding AgentEvidence, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontSize="12.5" />
+                                </StackPanel>
+                                <TextBlock Text="{l:T 'Quellen'}" FontWeight="SemiBold" Margin="0,6,0,0" />
+                                <ItemsControl ItemsSource="{Binding AgentSources}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="agents:SourceRef">
+                                            <SelectableTextBlock Text="{Binding Url}" FontSize="12" Foreground="{DynamicResource SystemAccentColor}" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                        <Expander Header="{l:T 'Schritte der KI'}" IsVisible="{Binding AgentSteps.Count}">
+                            <ItemsControl ItemsSource="{Binding AgentSteps}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="agents:ResearchStep">
+                                        <StackPanel Margin="0,0,0,8">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <TextBlock Text="{Binding Number}" FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding Tool}" FontWeight="SemiBold" Foreground="{DynamicResource SystemAccentColor}" />
+                                                <TextBlock Text="{Binding Arguments}" FontSize="12" Classes="muted" TextTrimming="CharacterEllipsis" MaxWidth="800" />
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding Thought}" FontSize="12" TextWrapping="Wrap" FontStyle="Italic" />
+                                            <SelectableTextBlock Text="{Binding Observation}" FontSize="11" TextWrapping="Wrap" MaxHeight="120" Classes="muted" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Expander>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Skills und Gedächtnis -->
+            <TabItem Header="{l:T 'Skills &amp; Gedächtnis'}">
+                <Grid ColumnDefinitions="300,16,*" Margin="0,4,0,0">
+                    <StackPanel Spacing="6">
+                        <TextBlock TextWrapping="Wrap" Classes="muted" FontSize="12"
+                                   Text="{l:T 'Skills sind bewährte Vorgehensweisen, die die KI bei der Recherche laden kann (offenes SKILL.md-Format). Nach erfolgreichen Recherchen legt sie selbst neue an; alle lassen sich hier lesen, ändern und löschen.'}" />
+                        <ListBox ItemsSource="{Binding SkillList}" SelectedItem="{Binding SelectedSkill}" Height="320">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="agents:Skill">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock Text="{Binding OriginText, Converter={x:Static l:L.Text}}" FontSize="11" Classes="muted" />
+                                            <TextBlock Text="{Binding Uses, StringFormat='· {0}×'}" FontSize="11" Classes="muted" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <WrapPanel>
+                            <Button Content="{l:T 'Neuer Skill'}" Command="{Binding NewSkillCommand}" Margin="0,0,6,4" />
+                            <Button Content="{l:T 'Aktualisieren'}" Command="{Binding RefreshSkillsCommand}" Margin="0,0,6,4" />
+                        </WrapPanel>
+                        <TextBlock Text="{Binding SkillFolder}" FontSize="11" Classes="muted" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <ScrollViewer Grid.Column="2">
+                        <StackPanel Spacing="6" MaxWidth="800" HorizontalAlignment="Left">
+                            <TextBlock Text="{l:T 'Name'}" />
+                            <TextBox Text="{Binding SkillName}" />
+                            <TextBlock Text="{l:T 'Wofür (die KI wählt danach aus)'}" />
+                            <TextBox Text="{Binding SkillDescription}" TextWrapping="Wrap" />
+                            <TextBlock Text="{l:T 'Vorgehen (Markdown)'}" />
+                            <TextBox Text="{Binding SkillInstructions}" AcceptsReturn="True" TextWrapping="Wrap" Height="260" FontFamily="Consolas,Menlo,monospace" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="{l:T 'Speichern'}" Command="{Binding SaveSkillCommand}" Classes="accent" />
+                                <Button Content="{l:T 'Löschen'}" Command="{Binding DeleteSkillCommand}" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding MemoryInfo, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" Margin="0,12,0,0" />
+                            <Button Content="{l:T 'Gespeicherte Recherchen ansehen'}" Command="{Binding ShowMemoryCommand}" />
+                            <TextBlock Text="{l:T 'In den Datenbanken nachsehen'}" FontWeight="SemiBold" Margin="0,12,0,0" />
+                            <TextBlock TextWrapping="Wrap" Classes="muted" FontSize="12"
+                                       Text="{l:T 'Sucht wie der Agent in TM, Terminologie, Wissen und Gedächtnis – z. B. ob eine Formulierung schon übersetzt oder ein Begriff schon recherchiert wurde. Gesucht wird in der Ausgangssprache der Recherche.'}" />
+                            <Grid ColumnDefinitions="*,6,Auto">
+                                <TextBox Text="{Binding DbQuery}" PlaceholderText="{l:T 'Begriff oder Formulierung'}" />
+                                <Button Grid.Column="2" Content="{l:T 'Suchen'}" Command="{Binding SearchDatabasesCommand}" IsDefault="False" />
+                            </Grid>
+                            <SelectableTextBlock Text="{Binding DbResult, Converter={x:Static l:L.Text}}" TextWrapping="Wrap" FontSize="12" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
+
             <!-- Begriffsvergleich -->
             <TabItem Header="{l:T 'Begriffsvergleich'}">
                 <ScrollViewer>

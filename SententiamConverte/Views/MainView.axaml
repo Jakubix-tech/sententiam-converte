@@ -12,13 +12,59 @@
         <vm:MainViewModel />
     </Design.DataContext>
 
+    <Grid>
     <DockPanel>
         <!-- Statusleiste -->
-        <Border DockPanel.Dock="Bottom" Padding="12,5" Background="{DynamicResource ToolbarBackground}"
+        <Border DockPanel.Dock="Bottom" Padding="8,3,12,3" Background="{DynamicResource ToolbarBackground}"
                 BorderBrush="{DynamicResource CardBorder}" BorderThickness="0,1,0,0">
-            <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Text="{Binding Status, Converter={x:Static l:L.Text}}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                <ProgressBar Grid.Column="1" IsIndeterminate="True" Width="120" IsVisible="{Binding IsBusy}" />
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <!-- Projekt umschalten: von jedem Reiter aus -->
+                <Button x:Name="ProjectSwitcher" Padding="8,3" Margin="0,0,10,0" MaxWidth="320" VerticalAlignment="Center"
+                        Background="Transparent" BorderThickness="0" ToolTip.Tip="{l:T 'Projekt wechseln'}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="▤" VerticalAlignment="Center" Classes="muted" />
+                        <TextBlock Text="{Binding ProjectSwitchLabel}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                        <TextBlock Text="▾" VerticalAlignment="Center" Classes="muted" />
+                    </StackPanel>
+                    <Button.Flyout>
+                        <Flyout Placement="TopEdgeAlignedLeft">
+                            <StackPanel Spacing="6" Width="460">
+                                <TextBlock Text="{l:T 'Projekt wechseln'}" Classes="h2" />
+                                <Border IsVisible="{Binding Editor.IsAiWorking}" Padding="8" CornerRadius="4" Background="#FFF7E6" BorderBrush="#F0B429" BorderThickness="1">
+                                    <TextBlock TextWrapping="Wrap" Foreground="#5C3D00" FontSize="12"
+                                               Text="{l:T 'Im Editor arbeitet die KI noch. Beim Wechsel wird sie angehalten; was fertig ist, bleibt gespeichert.'}" />
+                                </Border>
+                                <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding !HasRecent}"
+                                           Text="{l:T 'Noch keine Projekte geöffnet.'}" />
+                                <ScrollViewer MaxHeight="360" VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{Binding RecentRows}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:RecentProjectRow">
+                                                <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Margin="0,1" Padding="8,5"
+                                                        Command="{Binding Owner.SwitchProjectCommand}" CommandParameter="{Binding Folder}"
+                                                        IsEnabled="{Binding !IsCurrent}" Click="OnProjectPicked">
+                                                    <Grid ColumnDefinitions="18,*">
+                                                        <TextBlock Text="{Binding Mark}" FontWeight="SemiBold" VerticalAlignment="Top" />
+                                                        <StackPanel Grid.Column="1" Spacing="1">
+                                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock Text="{Binding Details}" Classes="muted" FontSize="11" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Folder}" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                                <WrapPanel>
+                                    <Button Content="{l:T 'Projektordner öffnen …'}" Command="{Binding OpenProjectFolderCommand}" Click="OnProjectPicked" Margin="0,4,8,0" />
+                                    <Button Content="{l:T 'Neues Projekt'}" Command="{Binding NewProjectFromSwitcherCommand}" Click="OnProjectPicked" Margin="0,4,8,0" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+                <TextBlock Grid.Column="1" Text="{Binding Status, Converter={x:Static l:L.Text}}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                <ProgressBar Grid.Column="2" IsIndeterminate="True" Width="120" IsVisible="{Binding IsBusy}" />
             </Grid>
         </Border>
 
@@ -35,8 +81,14 @@
             <TabItem Header="{l:T 'Wissen'}" Tag="{StaticResource Nav.Knowledge}">
                 <views:KnowledgeView DataContext="{Binding Knowledge}" />
             </TabItem>
+            <TabItem Header="{l:T 'Hilfsmittel'}" Tag="{StaticResource Ic.Globe}">
+                <views:ToolsView DataContext="{Binding Tools}" />
+            </TabItem>
             <TabItem Header="{l:T 'Agenten'}" Tag="{StaticResource Nav.Agents}">
                 <views:AgentsView DataContext="{Binding Agents}" />
+            </TabItem>
+            <TabItem Header="{l:T 'KI einrichten'}" Tag="{StaticResource Ic.Ai}">
+                <views:AiPageView DataContext="{Binding Settings}" />
             </TabItem>
             <TabItem Header="{l:T 'Einstellungen'}" Tag="{StaticResource Nav.Settings}">
                 <views:SettingsView DataContext="{Binding Settings}" />
@@ -49,4 +101,28 @@
             </TabItem>
         </TabControl>
     </DockPanel>
+
+    <!-- Rückfrage vor dem Senden (Datenausgang) – liegt über allem, auch auf Android -->
+    <Border Background="#99000000" IsVisible="{Binding Outbound.IsAsking}" ZIndex="100">
+        <Border Classes="card" MaxWidth="760" MaxHeight="620" Margin="16" HorizontalAlignment="Center" VerticalAlignment="Center"
+                DataContext="{Binding Outbound}" x:DataType="vm:OutboundViewModel">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Spacing="4" Margin="0,0,0,10">
+                    <TextBlock Text="{Binding PendingTitle}" Classes="h2" TextWrapping="Wrap" />
+                    <TextBlock Classes="muted" TextWrapping="Wrap">
+                        <Run Text="{Binding PendingKind}" /><Run Text=" – " /><Run Text="{l:T 'genau dieser Inhalt würde den Rechner verlassen:'}" />
+                    </TextBlock>
+                </StackPanel>
+                <WrapPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0">
+                    <Button Classes="accent" Content="{l:T 'Senden'}" Command="{Binding SendCommand}" Margin="0,0,8,6" />
+                    <Button Content="{l:T 'An diesen Dienst immer senden (bis zum Neustart)'}" Command="{Binding SendAlwaysCommand}" Margin="0,0,8,6" />
+                    <Button Content="{l:T 'Nicht senden'}" Command="{Binding DeclineCommand}" Margin="0,0,8,6" />
+                    <Button Content="{l:T 'Dienst sperren'}" Command="{Binding BlockServiceCommand}" Margin="0,0,8,6" />
+                </WrapPanel>
+                <TextBox Text="{Binding PendingContent}" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"
+                         FontFamily="Consolas,Menlo,monospace" FontSize="12" MinHeight="200" />
+            </DockPanel>
+        </Border>
+    </Border>
+    </Grid>
 </UserControl>

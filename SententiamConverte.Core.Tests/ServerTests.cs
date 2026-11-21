@@ -6,6 +6,7 @@ using SententiamConverte.Core.Ai;
 using SententiamConverte.Core.Knowledge;
 using SententiamConverte.Core.Model;
 using SententiamConverte.Core.Projects;
+using SententiamConverte.Core.Qa;
 using SententiamConverte.Core.Remote;
 using SententiamConverte.Core.Resources;
 using SententiamConverte.Core.Terminology;
@@ -138,6 +139,47 @@ public sealed class ServerTests : IAsyncLifetime
     }
 
     [Fact]
+    public void FilesPassFromTranslatorToReviewerToApproval()
+    {
+        var admin = new SharedProjectClient(Api(_admin));
+        var anna = new SharedProjectClient(Api(_editorA));
+        var bartek = new SharedProjectClient(Api(_editorB));
+        admin.Create(new SharedProjectCreate("Schritte", "de-DE", ["en-GB"], "Recht"));
+        var file = admin.Upload("Schritte", "brief.txt", "Erster Satz.\nZweiter Satz.\n"u8.ToArray());
+        SegmentUpdate Change(string text, SharedProjectClient who) =>
+            new(text, SegmentStatus.Translated, TranslationOrigin.Manual, null, null, who.Document("Schritte", file.Id, "en-GB").Version);
+
+        // ohne Zuweisung wie bisher: jeder mit Schreibrecht
+        Assert.True(bartek.Update("Schritte", file.Id, "en-GB", 1, Change("First.", bartek)).Accepted);
+        var step = Assert.Single(Assert.Single(anna.Get("Schritte").Files).Steps!);
+        Assert.Equal((WorkflowStep.Translation, (string?)null), (step.Step, step.Translator));
+        Assert.Contains(anna.Users(), u => u.Name == "Bartek");
+
+        // Verwaltung weist zu: Anna übersetzt, Bartek lektoriert
+        admin.SetWorkflow("Schritte", file.Id, "en-GB", new WorkflowUpdate(Translator: "Anna", Reviewer: "Bartek"));
+        var denied = Assert.Throws<RemoteException>(() => bartek.Update("Schritte", file.Id, "en-GB", 2, Change("Second (B).", bartek)));
+        Assert.Contains("Übersetzung", denied.Message);                                  // Begründung vom Server
+        Assert.Contains("Anna", denied.Message);
+        Assert.Throws<RemoteException>(() => bartek.SetWorkflow("Schritte", file.Id, "en-GB", new WorkflowUpdate(Advance: true)));
+        Assert.Throws<RemoteException>(() => anna.SetWorkflow("Schritte", file.Id, "en-GB", new WorkflowUpdate(Reviewer: "Anna")));
+        Assert.True(anna.Update("Schritte", file.Id, "en-GB", 2, Change("Second.", anna)).Accepted);
+
+        // Anna gibt ab → Lektorat bei Bartek
+        Assert.Equal(WorkflowStep.Review, anna.SetWorkflow("Schritte", file.Id, "en-GB", new WorkflowUpdate(Advance: true)).Step);
+        Assert.Throws<RemoteException>(() => anna.Update("Schritte", file.Id, "en-GB", 2, Change("Second again.", anna)));
+        Assert.True(bartek.Update("Schritte", file.Id, "en-GB", 2, Change("The second sentence.", bartek)).Accepted);
+
+        // Bartek gibt ab → Freigabe (niemand zugewiesen: jeder darf), Verwaltung schließt ab
+        Assert.Equal(WorkflowStep.Approval, bartek.SetWorkflow("Schritte", file.Id, "en-GB", new WorkflowUpdate(Advance: true)).Step);
+        admin.SetWorkflow("Schritte", file.Id, "en-GB", new WorkflowUpdate(Step: WorkflowStep.Done));
+        Assert.Throws<RemoteException>(() => bartek.Update("Schritte", file.Id, "en-GB", 1, Change("x", bartek)));
+        Assert.True(admin.Update("Schritte", file.Id, "en-GB", 1, Change("First sentence.", admin)).Accepted);   // Verwaltung darf immer
+
+        var final = Assert.Single(Assert.Single(admin.Get("Schritte").Files).Steps!);
+        Assert.Equal((WorkflowStep.Done, "Anna", "Bartek"), (final.Step, final.Translator, final.Reviewer));
+    }
+
+    [Fact]
     public void TwoTranslatorsEditTheSameFile()
     {
         var servers = new ServerSettings { Servers = [new ServerAccount { Name = "Büro", Url = _url, Token = _editorA }] };
@@ -197,6 +239,73 @@ public sealed class ServerTests : IAsyncLifetime
             var ms = new MemoryStream();
             bartek.ExportTarget(fb, docB, ms);
             Assert.StartsWith("First sentence.\nSecond sentence (Anna).", System.Text.Encoding.UTF8.GetString(ms.ToArray()));
+        }
+        finally
+        {
+            TranslationProject.Servers = ServerSettings.Load;
+            ResourceFactory.ResetConnections();
+        }
+    }
+
+    [Fact]
+    public void ReviewChangesAndErrorsReachTheTeam()
+    {
+        var servers = new ServerSettings { Servers = [new ServerAccount { Name = "Büro", Url = _url, Token = _editorA }] };
+        var serversB = new ServerSettings { Servers = [new ServerAccount { Name = "Büro", Url = _url, Token = _editorB }] };
+        var admin = new SharedProjectClient(Api(_admin));
+        admin.Create(new SharedProjectCreate("Lektorat", "de-DE", ["en-GB"], "Recht"));
+        var file = admin.Upload("Lektorat", "lektorat.txt", "Erster Satz.\nZweiter Satz.\n"u8.ToArray());
+
+        try
+        {
+            TranslationProject.Servers = () => servers;
+            ResourceFactory.ResetConnections();
+            using var anna = TranslationProject.OpenShared(_dir.File("anna-l"), "Büro", "Lektorat");
+            TranslationProject.Servers = () => serversB;
+            ResourceFactory.ResetConnections();
+            using var bartek = TranslationProject.OpenShared(_dir.File("bartek-l"), "Büro", "Lektorat");
+            var fa = anna.Files.Single();
+            var fb = bartek.Files.Single();
+            var docA = anna.LoadDocument(fa, "en-GB");
+            var docB = bartek.LoadDocument(fb, "en-GB");
+            var a = docA.Segments.ToList();
+            var b = docB.Segments.ToList();
+
+            // Anna übersetzt und bestätigt
+            a[0].Target = "First sentense.";
+            Workflow.Confirm(anna, docA, a[0]);
+            anna.SaveDocument(fa, docA);
+            bartek.Sync(fb, docB);
+
+            // Bartek lektoriert: korrigiert (Änderung bleibt sichtbar) und erfasst einen Fehler
+            TrackChanges.Remember(b[0]);
+            b[0].Target = "First sentence.";
+            b[0].Errors = [new LqaError("Rechtschreibung", LqaSeverity.Minor, "sentense", "Bartek", DateTime.UtcNow)];
+            bartek.SaveDocument(fb, docB);
+            Assert.Empty(bartek.LastConflicts);
+
+            // Anna sieht Änderung und Fehler beim Abgleich
+            Assert.Contains(1, anna.Sync(fa, docA).ChangedSegments);
+            Assert.Equal("First sentence.", a[0].Target);
+            Assert.Equal("First sentense.", a[0].ReviewBaseline);
+            Assert.True(TrackChanges.HasChange(a[0]));
+            Assert.Equal("Rechtschreibung", Assert.Single(a[0].Errors!).Category);
+
+            // … und nimmt die Änderung an: bei Bartek ist sie danach erledigt, der Fehler bleibt für die Bewertung
+            TrackChanges.Accept(a[0]);
+            anna.SaveDocument(fa, docA);
+            Assert.Contains(1, bartek.Sync(fb, docB).ChangedSegments);
+            Assert.Null(b[0].ReviewBaseline);
+            Assert.Single(b[0].Errors!);
+
+            // ein älteres Programm ohne Lektoratsfelder lässt den Stand auf dem Server unverändert
+            var old = new SharedProjectClient(Api(_editorA));
+            var version = old.Document("Lektorat", file.Id, "en-GB").SegmentVersions.GetValueOrDefault(1);
+            Assert.True(old.Update("Lektorat", file.Id, "en-GB", 1,
+                new SegmentUpdate("First sentence!", SegmentStatus.Translated, TranslationOrigin.Manual, null, null, version)).Accepted);
+            var server = admin.Document("Lektorat", file.Id, "en-GB").Document.Segments.First();
+            Assert.Equal("First sentence!", server.Target);
+            Assert.Single(server.Errors!);
         }
         finally
         {

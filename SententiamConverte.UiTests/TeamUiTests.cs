@@ -64,7 +64,7 @@ public class TeamUiTests
         // Ab jetzt arbeitet Anna
         settings.SelectedServer.Token = anna;
         await Run(settings.SaveCommand);
-        vm.SelectedTab = 5;
+        vm.SelectedTab = MainViewModel.SettingsTab;
         Dispatcher.UIThread.RunJobs();
         window.CaptureRenderedFrame()?.Save(Path.Combine(TestSetup.ScreenshotDir, "12-teamserver.png"));
 
@@ -168,5 +168,36 @@ public class TeamUiTests
         Dispatcher.UIThread.RunJobs();
         window.CaptureRenderedFrame()?.Save(Path.Combine(TestSetup.ScreenshotDir, "16-editor-gemeinsam.png"));
         editor.Close();
+
+        // ---------- Arbeitsschritte: Bartek übersetzt, Anna lektoriert ----------
+        var adminClient = new SharedProjectClient(new RemoteApi(new ServerAccount { Name = "Büro", Url = url, Token = admin }));
+        adminClient.SetWorkflow("Vertrag", fileId, "en-GB", new WorkflowUpdate(Translator: "Bartek", Reviewer: "Anna"));
+        vm.SelectedTab = 0;
+        await Run(vm.RefreshTeamCommand);
+        var row = Assert.Single(vm.TeamSteps);
+        Assert.Equal("Anna", vm.TeamMe);
+        Assert.False(row.CanAdvance);                                               // Bartek ist an der Reihe
+        Assert.Contains("Bartek", row.StepText);
+        await Run(vm.OpenInEditorCommand, vm.Files[0]);
+        Assert.True(editor.DocumentReadOnly);
+        Assert.Contains("Bartek", editor.WorkflowNote);
+        Assert.True(editor.Segments[1].IsReadOnly);
+        editor.Close();
+
+        barClient.SetWorkflow("Vertrag", fileId, "en-GB", new WorkflowUpdate(Advance: true));   // Bartek gibt ab → Lektorat bei Anna
+        await Run(vm.RefreshTeamCommand);
+        row = Assert.Single(vm.TeamSteps);
+        Assert.True(row.IsMine && row.CanAdvance);
+        Assert.Contains("1 Datei", vm.TeamInfo);
+        vm.SelectedTab = 0;
+        Dispatcher.UIThread.RunJobs();
+        window.CaptureRenderedFrame()?.Save(Path.Combine(TestSetup.ScreenshotDir, "47-team-schritte.png"));
+        await Run(vm.OpenInEditorCommand, vm.Files[0]);
+        Assert.False(editor.DocumentReadOnly);
+        Assert.Contains("an der Reihe", editor.WorkflowNote);
+        editor.Close();
+        await Run(vm.AdvanceTeamStepCommand, row);
+        Assert.Contains("Freigabe", vm.Status);
+        Assert.Equal(WorkflowStep.Approval, Assert.Single(vm.TeamSteps).Step.Step);
     }
 }

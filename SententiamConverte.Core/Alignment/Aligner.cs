@@ -12,6 +12,13 @@ public sealed class AlignedPair
     public double Confidence { get; set; }
     public bool Accepted { get; set; } = true;
 
+    /// <summary>Von Hand bestätigt: bleibt beim Neu-Ausrichten als fester Anker stehen.</summary>
+    public bool Confirmed { get; set; }
+
+    /// <summary>Bewertung der KI (0..1), ob das Ziel wirklich die Übersetzung ist; null = nicht geprüft.</summary>
+    public double? AiScore { get; set; }
+    public string? AiNote { get; set; }
+
     public string SourceText => string.Join(" ", Source);
     public string TargetText => string.Join(" ", Target);
     public bool IsComplete => Source.Count > 0 && Target.Count > 0;

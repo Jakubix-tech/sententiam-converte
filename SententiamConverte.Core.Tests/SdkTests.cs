@@ -24,7 +24,7 @@ public sealed class SdkTests
     private static async Task Scenario(ISententiam sc, string projectName)
     {
         var ct = TestContext.Current.CancellationToken;
-        Assert.Equal("2.0", (await sc.InfoAsync(ct)).Version);
+        Assert.Equal("2.1", (await sc.InfoAsync(ct)).Version);
         Assert.Contains(await sc.FormatsAsync(ct), f => f.Id == "idml");
 
         var project = await sc.CreateProjectAsync(new ProjectCreateDto(projectName, "de-DE", ["en-GB"], "Technik"), ct);

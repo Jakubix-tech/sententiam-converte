@@ -5,11 +5,12 @@ Qualitätsprüfung und Projektverwaltung – erweitert um KI-Agenten, die im Net
 ob Ausdrücke wirklich üblich sind, und Übersetzungsvarianten bewerten.
 
 Läuft auf **Windows, Linux, macOS** (Desktop) und **Android** aus einer gemeinsamen Codebasis (.NET 10, Avalonia 12).
-Oberfläche und Handbuch auf Deutsch und Englisch.
+Oberfläche auf Deutsch, Englisch und Polnisch, Handbuch auf Deutsch und Englisch.
 
 **Download:** fertige Pakete für alle Plattformen auf der
-[Release-Seite](https://github.com/Jakubix-tech/sententiam-converte/releases/latest) – entpacken bzw. installieren
-und starten, keine weitere Software nötig. Hinweise zur Installation stehen in `LIESMICH.txt` im jeweiligen Paket.
+[Release-Seite](https://github.com/Jakubix-tech/sententiam-converte/releases/latest) – installieren bzw. entpacken
+und starten, keine weitere Software nötig. Unter Windows genügt ein Doppelklick auf die `.msi`-Datei (ohne
+Administratorrechte, mit Startmenü-Eintrag). Hinweise zur Installation stehen in `LIESMICH.txt` im jeweiligen Paket.
 
 *CAT tool (computer-assisted translation) with translation memory, terminology, QA and AI agents for research,
 usage checks and term comparison. Downloads for Windows, Linux, macOS and Android on the release page; English user
@@ -38,7 +39,7 @@ interface and manual included (Settings → User interface language).*
 - Projekte mit einer Ausgangs- und mehreren Zielsprachen, Fachgebiet, Projekt-TM und Projekt-Terminologie
 - Dateiformate: DOCX, XLSX, PPTX (Formatierungen als Tags, Bilder/Felder bleiben erhalten), ODT/ODS/ODP
   (OpenDocument), IDML (InDesign-Austauschformat), XLIFF 1.2/2.x (auch .sdlxliff mit Segmentstatus),
-  PDF (Ausgabe wieder als PDF im Layout des Originals), HTML, Markdown, RESX, JSON, gettext PO, Untertitel SRT/VTT, Text – weitere über
+  PDF (Ausgabe wieder als PDF im Layout des Originals), HTML, Markdown, DITA (Topics und Maps), RESX, JSON, gettext PO, Untertitel SRT/VTT, Text – weitere über
   Erweiterungen. Platzhalter wie `{0}`, `%s`, `${name}` werden in Software-Texten geschützt.
 - Projektpakete im Format .sdlppx öffnen und Rückgabepakete (.sdlrpx) erzeugen
 - Gescannte PDFs per KI-Texterkennung (Claude-Zugang) in bearbeitbare DOCX umwandeln
@@ -61,13 +62,22 @@ interface and manual included (Settings → User interface language).*
 - Terminologieerkennung (auch mit Endungen), verbotene Benennungen, Begriffe direkt aufnehmen
 - Automatische Übernahme in gleiche Segmente, Segmente teilen und zusammenführen
 - Kommentare je Segment, Änderungsverlauf mit Wortvergleich
-- QA: Tags, Zahlen, Leerzeichen, Satzzeichen, Klammern, Wortdopplungen, Länge, Konsistenz, Terminologie,
-  unerwünschte Wörter, Rechtschreibung (Hunspell) und eigene Regeln mit regulären Ausdrücken
+- QA: Tags, Zahlen, Zahlenformat der Zielsprache, Höchstlänge je Segment, Leerzeichen, Satzzeichen, Klammern,
+  Wortdopplungen, Länge, Konsistenz, Terminologie, unerwünschte Wörter, Rechtschreibung (Hunspell) und eigene Regeln mit
+  regulären Ausdrücken; QA-Profile je Kunde
+- Zahlen und Datum automatisch in der Form der Zielsprache (1.234,5 → 1,234.5; 12.03.2024 → 12/03/2024)
+- **Lektorat**: Änderungen verfolgen (wortweise sichtbar, annehmen/ablehnen), Fehlerbewertung mit Kategorien und
+  Schweregraden, Punktzahl und Bewertungsbericht; Prüfdatei (Word-Tabelle) für Prüfer ohne Übersetzungsprogramm, Rückimport
+  auch mit Word-Änderungsverfolgung und Word-Kommentaren
+- Diktat ins Zielfeld (Whisper: Groq, OpenAI oder lokal)
 
 **TM und Terminologie**
 - TM in SQLite mit Volltextindex; Konkordanzsuche; Einträge blättern, bearbeiten, löschen
 - Import/Export: TMX, TBX, XML-Terminologieexporte; vorhandene .sdltm-Dateien direkt übernehmen
 - Alignment: alte Übersetzungen satzweise ausrichten und ins TM übernehmen
+- TM-Pflege: Suchen und Ersetzen über alle Einträge (auch reguläre Ausdrücke, Tags bleiben), Dubletten zusammenführen,
+  unbrauchbare Einträge löschen, uneinheitliche Übersetzungen finden
+- Fachbegriffe vor dem Übersetzen aus den Projektdateien gewinnen, auf Wunsch von der KI ausgewählt und übersetzt
 
 **Wissen und Teamarbeit**
 - Wissensdatenbanken (Sachwissen, Definitionen, Sprachgebrauch, Stilregeln – jeweils mit Quelle und Autor),
@@ -77,7 +87,15 @@ interface and manual included (Settings → User interface language).*
   braucht ein wörtliches Belegzitat, das tatsächlich auf der gelesenen Seite steht, sonst wird er verworfen
 - **Teamserver**: mehrere Übersetzer arbeiten gleichzeitig mit gemeinsamen TMs, Terminologien und
   Wissensdatenbanken; bestätigte Übersetzungen fließen auf Wunsch sofort ins gemeinsame TM („schreibt zurück“),
-  Team-Aktivität zeigt, wer was beigetragen hat. Rollen: Admin, Bearbeiter, Leser.
+  Team-Aktivität zeigt, wer was beigetragen hat. Rollen: Admin, Bearbeiter, Leser; je Datei die Arbeitsschritte
+  Übersetzung → Lektorat → Freigabe mit Zuständigen, „Abgeben“ und Schreibschutz für alle, die nicht an der Reihe sind
+  (auch über die REST-Schnittstelle). Änderungen des Prüfers und erfasste Fehler werden mit abgeglichen.
+- **Projektvorlagen** (Sprachen, QA, Datenschutz, Preise, Datenbanken) und **Angebot aus der Analyse** (Preis je Wort,
+  Zeichen oder Normzeile, Anteile je Trefferstufe, Word-Kostenvoranschlag)
+- **Automatisierung**: überwachte Eingangsordner – neue Dateien automatisch ins Projekt, vorübersetzen, Zieldateien ausgeben
+- **Maschinelle Übersetzung** über DeepL, Google, Microsoft oder das freie LibreTranslate (mit eigenem Schlüssel) – oder
+  **offline auf diesem Rechner** mit OPUS-MT der Universität Helsinki: kostenlos, ohne Grafikkarte, auch auf Android
+- Pseudoübersetzung zum Testen von Layout und Sonderzeichen vor der Übersetzung
 - **Gemeinsame Projekte**: mehrere Personen bearbeiten dieselben Dateien gleichzeitig. Änderungen werden alle paar
   Sekunden abgeglichen, ein Segment in Arbeit ist für die anderen gesperrt (mit Namen), bei gleichzeitigen
   Änderungen gilt die zuerst gespeicherte Fassung und die andere landet im Verlauf
@@ -99,7 +117,9 @@ interface and manual included (Settings → User interface language).*
 **Schnittstelle (API)**
 - REST-Schnittstelle mit **allen Funktionen**: Projekte, Dateien, Segmente (setzen, bestätigen, teilen,
   zusammenführen, Treffer, Termini, Wissen), Vorübersetzung, Analyse, QA, TM, Terminologie, Wissen, Pakete,
-  Alignment, Texterkennung, alle Agenten und die Befehle der Erweiterungen
+  Alignment, Texterkennung, alle Agenten und die Befehle der Erweiterungen; seit 2.1 auch Lektorat und
+  Fehlerbewertung, Angebot, Vorlagen und QA-Profile, TM-Pflege, Fachbegriffe, alte Übersetzungen, Datenschutz,
+  Arbeitsschritte, Eingangsordner, freie Sprachdaten und Diktat
 - Beschreibung im OpenAPI-Format unter `/openapi/v2.json`; Anmeldung mit Zugangsschlüssel (Bearer)
 - Im Teamserver mit dessen Benutzern und Rollen; Änderungen erreichen alle, die das Projekt offen haben
 - In der Desktop-App auf Wunsch lokal (nur 127.0.0.1) – Skripte arbeiten am geöffneten Projekt, der Editor
@@ -124,14 +144,24 @@ interface and manual included (Settings → User interface language).*
 **Oberfläche und Hilfe**
 - Aufgeräumtes Erscheinungsbild: Navigationsleiste mit Symbolen, Karten, Werkzeugleiste mit Symbolen,
   helles und dunkles Design (folgt dem System)
-- Deutsch und Englisch (Einstellungen → Sprache der Oberfläche; Standard: Systemsprache)
+- Deutsch, Englisch und Polnisch (Einstellungen → Sprache der Oberfläche; Standard: Systemsprache)
+- **Hilfsmittel**: Katalog öffentlicher Termbanken, Wörterbücher, Korpora, Rechtsquellen und Sprachberatung (auch
+  Französisch und Rätoromanisch) mit Vorschlägen passend zum Projekt und Nachschlagen aus dem Editor (Strg+Umschalt+L);
+  TERMIUM Plus (Englisch–Französisch) als ladbare Termbank
+- **Datenausgang**: zeigt jede Anfrage an KI, MÜ, Diktat und Online-Quellen mit genauem Inhalt; auf Wunsch Rückfrage
+  vor dem Senden, Dienste sperrbar
 - Handbuch, API-Referenz und Entwickleranleitung im Programm unter „Hilfe“ (F1), mit Suche
 
 **KI**
-- **Kostenlose KI eingebaut**: ein offenes Sprachmodell (Gemma 4, Apache-2.0) läuft mit llama.cpp direkt auf dem
-  Rechner – ohne Konto, ohne Schlüssel, ohne Tageslimit, offline und vertraulich; Download mit einem Klick
-  (2,8 bzw. 4,6 GB, Speicherort wählbar), Grafikkarte wird genutzt, wenn vorhanden (Windows, macOS, Linux)
-- **KI einrichten in einem Klick** (Einstellungen): außerdem **kostenlos online ohne Konto** (OVHcloud mit
+- **Kostenlose KI eingebaut**: ein offenes Sprachmodell (Gemma 4 oder EuroLLM 9B, Apache-2.0) läuft mit llama.cpp
+  direkt auf dem Rechner – ohne Konto, ohne Schlüssel, ohne Tageslimit, offline und vertraulich; Download mit einem
+  Klick (2,8, 4,6, 7,2 bzw. 5,6 GB, Speicherort wählbar), Grafikkarte wird genutzt, wenn vorhanden (Windows, macOS, Linux);
+  Gemma 4 12B übersetzt im Test am genauesten (chrF 79,6 gegenüber 76,9 bei E4B)
+- **Kostenlos mit mehreren Modellen gleichzeitig**: ein Klick sucht alle kostenlosen Modelle ohne Konto (OVHcloud,
+  Kilo) samt eingebauter KI, prüft sie und richtet einen Verbund ein – ganze Dateien werden auf alle gleichzeitig
+  verteilt, bei Mengenbegrenzung oder Ausfall übernimmt ein anderes Modell, hinzugedichtete Sätze werden erkannt und
+  neu übersetzt
+- **KI einrichten in einem Klick** (eigene Seite): außerdem **kostenlos online ohne Konto** (OVHcloud mit
   EU-Rechenzentren, Kilo Gateway), kostenlos über **OpenCode** (wird bei Bedarf heruntergeladen; Anfragen laufen über
   OpenCode selbst), **lokale Server** (Ollama, LM Studio, llama.cpp …) werden automatisch gefunden, oder
   **kostenlose Cloud-Stufen** mit eigenem Schlüssel (OpenRouter, Gemini, Groq, Mistral, NVIDIA, Cerebras);
@@ -141,9 +171,60 @@ interface and manual included (Settings → User interface language).*
   anbinden
 - KI-Zugänge frei definierbar: Claude (Anthropic-API) oder jeder Server mit OpenAI-kompatibler Schnittstelle,
   lokal (llama.cpp/Strata, Ollama, LM Studio, vLLM) oder in der Cloud. Je Aufgabe ein anderer Zugang möglich.
+- **Recherche, die die KI steuert**: Die KI entscheidet selbst, ob sie in Projekt-TM, Terminologie und Wissen
+  nachschlägt, in Wikipedia, Wiktionary oder im Web sucht, Artikel (mit Sprachversionen) und Webseiten liest –
+  das Programm führt aus und liefert die Inhalte; Function Calling für Online-Dienste und die eingebaute KI
+- **Skills und Gedächtnis** (Prinzip wie beim Hermes Agent): bewährte Vorgehensweisen im offenen SKILL.md-Format,
+  neue legt die KI nach erfolgreichen Recherchen selbst an; Ergebnisse landen im Gedächtnis für spätere Recherchen
+- **Amtliche Quellen direkt**: Gesetze aus Deutschland (gesetze-im-internet.de), Polen (Sejm), dem Vereinigten
+  Königreich (legislation.gov.uk) und der EU (EUR-Lex in allen Amtssprachen), das DWDS, Fachseiten je Thema und
+  Sprache, gezielte Suche auf Fachseiten; die KI nimmt neu gefundene amtliche Seiten selbst auf
+- **Einarbeiten in ein Gesetz**: amtliche Fassung eines Bundesgesetzes (z. B. StGB) mit Stand laden, jeden
+  Paragraphen durchsuchbar machen, Legaldefinitionen, Begriffslisten und Überschriften mit Fundstelle in
+  Terminologie und Wissen ablegen; englische Benennungen aus der (nicht amtlichen) Übersetzung, nur einzelne Begriffe
+- **Einarbeiten in eigene Dokumente**: aus eingelesenen PDFs, Word- und Writer-Dateien die erklärten Begriffe
+  herausziehen (Definitionssätze, Abkürzungen, Glossarlisten; KI nur mit wörtlich geprüftem Belegsatz), mit Datei und
+  Seite als Quelle; gespeichert wird nur, was man abhakt
+- **Thema → TM**: EU-Rechtsakte zu einem Thema finden, beide amtlichen Sprachfassungen Absatz für Absatz und Satz
+  für Satz paaren und als eigene, an das Sprachpaar gebundene TM ablegen (Maschinenverordnung: gut 1800 Satzpaare)
+- **Rechtsvergleich**: Begriff in der Norm des Ausgangsrechts verankern, Gegenstück im Zielrecht lesen, vergleichen –
+  mit Übersetzungsvorschlag und Anmerkung des Übersetzers in der Zielsprache
+- **Kostenlose Websuche** über Wikipedia, wenn keine andere Suche eingerichtet ist
 - **Themenrecherche**: Suchanfragen in jeder Sprache, Fachtexte lesen, mehrsprachige Begriffsliste mit Belegen
-- **Usus-Prüfung**: exakte Wortfolgen-Suche für Ausdruck und Alternativen, Zählung wörtlicher Belege, Urteil
+- **Usus-Prüfung**: exakte Wortfolgen-Suche für Ausdruck und Alternativen, die Seiten werden gelesen und der Satz mit
+  der Wortfolge als Beleg mit Sprung-Link gezeigt; zu wenige Belege → weitersuchen mit Fachgebiet und eigenen
+  Suchideen; klare Aussage „üblich“ / „nicht üblich“ aus den gezählten Belegen
 - **Bewertung**: Varianten nach Richtigkeit, Sprachfluss, Terminologie und Stil benoten; fragliche Wendungen prüfen
+- **Datenschutz**: Namen, Datum, Aktenzeichen, E-Mail, Telefon, IBAN und eine Schutzliste gehen nur als Platzhalter an
+  Online-KI und ins TM; echte Werte kommen in der Antwort bzw. beim TM-Treffer zurück, das Datum in der Schreibweise der
+  Zielsprache; Namen auf Wunsch mit lokaler KI finden; Vorschlag, sobald Dateien persönliche Angaben enthalten
+- **KI-Prüfung auf Sinnfehler**: Rückübersetzung (ohne Kenntnis des Originals) und Abgleich mehrerer Modelle – für ein
+  Segment oder das ganze Dokument; zweifelhafte Segmente erscheinen als QA-Meldung
+- **Steckbrief: das Dokument erst lesen**: Thema, Textsorte, Zielgruppe, Ton, Namen – und Anrede und Sprecher für das
+  ganze Dokument (Państwo/Pan/Pani/Pan/Pani, ty, unpersönlich; zrobiłem/zrobiłam); im Zweifel fragt das Programm einmal,
+  jede KI-Übersetzung bekommt den Steckbrief mit, die QA meldet gemischte Anrede
+- **Aus Korrekturen lernen** (abschaltbar): wiederholte Änderungen an KI-, MÜ- und TM-Vorschlägen werden nach Zustimmung
+  zur Regel für KI und QA; Anrede- und Geschlechtskorrekturen passen den Steckbrief an; Gewohnheiten je Kunde und Textsorte
+- **Fuzzy-Treffer gezielt anpassen**: Bei 70–99 % ändert die KI nur die Stellen, die sich im Ausgangstext geändert haben –
+  die freigegebene Formulierung bleibt, die Änderung wird angezeigt
+- **Grammatikprüfung**: KI (auch für Polnisch) oder LanguageTool (eigener Server oder öffentlich, innerhalb der Grenzen)
+- **KI bewertet fertige Übersetzungen**: Fehlervorschläge im Schema der Fehlerbewertung (Kategorie, Schwere, Verbesserung)
+  mit Punktzahl – als „KI-Vorschlag“ markiert, der Mensch entscheidet
+- **Wie oft?**: Wendungen und Varianten in den eigenen Daten zählen (TMs, freie Sprachdaten), für deutsche Wörter dazu die
+  DWDS-Häufigkeit
+- **Recherche zum Dokument**: die KI findet Ausdrücke, die Recherche brauchen, und erstellt Dossiers mit Sprache und Land
+  auf beiden Seiten (Bedeutung, Entsprechungen und Varianten, wann und warum, Hintergrund, Quellen, Schwierigkeit); Klick
+  auf ein Segment zeigt das Wissen dazu, Strg+Umschalt+R recherchiert die Markierung
+- **Anonymisierte Fassung** von Ausgangs- und Zieldatei zum Weitergeben (einheitliche Platzhalter, Layout bleibt)
+- **Verbreitung im Netz je Land**: genaue Wortfolge und Varianten je Land suchen (Brave oder Tavily mit Länderfilter),
+  wörtliche Treffer und Treffer auf Seiten des Landes zählen – kommt der Ausdruck in AT, CH oder DE überhaupt vor?
+- **Alte Übersetzungen übernehmen**: alle Dateien auf einmal wählen – Original und Übersetzung werden über Dateiname,
+  erkannte Sprache und Zahlen einander zugeordnet (auch XLIFF), satzweise ausgerichtet, mit Kontext ins TM des
+  Sprachpaars übernommen; die KI schlägt in den Sätzen belegte Fachbegriffe für die Terminologie vor
+- **Alignment-Editor**: alte Übersetzungen satzweise zuordnen – automatisch, mit KI-Prüfung und -Neuausrichtung, von
+  Hand verbinden, teilen, verschieben, neu segmentieren; Formatierung als Tags; in jede TM übernehmen
+- **Erste Schritte** für neue Benutzer: kostenlose Online-KI mit einem Klick, Projekt mit Dateien, Datenschutz und
+  gemeinsamen Datenbanken in einem Schritt, alte Übersetzungen, erste Datei öffnen
 - KI-Übersetzung einzelner oder aller leeren Segmente mit TM-Treffern, Terminologie und Nachbarsätzen als Kontext
 - Websuche über offizielle Schnittstellen: Claude-Websuche, Brave Search, Tavily oder eigene SearXNG-Instanz
 
@@ -168,7 +249,8 @@ dotnet run --project build/Paketbau
 
 | Paket | Inhalt |
 |---|---|
-| `SententiamConverte-<v>-win-x64.zip` | Windows 10/11, entpacken und starten |
+| `SententiamConverte-<v>-win-x64.msi` | Windows 10/11, Installationsdatei (pro Benutzer, ohne Adminrechte; `build/Installer`, WiX Toolset) |
+| `SententiamConverte-<v>-win-x64.zip` | Windows 10/11, entpacken und starten (ohne Installation) |
 | `SententiamConverte-<v>-linux-x64.tar.gz` | Linux, mit `installieren.sh` für Menüeintrag |
 | `SententiamConverte-<v>-osx-arm64.tar.gz` / `-osx-x64.tar.gz` | macOS (Apple-Chip / Intel), `Sententiam converte.app` |
 | `SententiamConverte-<v>-android.apk` | Android 6 und neuer |
@@ -230,7 +312,7 @@ Für kleine lokale Modelle „Zeichen pro Webseite“ auf etwa 2000–3000 senke
 | Tab oder Eingabe | AutoSuggest-Vorschlag übernehmen (↑/↓ wählen, Esc schließen) |
 | F3 | markierten Text in der Konkordanz suchen |
 | Strg+F2 | markierten Quell- und Zieltext als Begriff aufnehmen |
-| Strg+Umschalt+T / E / U | KI-Übersetzung / Varianten bewerten / Usus prüfen |
+| Strg+Umschalt+T / E / U | KI-Übersetzung / Varianten bewerten / im Netz prüfen |
 | Strg+Umschalt+B | markierten Begriff im Kontext klären (Begriffsvergleich) |
 | Strg+Umschalt+G | nächsten fehlenden Tag einsetzen |
 | Strg+S | speichern |
@@ -297,5 +379,8 @@ Richtwerte vom 15.10.2026 (Release-Build; auf dem Rechner liefen nebenbei andere
 
 - Test auf echten Geräten: macOS-Paket (nur unter Windows gebaut, nicht auf einem Mac ausgeführt) und Android-Gerät
 - Test mit echten KI-Zugängen (bisher: nachgebildete Modelle und ein lokaler Testserver)
+- Test mit echten Schlüsseln der MÜ-Dienste (DeepL, Google, Microsoft) und dem Diktat am echten Mikrofon
+  (bisher: nachgebildete Dienste)
 - Signierte Pakete (Windows-Codesignatur, Apple-Beglaubigung, Play-Store-Schlüssel)
-- Weitere Formate, z. B. DITA, und weitere Oberflächensprachen
+- Test mit einem echten Teamserver im Netz (bisher: Teamserver auf dem eigenen Rechner in den Tests)
+- Polnische Fassung von Handbuch und erzeugten Dokumenten (bisher englisch)

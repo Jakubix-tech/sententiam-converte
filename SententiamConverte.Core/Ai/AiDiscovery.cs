@@ -13,6 +13,9 @@ public sealed record LocalAiServer(string Name, string BaseUrl, List<string> Mod
 /// Ein Cloud-Dienst mit kostenloser Stufe. <paramref name="NeedsKey"/> = false: ohne Anmeldung nutzbar (ein Schlüssel
 /// hebt nur die Grenzen an). <paramref name="Preferred"/>: das Modell, das sich bei Tests für Übersetzungen bewährt hat.
 /// </summary>
+/// <summary>Ein kostenloses Modell, das in einen Verbund aufgenommen werden kann.</summary>
+public sealed record PoolCandidate(string Service, AiProviderConfig Config, bool Recommended, string? Note = null);
+
 public sealed record FreeAiService(string Id, string Name, string BaseUrl, string KeyUrl, string Note, Func<string, bool> IsFreeModel,
     bool NeedsKey = true, string? Preferred = null)
 {
@@ -97,6 +100,69 @@ public static class AiDiscovery
     }
 
     /// <summary>Ein naheliegendes Modell für Übersetzung: bevorzugt das bewährte des Dienstes, sonst große, aktuelle Allround-Modelle.</summary>
+    /// <summary>
+    /// Kostenlose Modelle für einen Verbund: alle Dienste ohne Konto (OVHcloud, Kilo) und die kostenlosen Stufen, für
+    /// die schon ein Schlüssel eingetragen ist – je Dienst die besten Modelle vorausgewählt. Ein Dienst, der gerade
+    /// nicht antwortet, fehlt einfach in der Liste.
+    /// </summary>
+    public static async Task<List<PoolCandidate>> FreeModelsAsync(IEnumerable<AiProviderConfig> configured,
+        IReadOnlyDictionary<string, string>? keys = null, CancellationToken ct = default)
+    {
+        var known = configured.ToList();
+        var tasks = FreeServices.Select(async svc =>
+        {
+            var key = keys?.GetValueOrDefault(svc.Id)
+                      ?? known.FirstOrDefault(p => p.Kind == AiProviderKind.OpenAiCompatible && p.BaseUrl.TrimEnd('/') == svc.BaseUrl.TrimEnd('/')
+                                                   && p.ResolveApiKey().Length > 0)?.ApiKey ?? "";
+            if (svc.NeedsKey && key.Length == 0) return new List<PoolCandidate>();
+            try
+            {
+                var models = Rank((await ModelsAsync(svc.BaseUrl, ResolveKey(key), TimeSpan.FromSeconds(20), ct)).Where(svc.IsFreeModel).ToList(), svc.Preferred);
+                var recommended = svc.Id switch { "ovhcloud" => 3, "kilo" => 1, _ => 2 };   // OVH: Qwen-Denkmodelle antworten oft leer
+                var shortName = svc.Name.Split(" (")[0];
+                return models.Select((m, i) => new PoolCandidate(shortName, new AiProviderConfig
+                {
+                    Name = $"{shortName}: {m}", Kind = AiProviderKind.OpenAiCompatible, BaseUrl = svc.BaseUrl, ApiKey = key, Model = m,
+                    Temperature = 0.2, MaxCharsPerPage = 6000, TimeoutSeconds = OnlineTimeoutSeconds,
+                }, i < recommended, svc.Note)).ToList();
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or AiException or System.Text.Json.JsonException)
+            {
+                return new List<PoolCandidate>();
+            }
+        });
+        return (await Task.WhenAll(tasks)).SelectMany(x => x).ToList();
+    }
+
+    /// <summary>Wartezeit für Online-Dienste: antworten sie in 3 Minuten nicht, sind sie überlastet.</summary>
+    public const int OnlineTimeoutSeconds = 180;
+
+    private static string ResolveKey(string key) =>
+        key.StartsWith("env:", StringComparison.OrdinalIgnoreCase) ? Environment.GetEnvironmentVariable(key[4..]) ?? "" : key;
+
+    /// <summary>Modelle nach Eignung für Übersetzung sortieren: Wunschmodell des Dienstes, bewährte Familien, dann nach Größe.</summary>
+    public static List<string> Rank(IReadOnlyList<string> models, string? preferred = null)
+    {
+        // Qwen3.5-397B (OVHcloud) lieferte im Test oft leere Antworten (Denkmodell) – daher hinten
+        string[] good = ["gpt-oss-120b", "llama-3_3-70b", "llama-3.3-70b", "mistral-small", "mistral-large", "gemini-2.5-flash",
+                         "gemma-4", "nemotron-3-ultra", "deepseek", "kilo-auto/free", "qwen3.8", "qwen3.6", "qwen3.5-397b"];
+        string[] weak = ["code", "-vl", "vl-", "omni", "nano", "mini", "lightning", "preview", "guard", "beam", "stealth"];
+        static double Size(string m) =>
+            System.Text.RegularExpressions.Regex.Match(m, @"(\d+(?:\.\d+)?)\s*[bB](?![a-zA-Z])") is { Success: true } s
+                ? double.Parse(s.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) : 0;
+        int GoodIndex(string m)
+        {
+            var i = Array.FindIndex(good, g => m.Contains(g, StringComparison.OrdinalIgnoreCase));
+            return i < 0 ? good.Length : i;
+        }
+        return models
+            .OrderByDescending(m => preferred != null && m.Contains(preferred, StringComparison.OrdinalIgnoreCase))
+            .ThenBy(m => weak.Any(w => m.Contains(w, StringComparison.OrdinalIgnoreCase)))
+            .ThenBy(GoodIndex)
+            .ThenByDescending(Size)
+            .ToList();
+    }
+
     public static string? SuggestModel(IReadOnlyList<string> models, string? preferredByService = null)
     {
         if (preferredByService != null && models.FirstOrDefault(m => m.Contains(preferredByService, StringComparison.OrdinalIgnoreCase)) is { } best)

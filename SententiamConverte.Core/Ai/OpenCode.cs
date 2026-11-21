@@ -173,6 +173,20 @@ public static class OpenCodeServer
 /// </summary>
 public sealed class OpenCodeChatModel(AiProviderConfig config) : IChatModel
 {
+    /// <summary>
+    /// Bis wann das kostenlose Kontingent aufgebraucht ist (gilt für alle kostenlosen OpenCode-Modelle gemeinsam);
+    /// solange antworten Anfragen an sie sofort mit der Meldung, statt OpenCode erst zu fragen.
+    /// </summary>
+    public static DateTime? FreeQuotaResetsAt { get; internal set; }
+
+    public static bool IsFreeQuotaExhausted => FreeQuotaResetsAt is { } t && t > DateTime.Now;
+
+    internal static RateLimitException QuotaExhausted(DateTime? next) =>
+        new("Das kostenlose Kontingent von OpenCode ist aufgebraucht – es gilt für alle kostenlosen OpenCode-Modelle gemeinsam" +
+            (next != null ? $" und ist wieder verfügbar ab {next:g}" : "") +
+            ". Kostenlos weiterarbeiten: Seite „KI einrichten“ → „Kostenlos – mehrere Modelle gleichzeitig“.",
+            next is { } n && n > DateTime.Now ? n - DateTime.Now : null);
+
     private static Dictionary<string, bool>? _noTools;
 
     public string DisplayName => $"{config.Name} ({config.Model})";
@@ -181,6 +195,8 @@ public sealed class OpenCodeChatModel(AiProviderConfig config) : IChatModel
     {
         var slash = config.Model.IndexOf('/');
         if (slash <= 0) throw new AiException("Modell als „Anbieter/Modell“ angeben, z. B. opencode/glm-5.3-flash-free.");
+        // Kontingent schon aufgebraucht: gleich melden, statt OpenCode zu starten und erneut zu fragen
+        if (IsFreeQuotaExhausted && config.Model.StartsWith("opencode/", StringComparison.OrdinalIgnoreCase)) throw QuotaExhausted(FreeQuotaResetsAt);
         var (url, pw) = await OpenCodeServer.EnsureAsync(config, ct);
         using var http = OpenCodeServer.Client(url, pw, TimeSpan.FromSeconds(60));
 
@@ -189,6 +205,9 @@ public sealed class OpenCodeChatModel(AiProviderConfig config) : IChatModel
             ? messages[0].Text
             : string.Join("\n\n", messages.Select(m => (m.FromUser ? "Nutzer: " : "Assistent: ") + m.Text));
 
+        var logId = Diagnostics.ActivityLog.NextId();
+        var started = System.Diagnostics.Stopwatch.StartNew();
+        await Privacy.Outbound.CheckAsync("OpenCode → " + config.Model[..slash], Privacy.OutboundKind.Ai, $"[system]\n{system}\n\n[user]\n{text}", false, ct, logId);
         var session = JsonNode.Parse(await (await Check(await http.PostAsJsonAsync("session", new { title = "Sententiam converte" }, ct)))
             .Content.ReadAsStringAsync(ct))!;
         var id = (string)session["id"]!;
@@ -216,8 +235,8 @@ public sealed class OpenCodeChatModel(AiProviderConfig config) : IChatModel
                     if (reason == "free_tier_limit" || message.Contains("Free usage", StringComparison.OrdinalIgnoreCase))
                     {
                         var next = (long?)status["next"] is { } ms ? DateTimeOffset.FromUnixTimeMilliseconds(ms).LocalDateTime : (DateTime?)null;
-                        throw new AiException("Das kostenlose Kontingent von OpenCode ist aufgebraucht" +
-                                              (next != null ? $" – wieder verfügbar ab {next:g}" : "") + ". Bis dahin ein anderes Modell wählen.");
+                        FreeQuotaResetsAt = next ?? DateTime.Now.AddHours(1);
+                        throw QuotaExhausted(next);
                     }
                     if ((int?)status["attempt"] >= 3) throw new AiException("OpenCode: " + message);
                 }
@@ -238,6 +257,7 @@ public sealed class OpenCodeChatModel(AiProviderConfig config) : IChatModel
                 .Where(p => (string?)p?["type"] == "text" && (bool?)p?["synthetic"] != true)
                 .Select(p => (string?)p!["text"])).Trim();
             if (result.Length == 0) throw new AiException("OpenCode hat keine Antwort geliefert.");
+            Privacy.Outbound.LogAnswer("OpenCode → " + config.Model[..slash], logId, result, started.ElapsedMilliseconds);
             return result;
         }
         catch (OperationCanceledException)

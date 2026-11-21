@@ -93,6 +93,13 @@ public sealed class RemoteApi
         _http.DefaultRequestHeaders.UserAgent.ParseAdd(SearchProviderFactory.UserAgent.Split(' ')[0]);
     }
 
+    /// <summary>Begründung aus einer Fehlerantwort des Servers („detail“), falls vorhanden.</summary>
+    private static string? Detail(string body)
+    {
+        try { return JsonDocument.Parse(body).RootElement.TryGetProperty("detail", out var d) && d.GetString() is { Length: > 0 } s ? s : null; }
+        catch (JsonException) { return null; }
+    }
+
     public T Send<T>(HttpMethod method, string path, object? body = null) =>
         Task.Run(() => SendAsync<T>(method, path, body)).GetAwaiter().GetResult();
 
@@ -115,7 +122,7 @@ public sealed class RemoteApi
                 throw new RemoteException((int)response.StatusCode switch
                 {
                     401 => $"Server „{Account.Name}“: Zugangsschlüssel ungültig.",
-                    403 => $"Server „{Account.Name}“: keine Berechtigung für diese Aktion.",
+                    403 => Detail(text) is { } why ? $"Server „{Account.Name}“: {why}" : $"Server „{Account.Name}“: keine Berechtigung für diese Aktion.",
                     404 => $"Server „{Account.Name}“: Ressource nicht gefunden.",
                     _ => $"Server „{Account.Name}“: HTTP {(int)response.StatusCode} {text}",
                 });

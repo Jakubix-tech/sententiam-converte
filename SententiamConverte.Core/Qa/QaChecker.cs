@@ -25,8 +25,17 @@ public sealed class QaSettings
     public bool InconsistentTranslations { get; set; } = true;
     public bool Length { get; set; } = true;
     public double MaxLengthRatio { get; set; } = 1.6;
+
+    /// <summary>Höchstlänge jeder Übersetzung in Zeichen (0 = keine); einzelne Segmente können eigene haben (XLIFF „maxwidth“).</summary>
+    public int MaxChars { get; set; }
+
+    /// <summary>Zahlen und Datum im Format der Zielsprache (1,234.5 statt 1.234,5 im Englischen).</summary>
+    public bool NumberFormat { get; set; } = true;
     public List<string> ForbiddenWords { get; set; } = new();
     public bool Spelling { get; set; } = true;
+
+    /// <summary>Anrede einheitlich und wie im Steckbrief (Polnisch Pan/Pani/Państwo, Deutsch Sie/du, Französisch vous/tu).</summary>
+    public bool Address { get; set; } = true;
 
     /// <summary>Eigene Prüfregeln mit regulären Ausdrücken.</summary>
     public List<RegexRule> RegexRules { get; set; } = new();
@@ -66,7 +75,8 @@ public static partial class QaChecker
     [GeneratedRegex(@"\b(\p{L}+)\s+\1\b", RegexOptions.IgnoreCase)]
     private static partial Regex RepeatedWordRegex();
 
-    public static List<QaIssue> Check(BilingualDocument doc, QaSettings settings, ITermbase? termbase = null, SpellChecker? spell = null)
+    public static List<QaIssue> Check(BilingualDocument doc, QaSettings settings, ITermbase? termbase = null, SpellChecker? spell = null,
+        Projects.DocumentBrief? brief = null)
     {
         var issues = new List<QaIssue>();
         var ignore = termbase == null ? null : TermsOf(termbase, doc.TargetLanguage);
@@ -86,6 +96,8 @@ public static partial class QaChecker
                     issues.Add(new QaIssue(s.Id, QaSeverity.Warning, "Rechtschreibung", $"„{e.Word}“ ist nicht im Wörterbuch."));
         }
 
+        if (settings.Address) issues.AddRange(CheckAddress(doc, brief));
+        issues.AddRange(Projects.CorrectionLearning.Check(doc));
         if (settings.InconsistentTranslations)
         {
             foreach (var g in doc.Segments.Where(s => !s.Locked && s.Target.Length > 0).GroupBy(s => s.Source))
@@ -98,6 +110,31 @@ public static partial class QaChecker
             }
         }
         return issues;
+    }
+
+    /// <summary>
+    /// Anrede: Steht sie im Steckbrief fest, meldet jede abweichende Form; sonst, wenn das Dokument mehrere Formen mischt,
+    /// die seltener vorkommenden.
+    /// </summary>
+    private static IEnumerable<QaIssue> CheckAddress(BilingualDocument doc, Projects.DocumentBrief? brief)
+    {
+        var found = doc.Segments.Where(s => !s.Locked && s.Target.Length > 0)
+            .Select(s => (Segment: s, Forms: Projects.AddressForms.Detect(s.Target, doc.TargetLanguage)))
+            .Where(x => x.Forms.Count > 0).ToList();
+        if (found.Count == 0) yield break;
+        var chosen = brief?.Address is { } a and not (Projects.AddressForm.Unknown or Projects.AddressForm.None) ? a : (Projects.AddressForm?)null;
+        var fromBrief = chosen != null;
+        if (chosen == null)
+        {
+            var counts = found.SelectMany(x => x.Forms).GroupBy(f => f).OrderByDescending(g => g.Count()).ToList();
+            if (counts.Count < 2) yield break;
+            chosen = counts[0].Key;
+        }
+        foreach (var (segment, forms) in found)
+            foreach (var form in forms.Where(f => !Projects.AddressForms.Fits(f, chosen.Value, doc.TargetLanguage)))
+                yield return new QaIssue(segment.Id, QaSeverity.Warning, "Anrede", fromBrief
+                    ? $"Anrede passt nicht zum Steckbrief: „{Projects.AddressForms.Label(form, doc.TargetLanguage)}“ statt „{Projects.AddressForms.Label(chosen.Value, doc.TargetLanguage)}“."
+                    : $"Gemischte Anrede im Dokument: hier „{Projects.AddressForms.Label(form, doc.TargetLanguage)}“, sonst meist „{Projects.AddressForms.Label(chosen.Value, doc.TargetLanguage)}“.");
     }
 
     public static IEnumerable<QaIssue> CheckSegment(Segment s, string srcLang, string tgtLang, QaSettings st, ITermbase? tb)
@@ -162,6 +199,13 @@ public static partial class QaChecker
         if (st.RepeatedWords)
             foreach (Match m in RepeatedWordRegex().Matches(TagText.StripTags(tgt)))
                 yield return new(s.Id, QaSeverity.Info, "Wortdopplung", $"„{m.Value}“");
+
+        var limit = s.MaxLength ?? (st.MaxChars > 0 ? st.MaxChars : null);
+        if (limit is { } max && TagText.StripTags(tgt).Length > max)
+            yield return new(s.Id, QaSeverity.Error, "Höchstlänge", $"Ziel hat {TagText.StripTags(tgt).Length} Zeichen, erlaubt sind {max}.");
+
+        if (st.NumberFormat && Tm.AutoLocalizer.Localize(src, tgt, srcLang, tgtLang) is var localized && localized != tgt)
+            yield return new(s.Id, QaSeverity.Warning, "Zahlenformat", $"In der Schreibweise der Zielsprache: „{TagText.StripTags(localized)}“.");
 
         if (st.Length)
         {

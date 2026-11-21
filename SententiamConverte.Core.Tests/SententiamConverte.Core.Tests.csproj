@@ -17,5 +17,6 @@
     <!-- Beispiel-Erweiterung mitbauen und ihr Paket neben die Tests legen -->
     <ProjectReference Include="..\Erweiterungen\Beispiel.Erweiterung\Beispiel.Erweiterung.csproj" ReferenceOutputAssembly="false" />
     <None Include="..\Erweiterungen\Beispiel.Erweiterung\bin\$(Configuration)\net10.0\Beispiel.Erweiterung.scext" Link="Beispiel.Erweiterung.scext" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Testdaten\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -19,7 +19,7 @@ public sealed class LanguageDataTests : IDisposable
     private readonly ConcurrentDictionary<string, byte[]> _files = new();
     private readonly ConcurrentQueue<string> _queries = new();
     private readonly string _base;
-    private readonly string _oldApi = LanguageData.OpusApi, _oldIate = LanguageData.IateUrl;
+    private readonly string _oldApi = LanguageData.OpusApi, _oldIate = LanguageData.IateUrl, _oldTermium = LanguageData.TermiumBase;
 
     public LanguageDataTests()
     {
@@ -33,12 +33,14 @@ public sealed class LanguageDataTests : IDisposable
         _ = Task.Run(Serve);
         LanguageData.OpusApi = _base + "opusapi/";
         LanguageData.IateUrl = _base + "iate.zip";
+        LanguageData.TermiumBase = _base + "termium/";
     }
 
     public void Dispose()
     {
         LanguageData.OpusApi = _oldApi;
         LanguageData.IateUrl = _oldIate;
+        LanguageData.TermiumBase = _oldTermium;
         _listener.Close();
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         _dir.Dispose();
@@ -181,5 +183,52 @@ public sealed class LanguageDataTests : IDisposable
         var giant = new LanguageDataSet("opus-y", "Y", "", "", "", _base + "ecb.tmx.gz", 1L << 50, 1L << 40, ResourceKind.Tm, false);
         ex = await Assert.ThrowsAsync<Core.Ai.AiException>(() => LanguageData.InstallAsync(giant, "de-DE", "en-GB", _dir.Path, null, TestContext.Current.CancellationToken));
         Assert.Contains("Zu wenig Speicherplatz", ex.Message);
+    }
+
+    /// <summary>TERMIUM-ZIP wie das Original: CSV mit Spalten je Sprache, Felder in Anführungszeichen mit Kommas und Umbrüchen.</summary>
+    private static byte[] TermiumZip()
+    {
+        const string csv = "SUBJECT_EN,TERM_EN,TERM_EN_PARAMETER,ABBREVIATION_EN,ABBREVIATION_EN_PARAMETER,SYNONYMS_EN,SYNONYMS_EN_PARAMETERS,TEXTUAL_SUPPORT_1_EN,TEXTUAL_SUPPORT_2_EN,TEXTUAL_SUPPORT_3_EN,DOMAINE_FR,TERME_FR,TERME_FR_PARAMETRE,ABBREVIATION_FR,ABBREVIATION_FR_PARAMETRE,SYNONYMES_FR,SYNONYMES_FR_PARAMETRE,JUSTIFICATION_1_FR,JUSTIFICATION_2_FR,JUSTIFICATION_3_FR\r\n"
+            + "\"Space Robotics\",\"adaptive robotics\",noun,AR,noun,\"self-adapting robotics;adaptable robotics\",\"correct;avoid\",\"DEF: Robotics that adapts, quickly.\",\"CONT: Long\r\nquote.\",,\"Robotique spatiale\",\"robotique adaptative\",\"correct,feminine noun,standardized\",,,,,,,\r\n"
+            + "\"Space Robotics\",\"orbital debris\",correct,,,,,,,,,,,,,,,,,\r\n";
+        var ms = new MemoryStream();
+        using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, true))
+        {
+            using var w = new StreamWriter(zip.CreateEntry("Robotique_spatiale_Space_Robotics.csv").Open(), new UTF8Encoding(true));
+            w.Write(csv);
+        }
+        return ms.ToArray();
+    }
+
+    [Fact]
+    public async Task TermiumIsOfferedForEnglishFrenchAndImported()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _files["opusapi?source=en&target=fr&preprocessing=tmx&version=latest"] = Encoding.UTF8.GetBytes("""{"corpora":[]}""");
+        _files["opusapi?source=fr&target=en&preprocessing=tmx&version=latest"] = Encoding.UTF8.GetBytes("""{"corpora":[]}""");
+        _files["termium/domaine-RobotiqueSpatiale-subject-SpaceRobotics.zip"] = TermiumZip();
+
+        var sets = await LanguageData.SearchAsync("en-GB", "fr-CA", ct);
+        var termium = sets.Where(s => s.Id.StartsWith("termium-")).ToList();
+        Assert.Equal(23, termium.Count);
+        Assert.All(termium, s => Assert.True(s.CommercialUse));
+        Assert.Contains(termium, s => s.Recommended && s.Category == "Recht und Verwaltung");
+        _files["opusapi?source=de&target=fr&preprocessing=tmx&version=latest"] = Encoding.UTF8.GetBytes("""{"corpora":[]}""");
+        _files["opusapi?source=fr&target=de&preprocessing=tmx&version=latest"] = Encoding.UTF8.GetBytes("""{"corpora":[]}""");
+        Assert.DoesNotContain(await LanguageData.SearchAsync("de-DE", "fr-FR", ct), s => s.Id.StartsWith("termium-"));   // nur Englisch–Französisch
+
+        var space = termium.Single(s => s.Name.EndsWith("Space Robotics"));
+        var result = await LanguageData.InstallAsync(space, "en-GB", "fr-CA", _dir.Path, null, ct);
+        Assert.Equal(1, result.Count);                                                    // „orbital debris“ ohne Französisch fällt weg
+        using var tb = new Termbase(result.Path);
+        var concept = Assert.Single(tb.AllConcepts());
+        Assert.Equal("Robotics that adapts, quickly.", concept.Definition);              // nur die Definition, kein Beleg
+        Assert.Equal("Robotique spatiale", concept.Domain);
+        Assert.Contains(concept.Terms, t => t is { Language: "fr-CA", Text: "robotique adaptative", Status: TermStatus.Preferred });
+        Assert.Contains(concept.Terms, t => t is { Language: "en-GB", Text: "self-adapting robotics", Status: TermStatus.Admitted });
+        Assert.Contains(concept.Terms, t => t is { Text: "adaptable robotics", Status: TermStatus.Forbidden });    // „avoid“
+        Assert.Contains(concept.Terms, t => t is { Text: "AR" });
+        var hit = Assert.Single(tb.Recognize("The adaptive robotics lab.", "en-GB", "fr-CA"));
+        Assert.Contains(hit.Translations, t => t.Text == "robotique adaptative");
     }
 }

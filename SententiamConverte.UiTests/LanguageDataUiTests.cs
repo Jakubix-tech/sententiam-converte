@@ -8,6 +8,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using CommunityToolkit.Mvvm.Input;
+using SententiamConverte.Core.Remote;
 using SententiamConverte.Core.Resources;
 using SententiamConverte.Services;
 using SententiamConverte.ViewModels;
@@ -28,6 +29,7 @@ public class LanguageDataUiTests
     [AvaloniaFact]
     public async Task FreeLanguageDataIsDownloadedAndAttached()
     {
+        using var home = TestSetup.OwnDataFolder();                        // bindet an Sprachen (gemeinsam)
         // Prüfserver: OPUS-Katalog für de-en und ein kleines TMX
         var l = new TcpListener(IPAddress.Loopback, 0);
         l.Start();
@@ -48,7 +50,11 @@ public class LanguageDataUiTests
                 try { ctx = await server.GetContextAsync(); } catch (Exception) { return; }
                 var bytes = ctx.Request.Url!.AbsolutePath.EndsWith(".tmx.gz") ? tmx.ToArray()
                     : Encoding.UTF8.GetBytes(ctx.Request.Url.Query.Contains("source=de")
-                        ? $$"""{"corpora":[{"corpus":"ECB","version":"v1","alignment_pairs":1,"size":1,"url":"{{baseUrl}}ecb.tmx.gz"}]}"""
+                        ? $$"""
+                            {"corpora":[{"corpus":"ECB","version":"v1","alignment_pairs":1,"size":1,"url":"{{baseUrl}}ecb.tmx.gz"},
+                             {"corpus":"EMEA","version":"v3","alignment_pairs":1000,"size":200,"url":"{{baseUrl}}emea.tmx.gz"},
+                             {"corpus":"OpenSubtitles","version":"v2018","alignment_pairs":9000000,"size":900000,"url":"{{baseUrl}}os.tmx.gz"}]}
+                            """
                         : """{"corpora":[]}""");
                 await ctx.Response.OutputStream.WriteAsync(bytes);
                 ctx.Response.Close();
@@ -57,7 +63,7 @@ public class LanguageDataUiTests
         var oldApi = LanguageData.OpusApi;
         var oldFolder = AppServices.Ui.LanguageDataFolder;
         LanguageData.OpusApi = baseUrl + "opusapi/";
-        AppServices.Ui.LanguageDataFolder = Path.Combine(Path.GetTempPath(), "sc-sprachdaten-" + Guid.NewGuid().ToString("N")[..8]);
+        AppServices.Ui.LanguageDataFolder = Path.Combine(TestSetup.Home, "sprachdaten-" + Guid.NewGuid().ToString("N")[..8]);
         try
         {
             var vm = new MainViewModel();
@@ -72,9 +78,35 @@ public class LanguageDataUiTests
             Dispatcher.UIThread.RunJobs();
 
             var res = vm.Resources;
-            Assert.Equal("en-GB", res.DataTargetLanguage);
+            Assert.Equal(("de-DE", "en-GB"), (res.DataSourceLanguage, res.DataTargetLanguage));    // Sprachen des Projekts vorgeschlagen
             await Run(res.SearchDataSetsCommand);
-            Assert.Equal(["ECB", "IATE"], res.DataSets.Select(d => d.Name).Order());
+            Assert.Equal(["ECB", "EMEA", "IATE"], res.DataSets.Select(d => d.Name).Order());        // OpenSubtitles nur unter „Alle anzeigen“
+            Assert.Contains("3 von 4", res.DataCountText);
+
+            // filtern: Suchtext, Fachgebiet, Art, Lizenz
+            res.DataFilterText = "Zentralbank";
+            Assert.Equal(["ECB"], res.DataSets.Select(d => d.Name));
+            res.DataFilterText = "";
+            res.DataCategoryIndex = 1 + LanguageData.Categories.ToList().IndexOf("Medizin und Gesundheit");
+            Assert.Equal(["EMEA"], res.DataSets.Select(d => d.Name));
+            res.DataCategoryIndex = 0;
+            res.DataKindIndex = 2;                                                               // nur Terminologie
+            Assert.Equal(["IATE"], res.DataSets.Select(d => d.Name));
+            res.DataKindIndex = 0;
+            res.ShowAllDataSets = true;
+            Assert.Contains(res.DataSets, d => d.Name == "OpenSubtitles");
+            res.DataCommercialOnly = true;                                                       // „nur für Forschung“ fällt weg
+            Assert.DoesNotContain(res.DataSets, d => d.Name == "OpenSubtitles");
+            res.DataSortIndex = 1;                                                               // größte zuerst
+            Assert.Equal("EMEA", res.DataSets.First(d => d.Kind == ResourceKind.Tm).Name);
+            res.DataCommercialOnly = false;
+            res.ShowAllDataSets = false;
+            res.DataSortIndex = 0;
+            vm.SelectedTab = 2;
+            Dispatcher.UIThread.RunJobs();
+            window.GetVisualDescendants().OfType<TextBlock>().First(t => t.Text == "Freie Sprachdaten herunterladen").BringIntoView();
+            Dispatcher.UIThread.RunJobs();
+            window.CaptureRenderedFrame()?.Save(Path.Combine(TestSetup.ScreenshotDir, "48-sprachdaten-filter.png"));
             res.SelectedDataSet = res.DataSets.Single(d => d.Name == "ECB");
             Assert.Contains("Europäischen Zentralbank", res.DataInfo);
 
@@ -83,6 +115,7 @@ public class LanguageDataUiTests
             var tm = Assert.Single(vm.Project!.Tms, t => t.Name == "ECB de-en");
             Assert.Equal(1, tm.Count());
             Assert.Contains(res.Attached, a => a.Name.Contains("ECB de-en"));
+            Assert.Contains(LanguageResources.Load(), r => r.Location.Contains("ECB de-en"));   // gilt in jedem Projekt de → en
 
             var card = window.GetVisualDescendants().OfType<TextBlock>().First(t => t.Text == "Freie Sprachdaten herunterladen");
             Assert.True(card.IsEffectivelyVisible);

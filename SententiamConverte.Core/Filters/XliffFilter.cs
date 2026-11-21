@@ -69,6 +69,9 @@ public sealed class XliffFilter : IFileFilter
                 var tu = units[u];
                 if ((string?)tu.Attribute("translate") == "no") continue;
                 var para = new Paragraph { Locator = u.ToString(), Context = (string?)tu.Attribute("resname") };
+                // Längenbegrenzung (Software, Untertitel): maxwidth in Zeichen
+                int? maxLength = int.TryParse((string?)tu.Attribute("maxwidth"), out var mw) && mw > 0
+                                 && ((string?)tu.Attribute("size-unit") ?? "char") == "char" ? mw : null;
                 var segSource = tu.Element(ns + "seg-source");
                 var target = tu.Element(ns + "target");
                 var segMarks = segSource?.Descendants(ns + "mrk").Where(m => (string?)m.Attribute("mtype") == "seg").ToList();
@@ -107,6 +110,7 @@ public sealed class XliffFilter : IFileFilter
                     seg.Locked = !Segmenter.HasTranslatableText(seg.Source);
                     para.Segments.Add(seg);
                 }
+                if (maxLength != null) foreach (var s in para.Segments) s.MaxLength = maxLength;
                 if (para.Segments.Count > 0) doc.Paragraphs.Add(para);
             }
         }
